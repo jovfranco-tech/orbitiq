@@ -8,7 +8,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { GlobeApi } from '../../types';
 
@@ -58,15 +57,6 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   const composer = new EffectComposer(renderer);
   composer.addPass(renderScene);
   composer.addPass(bloomPass);
-
-  const bokehPass = new BokehPass(scene, camera, {
-    focus: 1.0,
-    aperture: 0.0, // Start with no depth of field
-    maxblur: 0.01,
-    width: window.innerWidth,
-    height: window.innerHeight
-  });
-  composer.addPass(bokehPass);
 
   // ---- Lighting ----
   scene.add(new THREE.AmbientLight(0x1a2436, 0.4));
@@ -428,16 +418,15 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       if (flyT >= 1) flyTarget = null;
     }
     
-    // Depth of Field Tween
-    const bokehUniforms = bokehPass.uniforms as Record<string, { value: number }>;
+    // Cinematic Bloom Tween (Macro Lens Effect)
     if (ring.visible && flyTarget == null) {
-      // Zoomed in, add macro lens effect
-      bokehUniforms['aperture'].value = THREE.MathUtils.lerp(bokehUniforms['aperture'].value, 0.005, 0.05);
-      bokehUniforms['focus'].value = camera.position.distanceTo(ring.position);
-      bokehUniforms['maxblur'].value = 0.015;
+      // Zoomed in, add glow to simulate macro lens
+      bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, 1.4, 0.05);
+      bloomPass.radius = THREE.MathUtils.lerp(bloomPass.radius, 0.8, 0.05);
     } else {
-      // Zoomed out or flying, clear DoF
-      bokehUniforms['aperture'].value = THREE.MathUtils.lerp(bokehUniforms['aperture'].value, 0.0, 0.1);
+      // Zoomed out or flying, clear glow
+      bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, 0.85, 0.1);
+      bloomPass.radius = THREE.MathUtils.lerp(bloomPass.radius, 0.5, 0.1);
     }
 
     if (ring.visible) {
