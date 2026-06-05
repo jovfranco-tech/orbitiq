@@ -72,8 +72,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const { query, context } = req.body as { query: string; context: any };
-  if (!query || typeof query !== 'string') {
-    res.status(400).json({ error: 'Missing or invalid query' });
+  if (!query || typeof query !== 'string' || query.length > 500) {
+    res.status(400).json({ error: 'Missing or invalid query (max 500 chars)' });
     return;
   }
 

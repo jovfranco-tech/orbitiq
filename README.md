@@ -206,14 +206,6 @@ npx vercel           # or push to a repo connected to Vercel
 
 ---
 
-## Adding a real LLM backend (v0.3.0 roadmap)
-
-1. Create `api/agent.ts` — POST endpoint accepting `{ query, ctx }`, calling your LLM
-   (Claude, GPT-4o, etc.) with a system prompt that instructs it to return `AiAgentResponse` JSON.
-2. In `src/app/App.tsx`, replace the `parse()` call in `runAgent()` with a `fetch('/api/agent', ...)`.
-3. The UI (`AgentPanel.tsx`, action application) is unchanged.
-
----
 
 ## Adding time acceleration / replay (future)
 
@@ -235,3 +227,21 @@ npx vercel           # or push to a repo connected to Vercel
 - Graceful fallback when upstream source fails
 
 See `SECURITY.md` for full baseline.
+
+## AI Command Agent (v0.4.0 LLM Backend)
+
+OrbitIQ v0.4.0 introduces a real LLM backend for the AI Command Agent.
+It uses a proxy architecture via a Vercel serverless function (`/api/agent`) to communicate with OpenAI (or compatible models). The LLM is forced to emit a strict JSON contract representing an array of allowed `AgentAction`s. This is strictly validated using `zod` on the server.
+
+The LLM has NO direct access to manipulate the orbital database or propagate orbits. It only translates intent into deterministic UI filters.
+
+### Graceful Deterministic Fallback
+
+If the LLM API fails, times out, returns an invalid schema, or if `OPENAI_API_KEY` is not set, the agent seamlessly falls back to the local `deterministicParse()` regex router. The UI transparently indicates whether the response was generated via LLM or Deterministic Fallback.
+
+### Running the LLM backend locally
+
+1. Copy `.env.example` to `.env`
+2. Add your `OPENAI_API_KEY`
+3. Run `npx vercel dev` or `npm run dev`
+

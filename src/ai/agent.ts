@@ -436,6 +436,11 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
     console.error('LLM agent failed, falling back to deterministic router:', error);
     const fallbackRes = deterministicParse(rawQuery, ctx);
     fallbackRes.responseMode = 'deterministic';
+    
+    // Import DICT to safely grab the string without risking React context issues
+    // Actually we can just hardcode a generic fallback caveat here, or if DICT is available:
+    fallbackRes.safetyCaveat = lang === 'es' ? 'Error de red — reintentando localmente' : 'Request failed — retrying locally';
+    
     return fallbackRes;
   }
 }
@@ -465,7 +470,7 @@ export function generateBrief(ctx: {
     sections: [
       {
         title: 'Current orbital picture',
-        body: `Source: ${sourceLabel}. ${total.toLocaleString()} objects loaded, ${rendered.toLocaleString()} currently rendered and propagated in real-time via SGP4.`,
+        body: `Source: ${sourceLabel}. ${total.toLocaleString()} objects loaded, ${rendered.toLocaleString()} currently rendered and propagated in near-real-time via SGP4.`,
       },
       {
         title: 'Key concentration',
