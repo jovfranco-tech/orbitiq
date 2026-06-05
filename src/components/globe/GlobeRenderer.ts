@@ -195,10 +195,28 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     points.geometry = geom;
   }
 
+  const diagDiv = document.createElement('div');
+  diagDiv.style.position = 'absolute';
+  diagDiv.style.top = '10px';
+  diagDiv.style.left = '10px';
+  diagDiv.style.color = 'lime';
+  diagDiv.style.zIndex = '9999';
+  diagDiv.style.fontFamily = 'monospace';
+  diagDiv.style.pointerEvents = 'none';
+  container.appendChild(diagDiv);
+
   function writePositions(posBuf: Float32Array): void {
     if (!posAttr) return;
     (posAttr.array as Float32Array).set(posBuf.subarray(0, count * 3));
     posAttr.needsUpdate = true;
+    
+    // Diagnostic update
+    if (count > 0) {
+      diagDiv.innerHTML = `COUNT: ${count}<br>
+        POS[0]: ${posBuf[0]?.toFixed(2)}, ${posBuf[1]?.toFixed(2)}, ${posBuf[2]?.toFixed(2)}<br>
+        VIS[0]: ${visAttr ? visAttr.array[0] : 'null'}<br>
+        CS.vis: ${(visAttr && visAttr.array as Float32Array).length}`;
+    }
   }
   function setColors(c: Float32Array): void {
     if (!colAttr) return;
