@@ -9,6 +9,7 @@ import { TopBar } from '../components/dashboard/TopBar';
 import { Legend } from '../components/dashboard/Legend';
 import { AgentPanel } from '../components/panels/AgentPanel';
 import { CatalogPanel } from '../components/panels/CatalogPanel';
+import { MissionPanel } from '../components/panels/MissionPanel';
 import { DetailPanel } from '../components/panels/DetailPanel';
 import { BriefModal } from '../components/panels/BriefModal';
 import { OrbitalIntelligencePanel } from '../components/panels/OrbitalIntelligencePanel';
@@ -327,6 +328,13 @@ export function App() {
         }
       }
       if (a.brief) store.setShowBrief(true);
+      if (a.missionScenario) {
+        store.setShowMissionPanel(true);
+        store.setActiveMissionScenario(a.missionScenario);
+      }
+      if (a.showRiskLayer) {
+        store.setShowMissionPanel(true);
+      }
       if (a.focusSatnum != null) {
         const idx = CS.catalog.findIndex((c) => c?.satnum === a.focusSatnum);
         if (idx >= 0 && globeRef.current) {
@@ -349,6 +357,10 @@ export function App() {
   // ---- Intelligence toggle ---------------------------------------------
   const handleToggleIntel = useCallback(() => {
     store.setShowIntelligence(!store.showIntelligence);
+  }, [store]);
+
+  const handleToggleMission = useCallback(() => {
+    store.setShowMissionPanel(!store.showMissionPanel);
   }, [store]);
 
   // ---- Keyboard shortcuts ---------------------------------------------
@@ -408,6 +420,7 @@ export function App() {
           onToggleRotate={() => store.setAutoRotate(!store.autoRotate)}
           onSetLang={handleSetLang}
           onToggleIntel={handleToggleIntel}
+          onToggleMission={handleToggleMission}
           intelligence={intelligence}
         />
 
@@ -427,6 +440,8 @@ export function App() {
             onClose={() => store.setShowIntelligence(false)}
           />
         )}
+        
+        {store.showMissionPanel && <MissionPanel />}
 
         <Legend />
 

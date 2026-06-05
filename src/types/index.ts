@@ -77,6 +77,8 @@ export interface AgentActions {
   altMin: number | null;
   focusSatnum: number | null;
   brief: boolean;
+  missionScenario: MissionScenarioType | null;
+  showRiskLayer: boolean;
 }
 
 export type AgentAction =
@@ -89,6 +91,12 @@ export type AgentAction =
   | { type: 'compare_groups'; groups?: string[] }
   | { type: 'congestion_summary' }
   | { type: 'executive_brief' }
+  | { type: 'generate_mission_brief'; scenario: string }
+  | { type: 'select_mission_scenario'; scenario: string }
+  | { type: 'show_risk_layer' }
+  | { type: 'highlight_relevant_groups'; groups: string[] }
+  | { type: 'highlight_relevant_region'; region: string }
+  | { type: 'recommend_next_view' }
   | { type: 'reset_view' }
   | { type: 'unknown_safe_fallback' };
 
@@ -176,6 +184,47 @@ export interface AiAgentIntelligence {
 }
 
 // ============================================================
+// v0.5.0 — Mission Briefs & Risk Layer
+// ============================================================
+
+export type RiskLevel = 'low' | 'moderate' | 'elevated' | 'high';
+export type RiskCategoryType = 'Connectivity' | 'GNSS' | 'Weather' | 'GEO_Comms' | 'LEO_Density' | 'Regional';
+
+export interface RiskSignal {
+  category: RiskCategoryType;
+  score: number;      // 0-100
+  level: RiskLevel;
+  explanation: string;
+  assumptions: string[];
+  recommendedAction: string;
+  caveat: string;
+}
+
+export type MissionScenarioType = 
+  | 'GNSS_Dependency'
+  | 'LATAM_Connectivity'
+  | 'Weather_Visibility'
+  | 'GEO_Infrastructure'
+  | 'LEO_Density'
+  | 'Disaster_Response'
+  | 'Executive_Snapshot';
+
+export interface MissionScenario {
+  id: MissionScenarioType;
+  title: string;
+  context: string;
+  relevantGroups: GroupKey[];
+  relevantBands: BandKey[];
+  relevantRegions: string[];
+  visibleCount: number;
+  insight: string;
+  operationalRelevance: string;
+  caveat: string;
+  recommendedAction: AgentAction;
+  riskSignal?: RiskSignal;
+}
+
+// ============================================================
 // Executive brief
 // ============================================================
 
@@ -219,6 +268,8 @@ export interface AppState {
   autoRotate: boolean;
   dataMode: DataMode;
   curRegionForCount: string | null;
+  showMissionPanel: boolean;
+  activeMissionScenario: MissionScenarioType | null;
 }
 
 // ============================================================

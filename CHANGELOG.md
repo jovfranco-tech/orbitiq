@@ -1,3 +1,16 @@
+## [0.5.0-mission-briefs-risk-layer] - 2026-06-05
+
+### Added
+- **Mission Briefs Layer**: Deterministic mission-oriented scenario overviews (GNSS Dependency, LATAM Connectivity Resilience, Weather Satellite Visibility, Disaster Response Awareness, LEO Constellation Density).
+- **Space Infrastructure Risk Layer**: Analytical 0-100 signals representing portfolio density/dependency indicators.
+- **Mission Panel UI**: Collapsible right-side inspector dedicated to operational context and risk signals.
+- **AI Agent Intregration**: The agent parses deterministic mission intents (e.g. "GNSS dependency brief", "What is the risk level?").
+- **Executive Brief v3**: Injects the highest severity space infrastructure risk signal into the summary.
+
+### Changed
+- Enhanced `/api/agent` ActionSchema with `generate_mission_brief`, `select_mission_scenario`, and `show_risk_layer`.
+- Expanded EN/ES dictionary with robust translations for mission briefs.
+
 ## [v0.4.0-llm-agent-backend] - 2026-06-05
 ### Added
 - Real LLM Backend via `/api/agent` Vercel serverless function.

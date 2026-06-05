@@ -21,11 +21,12 @@ interface Props {
   onToggleRotate: () => void;
   onSetLang: (l: 'en' | 'es') => void;
   onToggleIntel: () => void;
+  onToggleMission: () => void;
   intelligence: IntelligenceSummary | null;
 }
 
-export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, onToggleIntel, intelligence }: Props) {
-  const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence } = useStore();
+export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, onToggleIntel, onToggleMission, intelligence }: Props) {
+  const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence, showMissionPanel } = useStore();
   const [lblKey, noteKey, cls] = PROV_MAP[dataMode] ?? PROV_MAP['fallback'];
 
   const fresh = ageDays < 1
@@ -94,6 +95,16 @@ export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, on
         >
           <svg viewBox="0 0 24 24" width="16" height="16">
             <path d="M3 18v-4h4v4H3zM10 18V8h4v10h-4zM17 18V2h4v16h-4z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+        <button
+          className={`ctl ctl-icon${showMissionPanel ? ' intel-active' : ''}`}
+          onClick={onToggleMission}
+          title={t('mission_title')}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path d="M3 5h18M3 12h18M3 19h18" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M12 2v20" stroke="currentColor" strokeWidth="1.5" strokeDasharray="3 3"/>
           </svg>
         </button>
         <button className="ctl ctl-icon" onClick={onResetView} title={t('reset_view')}>

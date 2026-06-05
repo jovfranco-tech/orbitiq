@@ -128,3 +128,8 @@ Use of CelesTrak data is subject to [CelesTrak's terms of service](https://celes
 
 ### AI Command Agent (v0.4.0 LLM Backend)
 The AI Command Agent uses an LLM (Large Language Model) via OpenAI API proxy to interpret natural language. The LLM has NO direct access to manipulate the orbital database or propagate orbits. It only translates intent into deterministic UI filters. Responses may contain errors. Always verify applied filters in the UI.
+
+## v0.5.0 Mission Briefs & Space Infrastructure Risk Layer
+- **Mission Briefs** are deterministic portfolio intelligence summaries based on visible public satellite object counts in approximate regional boundaries.
+- **Risk Signals** are analytical scenario indicators intended to summarize portfolio dependency pressures (e.g. density, signal reliance, optical crowding). They are **NOT** operational aerospace risk assessments.
+- OrbitIQ is strictly for situational awareness, education, and portfolio analytics. It cannot and should not be used for conjunction analysis, collision avoidance, flight safety, or real-world operational command decisions.

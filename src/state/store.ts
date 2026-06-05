@@ -6,7 +6,7 @@
 // propagation tick. Only UI-driving state goes here.
 // ============================================================
 import { create } from 'zustand';
-import type { DataMode, GroupKey, BandKey } from '../types';
+import type { DataMode, GroupKey, BandKey, MissionScenarioType } from '../types';
 
 export interface UIState {
   // data / loading
@@ -35,6 +35,8 @@ export interface UIState {
   lang: 'en' | 'es';
   autoRotate: boolean;
   curRegionForCount: string | null;
+  showMissionPanel: boolean;
+  activeMissionScenario: MissionScenarioType | null;
 }
 
 export interface UIActions {
@@ -58,6 +60,8 @@ export interface UIActions {
   setLang(l: 'en' | 'es'): void;
   setAutoRotate(v: boolean): void;
   setCurRegion(key: string | null): void;
+  setShowMissionPanel(v: boolean): void;
+  setActiveMissionScenario(s: MissionScenarioType | null): void;
 }
 
 const ALL_GROUPS: GroupKey[] = ['starlink', 'leo', 'meo', 'geo', 'gnss', 'weather', 'stations', 'science'];
@@ -83,6 +87,8 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   lang: 'en',
   autoRotate: true,
   curRegionForCount: null,
+  showMissionPanel: false,
+  activeMissionScenario: null,
 
   // --- actions ---
   setDataMode: (mode) => set({ dataMode: mode }),
@@ -118,4 +124,6 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   setLang:      (l) => set({ lang: l }),
   setAutoRotate:(v) => set({ autoRotate: v }),
   setCurRegion: (k) => set({ curRegionForCount: k }),
+  setShowMissionPanel: (v) => set({ showMissionPanel: v }),
+  setActiveMissionScenario: (s) => set({ activeMissionScenario: s }),
 }));

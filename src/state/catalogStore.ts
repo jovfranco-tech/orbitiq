@@ -33,7 +33,7 @@ function empty(): CatalogStore {
   };
 }
 
-export let CS: CatalogStore = empty();
+export const CS: CatalogStore = empty();
 
 export function initCatalogStore(n: number): void {
   CS.N = n;

@@ -12,7 +12,7 @@ import {
 } from '../intelligence/intelligence';
 import type {
   AiAgentResponse, AgentActions, ExecutiveBrief, GroupKey, BandKey,
-  DataMode, IntelligenceSummary, AiAgentIntelligence, LlmAgentResponse
+  DataMode, IntelligenceSummary, AiAgentIntelligence, LlmAgentResponse, MissionScenarioType
 } from '../types';
 
 // ---- Helpers ---------------------------------------------------------------
@@ -88,6 +88,7 @@ function detectAltitude(q: string): { altMin: number | null; altMax: number | nu
 const blankActions = (): AgentActions => ({
   groups: null, band: null, region: null,
   altMax: null, altMin: null, focusSatnum: null, brief: false,
+  missionScenario: null, showRiskLayer: false,
 });
 
 /** Build intelligence attachment for the response. */
@@ -143,6 +144,33 @@ export function deterministicParse(rawQuery: string, ctx: AgentContext): AiAgent
       'This is an analytical portfolio signal, not a flight-safety metric.';
     assumptions.push('Congestion score is a weighted composite of density, band concentration, region concentration, and constellation dominance.');
     return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+  }
+
+  // ---- Mission Scenarios & Risk ------------------------------------------
+  if (/gnss dependency|gnss brief|pnt/.test(q)) {
+    a.missionScenario = 'GNSS_Dependency'; intent = 'generate_mission_brief'; confidence = 0.95;
+    answer = 'Loading GNSS Dependency Mission Brief.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/latam|latin america/.test(q) && /connectivity|resilience|brief/.test(q)) {
+    a.missionScenario = 'LATAM_Connectivity'; intent = 'generate_mission_brief'; confidence = 0.95;
+    answer = 'Loading LATAM Connectivity Resilience Brief.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/weather|meteorological/.test(q) && /brief|scenario/.test(q)) {
+    a.missionScenario = 'Weather_Visibility'; intent = 'generate_mission_brief'; confidence = 0.95;
+    answer = 'Loading Weather Satellite Visibility Brief.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/disaster|sar|earth observation/.test(q) && /brief|scenario/.test(q)) {
+    a.missionScenario = 'Disaster_Response'; intent = 'generate_mission_brief'; confidence = 0.95;
+    answer = 'Loading Disaster Response Awareness Brief.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/risk|infrastructure risk|space infrastructure/.test(q)) {
+    a.showRiskLayer = true; intent = 'show_risk_layer'; confidence = 0.92;
+    answer = 'Opening the Space Infrastructure Risk Layer. These are deterministic scenario indicators, not operational flight-safety metrics.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
   }
 
   // ---- Compare bands -----------------------------------------------------
@@ -415,6 +443,21 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
         // these are informational intents, they don't apply filters (except maybe highest region or most crowded band)
         // If LLM wants to filter, it explicitly returned a filter action
       }
+      else if (action.type === 'generate_mission_brief' || action.type === 'select_mission_scenario') {
+        a.missionScenario = action.scenario as MissionScenarioType;
+      }
+      else if (action.type === 'show_risk_layer') {
+        a.showRiskLayer = true;
+      }
+      else if (action.type === 'highlight_relevant_groups') {
+        a.groups = action.groups as GroupKey[];
+      }
+      else if (action.type === 'highlight_relevant_region') {
+        a.region = action.region;
+      }
+      else if (action.type === 'recommend_next_view') {
+        // LLM decided to recommend a view, just handled as an answer
+      }
     }
 
     const finalRes: AiAgentResponse = {
@@ -445,7 +488,9 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
   }
 }
 
-// ---- Executive brief v2 ----------------------------------------------------
+import { getMissionScenarios } from '../intelligence/risk';
+
+// ---- Executive brief v3 ----------------------------------------------------
 
 export function generateBrief(ctx: {
   total: number;
@@ -460,6 +505,17 @@ export function generateBrief(ctx: {
   const pct = (n: number) => rendered ? Math.round((n / rendered) * 100) : 0;
   const topGroupEntry = Object.entries(g).sort((a, b) => b[1] - a[1])[0];
   const topRegion = intel.regions[0];
+
+  const scenarios = Object.values(getMissionScenarios());
+  // Find highest risk signal
+  let highestRisk = null;
+  for (const s of scenarios) {
+    if (s.riskSignal) {
+      if (!highestRisk || s.riskSignal.score > highestRisk.score) {
+        highestRisk = s.riskSignal;
+      }
+    }
+  }
 
   const sourceLabel = dataMode === 'live' ? 'Live CelesTrak public TLE data'
     : dataMode === 'cached' ? 'Cached CelesTrak public TLE data'
@@ -501,15 +557,21 @@ export function generateBrief(ctx: {
           'It is an analytical portfolio signal for situational awareness, not a flight-safety metric or conjunction assessment.',
       },
       {
+        title: 'Infrastructure risk signal',
+        body: highestRisk 
+          ? `Highest risk area detected: ${highestRisk.category.replace('_', ' ')} (${highestRisk.level.toUpperCase()}). ${highestRisk.explanation} ${highestRisk.caveat}`
+          : 'No elevated infrastructure risks detected.',
+      },
+      {
         title: 'Data caveat',
         body: 'Positions derive from public two-line elements propagated with SGP4. Element sets age, maneuvers are not reflected, and accuracy degrades with time since epoch. ' +
           'This view is for portfolio, education and situational awareness only — never flight safety or operational conjunction assessment.',
       },
       {
-        title: 'Recommended focus',
-        body: intel.congestionLevel === 'high' || intel.congestionLevel === 'elevated'
-          ? `Consider analyzing ${intel.mostCrowdedBand} band concentration and ${topRegion?.label ?? 'regional'} overflight patterns for the selected operational context. Review constellation-level distribution for infrastructure planning insights.`
-          : `The orbital picture shows ${intel.congestionLevel} density. Explore band-level analytics or regional overflight intelligence for deeper situational awareness. Use the AI agent to compare specific bands or constellations.`,
+        title: 'Recommended next action',
+        body: highestRisk
+          ? `${highestRisk.recommendedAction} Use the AI agent to "Show the risk layer" or "Generate an executive snapshot" to dig deeper into the space infrastructure portfolio.`
+          : `Explore band-level analytics or regional overflight intelligence for deeper situational awareness. Use the AI agent to "Show the risk layer" or compare specific constellations.`,
       },
     ],
   };

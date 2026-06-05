@@ -29,6 +29,12 @@ const ActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('compare_groups'), groups: z.array(z.string()).optional() }),
   z.object({ type: z.literal('congestion_summary') }),
   z.object({ type: z.literal('executive_brief') }),
+  z.object({ type: z.literal('generate_mission_brief'), scenario: z.string() }),
+  z.object({ type: z.literal('select_mission_scenario'), scenario: z.string() }),
+  z.object({ type: z.literal('show_risk_layer') }),
+  z.object({ type: z.literal('highlight_relevant_groups'), groups: z.array(z.string()) }),
+  z.object({ type: z.literal('highlight_relevant_region'), region: z.string() }),
+  z.object({ type: z.literal('recommend_next_view') }),
   z.object({ type: z.literal('reset_view') }),
   z.object({ type: z.literal('unknown_safe_fallback') }),
 ]);
@@ -95,19 +101,26 @@ CRITICAL RULES:
 Available Context:
 ${JSON.stringify(context, null, 2)}
 
-Return a JSON object conforming strictly to this TypeScript type:
+You MUST format your response as a strict JSON object matching the following TypeScript schema:
+
 type AgentAction =
-| { type: "filter_by_group"; group: string }
-| { type: "filter_by_region"; region: string }
-| { type: "filter_by_band"; band: "LEO" | "MEO" | "GEO" | "OTHER" | "UNKNOWN" }
-| { type: "altitude_threshold"; operator: "below" | "above"; km: number }
-| { type: "find_satellite"; query: string }
-| { type: "compare_bands"; bands?: string[] }
-| { type: "compare_groups"; groups?: string[] }
-| { type: "congestion_summary" }
-| { type: "executive_brief" }
-| { type: "reset_view" }
-| { type: "unknown_safe_fallback" };
+| { type: 'filter_by_group'; group: string }
+| { type: 'filter_by_region'; region: string }
+| { type: 'filter_by_band'; band: 'LEO' | 'MEO' | 'GEO' | 'OTHER' | 'UNKNOWN' }
+| { type: 'altitude_threshold'; operator: 'below' | 'above'; km: number }
+| { type: 'find_satellite'; query: string }
+| { type: 'compare_bands'; bands?: string[] }
+| { type: 'compare_groups'; groups?: string[] }
+| { type: 'congestion_summary' }
+| { type: 'executive_brief' }
+| { type: 'generate_mission_brief'; scenario: string }
+| { type: 'select_mission_scenario'; scenario: string }
+| { type: 'show_risk_layer' }
+| { type: 'highlight_relevant_groups'; groups: string[] }
+| { type: 'highlight_relevant_region'; region: string }
+| { type: 'recommend_next_view' }
+| { type: 'reset_view' }
+| { type: 'unknown_safe_fallback' };
 
 type LlmAgentResponse = {
   answer: string;

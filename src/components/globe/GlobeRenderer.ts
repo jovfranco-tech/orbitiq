@@ -121,7 +121,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       }`,
   });
 
-  let points = new THREE.Points(geom, satMat);
+  const points = new THREE.Points(geom, satMat);
   points.frustumCulled = false;
   scene.add(points);
 
