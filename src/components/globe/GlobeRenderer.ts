@@ -179,7 +179,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     size: 0.035, sizeAttenuation: true, vertexColors: true,
     transparent: true, opacity: 0.95, depthWrite: false,
     blending: THREE.AdditiveBlending,
-    map: glowTex, alphaMap: glowTex, alphaTest: 0.01,
+    map: glowTex,
   });
 
   const points = new THREE.Points(geom, satMat);
