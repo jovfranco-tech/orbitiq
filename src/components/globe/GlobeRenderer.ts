@@ -176,10 +176,9 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   const glowTex = new THREE.CanvasTexture(glowCanvas);
 
   const satMat = new THREE.PointsMaterial({
-    size: 0.035, sizeAttenuation: true, vertexColors: true,
-    transparent: true, opacity: 0.95, depthWrite: false,
+    size: 0.025, sizeAttenuation: true, vertexColors: true,
+    transparent: true, opacity: 0.9, depthWrite: false,
     blending: THREE.AdditiveBlending,
-    map: glowTex,
   });
 
   const points = new THREE.Points(geom, satMat);
