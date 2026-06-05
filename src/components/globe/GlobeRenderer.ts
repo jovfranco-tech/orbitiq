@@ -4,7 +4,6 @@
 // Renders in ECI frame; Earth mesh spins under a fixed satellite frame.
 // ============================================================
 import * as THREE from 'three';
-// @ts-expect-error — OrbitControls path for three r128
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { GlobeApi } from '../../types';
 
@@ -144,16 +143,16 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
 
   function writePositions(posBuf: Float32Array): void {
     if (!posAttr) return;
-    posAttr.array.set(posBuf.subarray(0, count * 3));
+    (posAttr.array as Float32Array).set(posBuf.subarray(0, count * 3));
     posAttr.needsUpdate = true;
   }
   function setColors(c: Float32Array): void {
     if (!colAttr) return;
-    colAttr.array.set(c.subarray(0, count * 3)); colAttr.needsUpdate = true;
+    (colAttr.array as Float32Array).set(c.subarray(0, count * 3)); colAttr.needsUpdate = true;
   }
   function setVisible(v: Float32Array): void {
     if (!visAttr) return;
-    visAttr.array.set(v.subarray(0, count)); visAttr.needsUpdate = true;
+    (visAttr.array as Float32Array).set(v.subarray(0, count)); visAttr.needsUpdate = true;
   }
 
   function getPos(i: number, out: THREE.Vector3): void {

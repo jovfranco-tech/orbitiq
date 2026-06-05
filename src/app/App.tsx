@@ -3,7 +3,6 @@
 // ============================================================
 import { useRef, useCallback, useEffect, useState } from 'react';
 // satellite.js bundled dep — imported once at module level for the hot tick loop
-// @ts-expect-error — satellite.js ships CJS; partial types for r128-era usage
 import * as satJs from 'satellite.js';
 import { GlobeMount } from '../components/globe/GlobeMount';
 import { TopBar } from '../components/dashboard/TopBar';

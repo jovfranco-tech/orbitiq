@@ -1,7 +1,6 @@
 // ============================================================
 // OrbitIQ — orbital propagator (SGP4 wrappers via satellite.js)
 // ============================================================
-// @ts-expect-error — satellite.js has no bundled types for this build
 import * as sat from 'satellite.js';
 import * as THREE from 'three';
 import type { SatelliteRecord, SatRec } from '../types';
@@ -20,7 +19,7 @@ export function eciToScene(p: { x: number; y: number; z: number }, out: THREE.Ve
 export function buildRecords(catalog: SatelliteRecord[]): SatRec[] {
   return catalog.map((c) => {
     try {
-      const r = sat.twoline2satrec(c.l1, c.l2) as SatRec;
+      const r = sat.twoline2satrec(c.l1, c.l2) as unknown as SatRec;
       r.error = r.error ?? 0;
       return r;
     } catch {
@@ -52,7 +51,7 @@ export function propagateAll(
     let ok = false;
 
     if (!r.error) {
-      const pv = sat.propagate(r, date) as { position?: { x: number; y: number; z: number } };
+      const pv = sat.propagate(r as unknown as sat.SatRec, date) as { position?: { x: number; y: number; z: number } };
       if (pv?.position && isFinite(pv.position.x)) {
         eciToScene(pv.position, _tmp);
         posBuf[j] = _tmp.x; posBuf[j + 1] = _tmp.y; posBuf[j + 2] = _tmp.z;
@@ -84,7 +83,7 @@ export interface InspectResult {
 
 export function inspect(rec: SatRec, date: Date): InspectResult | null {
   if (rec.error) return null;
-  const pv = sat.propagate(rec, date) as {
+  const pv = sat.propagate(rec as unknown as sat.SatRec, date) as {
     position?: { x: number; y: number; z: number };
     velocity?: { x: number; y: number; z: number };
   };
@@ -104,7 +103,7 @@ export function sampleOrbitPath(rec: SatRec, date: Date, samples = 180): Float32
   const tmp = new THREE.Vector3();
   for (let i = 0; i <= samples; i++) {
     const t = new Date(date.getTime() + (i / samples) * periodMin * 60000);
-    const pv = sat.propagate(rec, t) as { position?: { x: number; y: number; z: number } };
+    const pv = sat.propagate(rec as unknown as sat.SatRec, t) as { position?: { x: number; y: number; z: number } };
     const j = i * 3;
     if (pv?.position && isFinite(pv.position.x)) {
       eciToScene(pv.position, tmp);
