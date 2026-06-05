@@ -282,19 +282,7 @@ export function deterministicParse(rawQuery: string, ctx: AgentContext, lang: 'e
     return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
   }
 
-  // ---- Compare bands & Graphs --------------------------------------------
-  if (/graph|chart|plot/i.test(q) && /\bdensity\b|\bband\b|\bdistribution\b/i.test(q)) {
-    const data = [
-      { name: 'LEO', count: ctx.bandCounts.LEO },
-      { name: 'MEO', count: ctx.bandCounts.MEO },
-      { name: 'GEO', count: ctx.bandCounts.GEO },
-    ];
-    a.chartAction = { type: 'bar', dataKey: 'count', data };
-    intent = 'render_chart'; confidence = 0.99;
-    answer = 'Here is the current orbital density distribution across major bands.';
-    return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
-  }
-
+  // ---- Compare bands -----------------------------------------------------
   if (/compare|vs\.?|versus/.test(q) && /\bleo\b|\bmeo\b|\bgeo\b/.test(q)) {
     const bandMatches: BandKey[] = [];
     if (/\bleo\b|low earth/.test(q)) bandMatches.push('LEO');
