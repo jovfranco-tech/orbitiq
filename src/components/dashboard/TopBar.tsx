@@ -6,6 +6,7 @@ import { t } from '../../i18n/i18n';
 import { useStore } from '../../state/store';
 import { useUserStore } from '../../state/userStore';
 import { CongestionIndicator } from '../panels/CongestionIndicator';
+import { playClick } from '../../utils/audio';
 import type { DataMode, IntelligenceSummary } from '../../types';
 
 const PROV_MAP: Record<DataMode, [string, string, string]> = {
@@ -26,7 +27,7 @@ interface Props {
   intelligence: IntelligenceSummary | null;
 }
 
-export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, onToggleIntel, onToggleMission, intelligence }: Props) {
+export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, onToggleMission, intelligence }: Props) {
   const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence, showMissionPanel, tleHealth, agentHealth, showDataHealthPanel, setShowDataHealthPanel } = useStore();
   const { showWatchlistPanel, setShowWatchlistPanel, showSavedViewsPanel, setShowSavedViewsPanel, showSnapshotPanel, setShowSnapshotPanel } = useUserStore();
   
@@ -66,7 +67,7 @@ export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, on
       </button>
 
       <button
-        onClick={() => setShowDataHealthPanel(!showDataHealthPanel)}
+        onClick={() => { playClick(); setShowDataHealthPanel(!showDataHealthPanel); }}
         className={`ctl ctl-icon ${showDataHealthPanel ? 'intel-active' : ''}`}
         style={{ padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}
         title={t('data_health_layer')}
@@ -101,7 +102,7 @@ export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, on
       <div className="topbar-actions">
         <button
           className={`ctl ctl-icon${showWatchlistPanel ? ' intel-active' : ''}`}
-          onClick={() => setShowWatchlistPanel(!showWatchlistPanel)}
+          onClick={() => { playClick(); setShowWatchlistPanel(!showWatchlistPanel); }}
           title={t('watchlist') || 'Watchlist'}
           aria-label={t('watchlist') || 'Watchlist'}
         >
@@ -109,55 +110,29 @@ export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, on
         </button>
         <button
           className={`ctl ctl-icon${showSavedViewsPanel ? ' intel-active' : ''}`}
-          onClick={() => setShowSavedViewsPanel(!showSavedViewsPanel)}
+          onClick={() => { playClick(); setShowSavedViewsPanel(!showSavedViewsPanel); }}
           title={t('saved_views') || 'Saved Views'}
           aria-label={t('saved_views') || 'Saved Views'}
         >
           💾
         </button>
-        <button
-          className={`ctl ctl-icon${showSnapshotPanel ? ' intel-active' : ''}`}
-          onClick={() => setShowSnapshotPanel(!showSnapshotPanel)}
-          title={t('executive_snapshots') || 'Snapshots'}
-          aria-label={t('executive_snapshots') || 'Snapshots'}
-        >
+        <button className={`ctl ${showSnapshotPanel ? 'active' : ''}`} aria-pressed={showSnapshotPanel} onClick={() => { playClick(); setShowSnapshotPanel(!showSnapshotPanel); }} title={t('executive_snapshot_title')} aria-label={t('executive_snapshot_title')}>
           📸
         </button>
-        <div className="v-div" />
-        <button className="ctl" onClick={onOpenBrief} aria-label={t('brief_title')}>
-          {t('brief_title')}
+        <button className={`ctl ${showMissionPanel ? 'active' : ''}`} aria-pressed={showMissionPanel} onClick={() => { playClick(); onToggleMission(); }} title={t('mission_title')} aria-label={t('mission_title')}>
+          <span className="ctl-icon">🎯</span>
         </button>
-        <button
-          className={`ctl ctl-icon${showIntelligence ? ' intel-active' : ''}`}
-          onClick={onToggleIntel}
-          title={t('intel_title')}
-          aria-label={t('intel_title')}
-        >
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M3 12h5l3-5 4 10 3-5h3" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+        <button className={`ctl ${showIntelligence ? 'intel-active' : ''}`} aria-pressed={showIntelligence} onClick={() => { playClick(); onToggleIntel(); }} title={t('intel_layer')} aria-label={t('intel_layer')}>
+          <span className="ctl-icon">⚡</span>
         </button>
-        <button
-          className={`ctl ctl-icon${showMissionPanel ? ' intel-active' : ''}`}
-          onClick={onToggleMission}
-          title={t('mission_title')}
-          aria-label={t('mission_title')}
-        >
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-            <path d="M12 2L3 7l9 5 9-5-9-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+
+        <div style={{width:'1px',height:'20px',background:'var(--border)',margin:'0 4px'}} />
+
+        <button className={`ctl ctl-icon ${autoRotate ? 'active' : ''}`} aria-pressed={autoRotate} onClick={() => { playClick(); onToggleRotate(); }} title={t('auto_rotate')} aria-label={t('auto_rotate')}>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
         </button>
-        <div className="v-div" />
-        <button className={`ctl ctl-icon${autoRotate ? ' active' : ''}`} onClick={onToggleRotate} title={t('autorotate')} aria-label={t('autorotate')}>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M12 3v3m0 12v3m9-9h-3M6 12H3m14.121-6.121l-2.121 2.121M7.999 16.001l-2.121 2.121m12.243 0l-2.121-2.121M7.999 7.999L5.878 5.878" strokeLinecap="round"/>
-          </svg>
-        </button>
-        <button className="ctl ctl-icon" onClick={onResetView} title={t('reset_view')} aria-label={t('reset_view')}>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" strokeLinecap="round"/>
-            <path d="M3 3v5h5" strokeLinecap="round"/>
-          </svg>
+        <button className="ctl ctl-icon" onClick={() => { playClick(); onResetView(); }} title={t('reset_view')} aria-label={t('reset_view')}>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
         </button>
         <div className="v-div" />
         <button className="ctl lang-btn" onClick={() => onSetLang(lang === 'en' ? 'es' : 'en')} aria-label="Toggle language">

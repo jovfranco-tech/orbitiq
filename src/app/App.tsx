@@ -2,8 +2,6 @@
 // OrbitIQ Command Center v0.3.0 — App root
 // ============================================================
 import { useRef, useCallback, useEffect, useState } from 'react';
-// satellite.js bundled dep — imported once at module level for the hot tick loop
-import * as satJs from 'satellite.js';
 import { GlobeMount } from '../components/globe/GlobeMount';
 import { TopBar } from '../components/dashboard/TopBar';
 import { Legend } from '../components/dashboard/Legend';
@@ -22,7 +20,7 @@ import { useStore } from '../state/store';
 import { useUserStore } from '../state/userStore';
 import { CS, initCatalogStore } from '../state/catalogStore';
 import { loadSatellites } from '../data/client';
-import { bandFromAltitude, GROUPS, classifyGroup } from '../data/groups';
+import { GROUPS, classifyGroup } from '../data/groups';
 import { buildRecords, dataAgeDays, sampleOrbitPath } from '../orbital/propagator';
 import { matchRegion, REGIONS } from '../regions/regions';
 import { executeAgentCommand } from '../ai/agent';
@@ -50,6 +48,10 @@ export function App() {
   // Stable Vector3 reused for fly-to — avoids creating objects each pick
   const flyVec    = useRef(new THREE.Vector3());
 
+  const workerRef = useRef<Worker | null>(null);
+  const workerReadyRef = useRef(false);
+  const isWorkerBusyRef = useRef(false);
+
   const [agentResult, setAgentResult] = useState<AiAgentResponse | null>(null);
   const [isThinking, setIsThinking]   = useState(false);
   const [intelligence, setIntelligence] = useState<IntelligenceSummary | null>(null);
@@ -64,10 +66,10 @@ export function App() {
     setIntelligence(intel);
   }, []);
 
-  // ---- Propagation tick (hot path — zero React state writes per frame) ----
-  // NOTE: tick accesses store state via getState() to avoid stale closure.
+  // ---- Propagation tick (offloaded to Web Worker) -----------------------
   const tick = useCallback(() => {
     if (!globeRef.current || CS.N === 0) return;
+    if (!workerRef.current || !workerReadyRef.current || isWorkerBusyRef.current) return;
     
     const nowPerf = performance.now();
     const dt = nowPerf - lastTickTimeRef.current;
@@ -80,47 +82,9 @@ export function App() {
       CS.simTimestampMs += dt * storeState.simSpeed;
     }
     
-    const globe = globeRef.current;
-    const date  = new Date(CS.simTimestampMs);
-    const scale = 1.0 / 6378.137;
-
-    const gmst = satJs.gstime(date) as number;
-
-    for (let i = 0; i < CS.N; i++) {
-      const r = CS.recs[i];
-      const j = i * 3;
-      if (!r || r.error) {
-        CS.posBuf[j] = CS.posBuf[j + 1] = CS.posBuf[j + 2] = 0;
-        CS.alt[i] = -1; CS.lat[i] = 0; CS.lon[i] = 0; CS.band[i] = 'LEO';
-        continue;
-      }
-      const pv = satJs.propagate(r as never, date) as { position?: { x: number; y: number; z: number } };
-      if (pv?.position && isFinite(pv.position.x)) {
-        const p = pv.position;
-        CS.posBuf[j]     = p.x * scale;
-        CS.posBuf[j + 1] = p.z * scale;
-        CS.posBuf[j + 2] = -p.y * scale;
-        const gd = satJs.eciToGeodetic(p as never, gmst as never) as { latitude: number; longitude: number; height: number };
-        CS.lat[i]  = satJs.degreesLat(gd.latitude as never) as number;
-        CS.lon[i]  = satJs.degreesLong(gd.longitude as never) as number;
-        CS.alt[i]  = gd.height;
-        CS.band[i] = bandFromAltitude(gd.height);
-      } else {
-        CS.posBuf[j] = CS.posBuf[j + 1] = CS.posBuf[j + 2] = 0;
-        CS.alt[i] = -1; CS.lat[i] = 0; CS.lon[i] = 0; CS.band[i] = 'LEO';
-      }
-    }
-
-    globe.setEarthRotation(gmst);
-    globe.writePositions(CS.posBuf);
-    applyFilter();
-    globe.renderOnce();
-    updateCounts();
-
-    // Keep selection ring tracking the live position
-    const sel = useStore.getState().selected;
-    if (sel >= 0) globe.setSelected(sel);
-  }, []); // stable — reads everything via getState() or module-level CS
+    isWorkerBusyRef.current = true;
+    workerRef.current.postMessage({ type: 'TICK', payload: { timestampMs: CS.simTimestampMs } });
+  }, []); // stable
 
   // ---- Filter pass (hot path) ------------------------------------------
   const applyFilter = useCallback(() => {
@@ -162,6 +126,8 @@ export function App() {
 
     globe.allocate(CS.N);
     globe.setColors(CS.colorBase);
+
+    workerRef.current?.postMessage({ type: 'INIT', payload: { catalog } });
 
     const validRec = CS.recs.find((r) => r && !r.error);
     if (validRec) useStore.getState().setAgeDays(dataAgeDays(validRec, new Date()));
@@ -217,11 +183,41 @@ export function App() {
 
   // ---- Cleanup on unmount (StrictMode double-mount safe) ---------------
   useEffect(() => {
+    const w = new Worker(new URL('../workers/sgp4.worker.ts', import.meta.url), { type: 'module' });
+    workerRef.current = w;
+    w.onmessage = (e) => {
+      const globe = globeRef.current;
+      if (e.data.type === 'READY') {
+        workerReadyRef.current = true;
+      } else if (e.data.type === 'TICK_RESULT') {
+        isWorkerBusyRef.current = false;
+        if (!globe) return;
+        const { gmst, posBuf, lat, lon, alt, band } = e.data.payload;
+        
+        CS.posBuf = posBuf;
+        CS.lat = lat;
+        CS.lon = lon;
+        CS.alt = alt;
+        const BAND_MAP = ['LEO', 'MEO', 'GEO', 'Unknown'] as const;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for(let i=0; i<CS.N; i++) CS.band[i] = BAND_MAP[band[i]] as any;
+
+        globe.setEarthRotation(gmst);
+        globe.writePositions(CS.posBuf);
+        applyFilter();
+        globe.renderOnce();
+
+        const sel = useStore.getState().selected;
+        if (sel >= 0) globe.setSelected(sel);
+      }
+    };
+
     return () => {
       if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
       if (intelRef.current) { clearInterval(intelRef.current); intelRef.current = null; }
+      w.terminate();
     };
-  }, []);
+  }, [applyFilter]);
 
   // ---- URL State Sync --------------------------------------------------
   useEffect(() => {
@@ -286,11 +282,7 @@ export function App() {
     }
   }, []);
 
-  // ---- Counts update (called from tick, not per-frame React state) ----
-  const updateCounts = useCallback(() => {
-    // Counts are already updated inside applyFilter; this is a no-op safety call.
-    // Kept for clarity — applyFilter calls setCounts.
-  }, []);
+
 
   // ---- AI agent helpers ------------------------------------------------
   const countWhere = useCallback((fn: (s: { group: GroupKey; band: BandKey; alt: number; lat: number; lon: number }) => boolean) => {

@@ -4,6 +4,7 @@
 import { useState, useCallback } from 'react';
 import { t } from '../../i18n/i18n';
 import type { AiAgentResponse } from '../../types';
+import { playClick, playAgentSuccess } from '../../utils/audio';
 
 const EXAMPLES = [
   'Show me all Starlink satellites',
@@ -28,14 +29,38 @@ interface Props {
 
 export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
   const [input, setInput] = useState('');
+  const [isListening, setIsListening] = useState(false);
 
   const run = useCallback((q: string) => {
     if (!q.trim()) return;
+    playClick();
     onRun(q.trim());
+    setTimeout(playAgentSuccess, 100);
   }, [onRun]);
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') run(input);
+  };
+
+  const toggleListen = () => {
+    if (isListening) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return alert('Speech recognition not supported in this browser.');
+    playClick();
+    const rec = new SpeechRecognition();
+    rec.lang = 'en-US';
+    rec.interimResults = false;
+    rec.onstart = () => setIsListening(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setInput(transcript);
+      run(transcript);
+    };
+    rec.onend = () => setIsListening(false);
+    rec.onerror = () => setIsListening(false);
+    rec.start();
   };
 
   return (
@@ -63,6 +88,14 @@ export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
         />
+        <button 
+          onClick={toggleListen} 
+          className={`mic-btn ${isListening ? 'listening' : ''}`}
+          title="Voice Command"
+          style={{ background: isListening ? 'var(--danger)' : 'transparent', color: isListening ? '#fff' : 'var(--muted)', padding: '0 8px', border: 0, borderRight: '1px solid var(--border)' }}
+        >
+          🎤
+        </button>
         <button onClick={() => run(input)}>{t('agent_run')}</button>
       </div>
 

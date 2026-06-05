@@ -86,6 +86,14 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
 
   earthGroup.add(buildGraticule(RE_SCENE * 1.0015, 0x2aa7c8, 0.14));
 
+  // ---- Clouds ----
+  const cloudsMat = new THREE.MeshPhongMaterial({
+    map: TL.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_clouds_1024.png'),
+    transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false
+  });
+  const clouds = new THREE.Mesh(new THREE.SphereGeometry(RE_SCENE * 1.008, 64, 64), cloudsMat);
+  earthGroup.add(clouds);
+
   // ---- Atmosphere ----
   const atmo = new THREE.Mesh(
     new THREE.SphereGeometry(RE_SCENE * 1.13, 64, 64),
@@ -298,8 +306,12 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   function setEarthRotation(gmst: number): void { gmstRot = gmst; }
 
   let rafId = 0;
+  let cloudRot = 0;
   function renderOnce(): void {
     earthGroup.rotation.y = gmstRot + Math.PI;
+    cloudRot += 0.0002;
+    clouds.rotation.y = cloudRot;
+
     if (flyTarget) {
       flyT = Math.min(1, flyT + 0.035);
       const e = 1 - Math.pow(1 - flyT, 3);

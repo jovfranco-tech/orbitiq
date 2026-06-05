@@ -1,3 +1,14 @@
+## [2.0.0-high-fidelity] - 2026-06-05
+
+### Added
+- **UI Audio Synth Engine**: Integrated Web Audio API synthesizers for real-time sound feedback across the UI and agent interactions.
+- **Dynamic Cloud Layer**: Added an animated, semitransparent cloud mesh that rotates slightly faster than the Earth in the `GlobeRenderer`.
+- **Voice Commands**: Integrated `window.SpeechRecognition` into the `AgentPanel` to allow users to ask questions using their voice.
+- **Web Worker SGP4 Refactor**: Offloaded the core mathematical propagation loop to a dedicated Web Worker (`sgp4.worker.ts`), dramatically freeing up the main thread and improving performance during fast scenario simulations.
+
+### Changed
+- **Architectural Cleanup**: Removed strict synchronous rendering coupling from the tick loop in `App.tsx` and optimized state updates based on Web Worker message polling.
+
 ## [0.9.0-release-candidate] - 2026-06-05
 
 ### Added
