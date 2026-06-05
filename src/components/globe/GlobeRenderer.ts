@@ -42,9 +42,9 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   const renderScene = new RenderPass(scene, camera);
   const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.85, // strength
-    0.5,  // radius
-    0.35  // threshold
+    0.6,  // strength (reduced)
+    0.4,  // radius
+    0.7   // threshold (higher = less bloom on bright surfaces)
   );
   
   const composer = new EffectComposer(renderer);
@@ -52,14 +52,14 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   composer.addPass(bloomPass);
 
   // ---- Lighting ----
-  scene.add(new THREE.AmbientLight(0x1a2436, 0.4));
-  const sun = new THREE.DirectionalLight(0xfff5e6, 2.5);
-  sun.position.set(5, 0, 0); // initial
+  scene.add(new THREE.AmbientLight(0x1a2436, 0.5));
+  const sun = new THREE.DirectionalLight(0xfff5e6, 1.6);
+  sun.position.set(5, 0, 0);
   scene.add(sun);
 
   // ---- Earth ----
   const earthMat = new THREE.MeshPhongMaterial({
-    color: 0x0a1830, emissive: 0x04101f, specular: 0x16243a, shininess: 12,
+    color: 0x0a1830, emissive: 0x04101f, specular: 0x0a1520, shininess: 30,
   });
   const earth = new THREE.Mesh(new THREE.SphereGeometry(RE_SCENE, 96, 96), earthMat);
   earthGroup.add(earth);
@@ -135,30 +135,10 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   let colAttr: THREE.BufferAttribute;
   let visAttr: THREE.BufferAttribute;
 
-  const satMat = new THREE.ShaderMaterial({
-    transparent: true, depthTest: true, depthWrite: false, blending: THREE.AdditiveBlending,
-    uniforms: { uSize: { value: 0.0145 }, uScale: { value: 700 } },
-    vertexShader: `
-      attribute vec3 color; attribute float vis;
-      varying vec3 vColor; varying float vVis;
-      uniform float uSize; uniform float uScale;
-      void main(){
-        vColor = color; vVis = vis;
-        vec4 mv = modelViewMatrix*vec4(position,1.0);
-        gl_PointSize = vis * uSize * (uScale / -mv.z);
-        gl_PointSize = clamp(gl_PointSize, vis > 0.5 ? 1.6 : 0.0, 7.0);
-        gl_Position = projectionMatrix*mv;
-      }`,
-    fragmentShader: `
-      varying vec3 vColor; varying float vVis;
-      void main(){
-        vec2 d = gl_PointCoord - vec2(0.5);
-        float r = length(d);
-        if(r>0.5) discard;
-        float core = smoothstep(0.5,0.0,r);
-        vec3 c = vColor + vec3(0.55) * pow(core, 3.5);
-        gl_FragColor = vec4(c, (0.45 + 0.55*core) * vVis);
-      }`,
+  const satMat = new THREE.PointsMaterial({
+    size: 0.02, sizeAttenuation: true, vertexColors: true,
+    transparent: true, opacity: 0.9, depthWrite: false,
+    blending: THREE.AdditiveBlending,
   });
 
   const points = new THREE.Points(geom, satMat);
@@ -371,7 +351,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     renderer.setSize(w, h, false);
     composer.setSize(w, h);
     camera.aspect = w / h; camera.updateProjectionMatrix();
-    satMat.uniforms['uScale'].value = h / (2 * Math.tan((camera.fov * Math.PI / 180) / 2));
+    // satMat.uniforms['uScale'].value = h / (2 * Math.tan((camera.fov * Math.PI / 180) / 2));
   }
 
   const onResize = () => resize();
