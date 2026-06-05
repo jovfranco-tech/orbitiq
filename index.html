@@ -20,6 +20,21 @@
       <strong>WebGL not supported.</strong> Your browser or device does not support WebGL, which is required for 3D satellite rendering.
     </div>
   </div>
+  <script>
+    // ONE-TIME CACHE BUST: Unregister stale Service Workers and clear caches
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        registrations.forEach(function(registration) {
+          registration.unregister();
+        });
+      });
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          names.forEach(function(name) { caches.delete(name); });
+        });
+      }
+    }
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>
