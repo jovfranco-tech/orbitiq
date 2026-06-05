@@ -1,13 +1,18 @@
 // ============================================================
-// OrbitIQ — deterministic AI command agent
+// OrbitIQ v0.3.0 — deterministic AI command agent
 //
 // Returns the SAME structured contract a real LLM backend would,
-// enabling a drop-in swap in v0.3.0 without touching the UI.
+// enabling a drop-in swap without touching the UI.
 // ============================================================
 import { REGIONS } from '../regions/regions';
 import { GROUPS } from '../data/groups';
+import {
+  getIntelligence, getConstellationIntelligence,
+  compareBands, compareGroups,
+} from '../intelligence/intelligence';
 import type {
   AiAgentResponse, AgentActions, ExecutiveBrief, GroupKey, BandKey,
+  DataMode, IntelligenceSummary, AiAgentIntelligence,
 } from '../types';
 
 // ---- Helpers ---------------------------------------------------------------
@@ -85,6 +90,24 @@ const blankActions = (): AgentActions => ({
   altMax: null, altMin: null, focusSatnum: null, brief: false,
 });
 
+/** Build intelligence attachment for the response. */
+function buildIntelAttachment(intel: IntelligenceSummary): AiAgentIntelligence {
+  const bandBreakdown: Record<string, number> = {};
+  for (const b of intel.bands) bandBreakdown[b.band] = b.count;
+  const regionBreakdown: Record<string, number> = {};
+  for (const r of intel.regions.slice(0, 6)) regionBreakdown[r.label] = r.count;
+
+  return {
+    mostCrowdedBand: intel.mostCrowdedBand,
+    highestConcentrationRegion: intel.highestConcentrationRegion,
+    dominantGroup: intel.dominantGroup,
+    congestionScore: intel.congestionScore,
+    congestionLevel: intel.congestionLevel,
+    bandBreakdown,
+    regionBreakdown,
+  };
+}
+
 // ---- Main parse -----------------------------------------------------------
 
 export function parse(rawQuery: string, ctx: AgentContext): AiAgentResponse {
@@ -107,20 +130,93 @@ export function parse(rawQuery: string, ctx: AgentContext): AiAgentResponse {
   if (/\bbrief\b|executive|summary|overview|picture|situation/.test(q) && !/which|where|over/.test(q)) {
     a.brief = true; intent = 'executive_brief'; confidence = 0.99;
     answer = 'Opening the executive brief of the current orbital picture.';
-    return makeResponse(answer, intent, confidence, assumptions, a, ctx);
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+  }
+
+  // ---- Congestion / density query ----------------------------------------
+  if (/congestion|density|how crowded|crowded is|concentration level|orbital density/.test(q) && !/most crowded/.test(q)) {
+    intent = 'congestion_summary'; confidence = 0.96;
+    const intel = getIntelligence();
+    answer = `Current orbital congestion score: ${intel.congestionScore}/100 (${intel.congestionLevel}). ` +
+      `${intel.mostCrowdedBand} is the most populated band with ${intel.bands.find((b) => b.band === intel.mostCrowdedBand)?.count.toLocaleString() ?? '?'} objects. ` +
+      `Highest regional concentration: ${REGIONS[intel.highestConcentrationRegion]?.label ?? intel.highestConcentrationRegion}. ` +
+      'This is an analytical portfolio signal, not a flight-safety metric.';
+    assumptions.push('Congestion score is a weighted composite of density, band concentration, region concentration, and constellation dominance.');
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+  }
+
+  // ---- Compare bands -----------------------------------------------------
+  if (/compare|vs\.?|versus/.test(q) && /\bleo\b|\bmeo\b|\bgeo\b/.test(q)) {
+    const bandMatches: BandKey[] = [];
+    if (/\bleo\b|low earth/.test(q)) bandMatches.push('LEO');
+    if (/\bmeo\b/.test(q)) bandMatches.push('MEO');
+    if (/\bgeo\b|geostationary/.test(q)) bandMatches.push('GEO');
+
+    // Check if groups are also being compared
+    const groups = detectGroups(q).filter((g) => !['leo', 'meo', 'geo'].includes(g));
+    if (groups.length >= 2) {
+      intent = 'compare_groups'; confidence = 0.95;
+      answer = compareGroups(groups[0], groups[1]);
+      assumptions.push('Comparison based on current propagated snapshot.');
+      return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+    }
+
+    if (bandMatches.length >= 2) {
+      intent = 'compare_bands'; confidence = 0.96;
+      answer = compareBands(bandMatches[0], bandMatches[1]);
+      assumptions.push('Comparison based on current propagated snapshot.');
+      return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+    }
+  }
+
+  // ---- Compare groups (without bands) ------------------------------------
+  if (/compare|vs\.?|versus/.test(q)) {
+    const groups = detectGroups(q);
+    if (groups.length >= 2) {
+      intent = 'compare_groups'; confidence = 0.95;
+      answer = compareGroups(groups[0], groups[1]);
+      assumptions.push('Comparison based on current propagated snapshot.');
+      return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+    }
   }
 
   // ---- Most crowded band -------------------------------------------------
   if (/most crowded|busiest|densest|crowded/.test(q)) {
     intent = 'crowding'; confidence = 0.97;
-    const leo = ctx.count((s) => s.band === 'LEO');
-    const meo = ctx.count((s) => s.band === 'MEO');
-    const geo = ctx.count((s) => s.band === 'GEO');
-    const top: BandKey = leo >= meo && leo >= geo ? 'LEO' : meo >= geo ? 'MEO' : 'GEO';
-    a.band = top;
-    answer = `${top} is the most crowded band right now — LEO ${leo.toLocaleString()}, MEO ${meo.toLocaleString()}, GEO ${geo.toLocaleString()} objects. Filtering to ${top}.`;
+    const intel = getIntelligence();
+    const b = intel.bands;
+    a.band = intel.mostCrowdedBand;
+    answer = `${intel.mostCrowdedBand} is the most crowded band right now — ` +
+      b.map((x) => `${x.band} ${x.count.toLocaleString()}`).join(', ') +
+      ` objects. Filtering to ${intel.mostCrowdedBand}.`;
     assumptions.push('Counts reflect objects currently propagated and visible.');
-    return makeResponse(answer, intent, confidence, assumptions, a, ctx);
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+  }
+
+  // ---- Highest concentration region --------------------------------------
+  if (/which region|highest.*concentration|most.*satellites.*region|busiest region/.test(q)) {
+    intent = 'highest_concentration_region'; confidence = 0.95;
+    const intel = getIntelligence();
+    const top = intel.regions[0]; // already sorted by count
+    a.region = top.key;
+    answer = `${top.label} has the highest satellite concentration with ${top.count.toLocaleString()} objects currently overhead. ` +
+      `Dominant band: ${top.dominantBand}. ` +
+      `Top constellations: ${top.topGroups.slice(0, 3).map((g) => `${(GROUPS[g.group] ?? GROUPS['other']).label} (${g.count})`).join(', ')}.`;
+    assumptions.push('Based on sub-satellite point inside region bounding box at this instant.');
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+  }
+
+  // ---- Constellation intelligence ----------------------------------------
+  if (/summarize|coverage|intelligence|insight|analyze|analyz/.test(q)) {
+    const groups = detectGroups(q);
+    if (groups.length === 1) {
+      intent = 'constellation_intelligence'; confidence = 0.95;
+      const ci = getConstellationIntelligence(groups[0]);
+      const label = (GROUPS[groups[0]] ?? GROUPS['other']).label;
+      answer = `${label}: ${ci.count.toLocaleString()} objects, primarily in ${ci.dominantBand} band at avg altitude ${ci.avgAlt.toLocaleString()} km. ` +
+        `Highest concentration region: ${ci.topRegion}. ${ci.relevance}`;
+      return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+    }
   }
 
   // ---- Locate satellite --------------------------------------------------
@@ -148,7 +244,21 @@ export function parse(rawQuery: string, ctx: AgentContext): AiAgentResponse {
       (groups.length ? ` in ${groups.map(ctx.groupLabel).join(', ')}` : '') +
       '. Highlighting them and marking the region.';
     assumptions.push('Sub-satellite point inside region bounding box at this instant.');
-    return makeResponse(answer, intent, confidence, assumptions, a, ctx);
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+  }
+
+  // ---- Region intelligence (without "over/which") -------------------------
+  if (region && /intelligence|insight|about|info/.test(q)) {
+    intent = 'region_intelligence'; confidence = 0.93;
+    const intel = getIntelligence();
+    const ri = intel.regions.find((r) => r.key === region);
+    if (ri) {
+      a.region = region;
+      answer = `${ri.label}: ${ri.count.toLocaleString()} satellites currently overhead. ` +
+        `Dominant band: ${ri.dominantBand}. ` +
+        `Top groups: ${ri.topGroups.map((g) => `${(GROUPS[g.group] ?? GROUPS['other']).label} (${g.count})`).join(', ')}.`;
+      return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+    }
   }
 
   // ---- Altitude filter ----------------------------------------------------
@@ -196,26 +306,33 @@ export function parse(rawQuery: string, ctx: AgentContext): AiAgentResponse {
     return makeResponse(answer, intent, confidence, assumptions, a, ctx);
   }
 
+  // ---- Safe fallback ------------------------------------------------------
   confidence = 0.34;
   return {
-    answer: "I couldn't map that to an action yet. Try a constellation (\"Starlink\"), " +
-      'a region ("over Japan"), a band ("GEO"), an altitude ("below 600 km"), ' +
-      'or ask for an executive brief.',
-    intent: 'unknown', confidence, assumptions: [],
+    answer: "I couldn't map that to an action yet. Try asking about a constellation (\"Starlink\"), " +
+      'a region (\"over Japan\"), a band (\"GEO\"), an altitude (\"below 600 km\"), ' +
+      'density (\"show congestion\"), a comparison (\"compare LEO vs GEO\"), ' +
+      'or request an executive brief.',
+    intent: 'unknown_safe_fallback', confidence, assumptions: [],
     actions: a, filtersApplied: {}, visibleCount: ctx.rendered, sourceMode: 'fallback',
   };
 }
 
 function makeResponse(
   answer: string, intent: string, confidence: number,
-  assumptions: string[], actions: AgentActions, ctx: AgentContext
+  assumptions: string[], actions: AgentActions, ctx: AgentContext,
+  attachIntel = false,
 ): AiAgentResponse {
-  return {
+  const resp: AiAgentResponse = {
     answer, intent, confidence, assumptions, actions,
     filtersApplied: buildFiltersApplied(actions),
     visibleCount: ctx.rendered,
     sourceMode: 'fallback',
   };
+  if (attachIntel) {
+    resp.intelligence = buildIntelAttachment(getIntelligence());
+  }
+  return resp;
 }
 
 function buildFiltersApplied(a: AgentActions): Record<string, unknown> {
@@ -230,7 +347,7 @@ function buildFiltersApplied(a: AgentActions): Record<string, unknown> {
   return f;
 }
 
-// ---- Executive brief -------------------------------------------------------
+// ---- Executive brief v2 ----------------------------------------------------
 
 export function generateBrief(ctx: {
   total: number;
@@ -238,33 +355,63 @@ export function generateBrief(ctx: {
   groupCounts: Record<string, number>;
   bandCounts: { LEO: number; MEO: number; GEO: number };
   groupLabel: (g: GroupKey) => string;
+  dataMode: DataMode;
+  intelligence: IntelligenceSummary;
 }): ExecutiveBrief {
-  const { rendered, total, groupCounts: g, bandCounts } = ctx;
+  const { rendered, total, groupCounts: g, bandCounts, intelligence: intel, dataMode } = ctx;
   const pct = (n: number) => rendered ? Math.round((n / rendered) * 100) : 0;
   const topGroupEntry = Object.entries(g).sort((a, b) => b[1] - a[1])[0];
+  const topRegion = intel.regions[0];
+
+  const sourceLabel = dataMode === 'live' ? 'Live CelesTrak public TLE data'
+    : dataMode === 'cached' ? 'Cached CelesTrak public TLE data'
+    : 'Representative demo catalog';
 
   return {
     headline: `${rendered.toLocaleString()} of ${total.toLocaleString()} tracked objects in view`,
     sections: [
       {
-        title: 'Constellation activity',
-        body: `Starlink dominates with ${(g['starlink'] ?? 0).toLocaleString()} objects (${pct(g['starlink'] ?? 0)}% of the view), reflecting ongoing commercial LEO broadband build-out. GNSS contributes ${(g['gnss'] ?? 0).toLocaleString()} navigation payloads across MEO, and ${(g['geo'] ?? 0).toLocaleString()} GEO communications assets hold the equatorial belt.`,
+        title: 'Current orbital picture',
+        body: `Source: ${sourceLabel}. ${total.toLocaleString()} objects loaded, ${rendered.toLocaleString()} currently rendered and propagated in real-time via SGP4.`,
       },
       {
-        title: 'Orbital band distribution',
-        body: `LEO ${bandCounts.LEO.toLocaleString()} (${pct(bandCounts.LEO)}%), MEO ${bandCounts.MEO.toLocaleString()} (${pct(bandCounts.MEO)}%), GEO ${bandCounts.GEO.toLocaleString()} (${pct(bandCounts.GEO)}%). The picture is LEO-weighted — congestion, conjunction and debris risk concentrate below 2,000 km.`,
+        title: 'Key concentration',
+        body: `${intel.mostCrowdedBand} is the most crowded band with ${intel.bands.find((b) => b.band === intel.mostCrowdedBand)?.count.toLocaleString() ?? '?'} objects ` +
+          `(${intel.bands.find((b) => b.band === intel.mostCrowdedBand)?.pct ?? 0}% of visible). ` +
+          `Band distribution: LEO ${bandCounts.LEO.toLocaleString()} (${pct(bandCounts.LEO)}%), ` +
+          `MEO ${bandCounts.MEO.toLocaleString()} (${pct(bandCounts.MEO)}%), ` +
+          `GEO ${bandCounts.GEO.toLocaleString()} (${pct(bandCounts.GEO)}%).`,
       },
       {
-        title: 'Regional concentration',
-        body: 'Coverage density follows population and economic centers; mid-latitude inclinations (~53°) cluster passes over North America, Europe and East Asia, while polar/sun-synchronous weather and imaging assets service the full latitude range.',
+        title: 'Regional hotspot',
+        body: topRegion
+          ? `${topRegion.label} shows the highest satellite concentration with ${topRegion.count.toLocaleString()} objects currently overhead. ` +
+            `Dominant band: ${topRegion.dominantBand}. Top groups: ${topRegion.topGroups.slice(0, 3).map((tg) => `${ctx.groupLabel(tg.group)} (${tg.count})`).join(', ')}.`
+          : 'No regional data available.',
       },
       {
-        title: 'Operational relevance',
-        body: `The dominant operational theme is the largest population, ${topGroupEntry ? ctx.groupLabel(topGroupEntry[0] as GroupKey) : 'LEO'}. For an operator this view supports situational awareness, coverage planning and constellation benchmarking — not collision avoidance.`,
+        title: 'Infrastructure relevance',
+        body: `The dominant operational constellation is ${topGroupEntry ? ctx.groupLabel(topGroupEntry[0] as GroupKey) : 'LEO'} with ` +
+          `${topGroupEntry ? topGroupEntry[1].toLocaleString() : '?'} objects (${topGroupEntry ? pct(topGroupEntry[1]) : 0}% of visible). ` +
+          `Starlink drives ${pct(g['starlink'] ?? 0)}% of the view, reflecting ongoing commercial LEO build-out. ` +
+          `GNSS contributes ${(g['gnss'] ?? 0).toLocaleString()} navigation payloads and ${(g['geo'] ?? 0).toLocaleString()} GEO assets hold the equatorial belt.`,
       },
       {
-        title: 'Limitations of public TLE data',
-        body: 'Positions derive from public two-line elements propagated with SGP4. Element sets age, maneuvers are not reflected, and accuracy degrades with time since epoch. This view is for portfolio, education and situational awareness only — never flight safety or operational conjunction assessment.',
+        title: 'Congestion assessment',
+        body: `Orbital congestion score: ${intel.congestionScore}/100 — ${intel.congestionLevel.charAt(0).toUpperCase() + intel.congestionLevel.slice(1)}. ` +
+          'This composite score reflects visible satellite density, band concentration, regional clustering and constellation dominance. ' +
+          'It is an analytical portfolio signal for situational awareness, not a flight-safety metric or conjunction assessment.',
+      },
+      {
+        title: 'Data caveat',
+        body: 'Positions derive from public two-line elements propagated with SGP4. Element sets age, maneuvers are not reflected, and accuracy degrades with time since epoch. ' +
+          'This view is for portfolio, education and situational awareness only — never flight safety or operational conjunction assessment.',
+      },
+      {
+        title: 'Recommended focus',
+        body: intel.congestionLevel === 'high' || intel.congestionLevel === 'elevated'
+          ? `Consider analyzing ${intel.mostCrowdedBand} band concentration and ${topRegion?.label ?? 'regional'} overflight patterns for the selected operational context. Review constellation-level distribution for infrastructure planning insights.`
+          : `The orbital picture shows ${intel.congestionLevel} density. Explore band-level analytics or regional overflight intelligence for deeper situational awareness. Use the AI agent to compare specific bands or constellations.`,
       },
     ],
   };

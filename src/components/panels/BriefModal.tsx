@@ -1,5 +1,5 @@
 // ============================================================
-// OrbitIQ — Executive Orbital Brief modal
+// OrbitIQ v0.3.0 — Executive Orbital Brief modal (v2)
 // ============================================================
 import { useEffect } from 'react';
 import { t } from '../../i18n/i18n';
@@ -7,6 +7,7 @@ import { generateBrief } from '../../ai/agent';
 import { GROUPS } from '../../data/groups';
 import { useStore } from '../../state/store';
 import { CS } from '../../state/catalogStore';
+import { getIntelligence } from '../../intelligence/intelligence';
 import type { GroupKey } from '../../types';
 
 interface Props {
@@ -30,10 +31,14 @@ export function BriefModal({ onClose }: Props) {
     if (CS.band[i] in bandCounts) bandCounts[CS.band[i] as keyof typeof bandCounts]++;
   }
 
+  const intelligence = getIntelligence();
+
   const brief = generateBrief({
     total: totalCount, rendered: renderedCount,
     groupCounts, bandCounts,
     groupLabel: (g: GroupKey) => (GROUPS[g] ?? GROUPS['other']).label,
+    dataMode,
+    intelligence,
   });
 
   const provKey = dataMode === 'live' ? 'prov_live_note'
@@ -55,12 +60,30 @@ export function BriefModal({ onClose }: Props) {
           <div className={`brief-prov m-${dataMode}`}>
             <i />{t(provKey)}
           </div>
+
           {brief.sections.map((s) => (
             <div key={s.title} className="brief-sec">
               <h3>{s.title}</h3>
               <p>{s.body}</p>
             </div>
           ))}
+
+          {/* Congestion score visual */}
+          <div className="cong" style={{ marginTop: '4px' }}>
+            <div className="cong-head">
+              <span className="cong-label">{t('cong_title')} {t('cong_score')}</span>
+              <span className="cong-score">{intelligence.congestionScore}<small>/100</small></span>
+            </div>
+            <div className="cong-meter">
+              <div
+                className={`cong-meter-fill ${intelligence.congestionLevel}`}
+                style={{ width: `${intelligence.congestionScore}%` }}
+              />
+            </div>
+            <div className={`cong-level ${intelligence.congestionLevel}`}>
+              <i />{intelligence.congestionLevel.charAt(0).toUpperCase() + intelligence.congestionLevel.slice(1)}
+            </div>
+          </div>
         </div>
 
         <div className="brief-foot">{t('disclaimer')}</div>

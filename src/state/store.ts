@@ -31,6 +31,7 @@ export interface UIState {
 
   // UI visibility
   showBrief: boolean;
+  showIntelligence: boolean;
   lang: 'en' | 'es';
   autoRotate: boolean;
   curRegionForCount: string | null;
@@ -53,6 +54,7 @@ export interface UIActions {
   setTracking(v: boolean): void;
 
   setShowBrief(v: boolean): void;
+  setShowIntelligence(v: boolean): void;
   setLang(l: 'en' | 'es'): void;
   setAutoRotate(v: boolean): void;
   setCurRegion(key: string | null): void;
@@ -77,6 +79,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   selected: -1,
   tracking: false,
   showBrief: false,
+  showIntelligence: false,
   lang: 'en',
   autoRotate: true,
   curRegionForCount: null,
@@ -111,6 +114,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   setTracking: (v) => set({ tracking: v }),
 
   setShowBrief: (v) => set({ showBrief: v }),
+  setShowIntelligence: (v) => set({ showIntelligence: v }),
   setLang:      (l) => set({ lang: l }),
   setAutoRotate:(v) => set({ autoRotate: v }),
   setCurRegion: (k) => set({ curRegionForCount: k }),

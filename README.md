@@ -1,6 +1,6 @@
 # OrbitIQ — Command Center
 
-**v0.2.0** — React + Vite + TypeScript production port with server-side TLE cache.
+**v0.3.0** — Orbital Intelligence Layer (React + Vite + TypeScript).
 
 A real-time 3D satellite-orbit tracker and AI-native orbital intelligence dashboard.
 Thousands of satellites are propagated with **SGP4** from public TLE/GP elements and
@@ -26,6 +26,46 @@ agent, click-to-inspect, constellation/region/altitude filters, and an executive
 | Executive brief | Auto-generated situational summary from the live propagated snapshot |
 | Data provenance | Live / cached / fallback clearly labeled; no false claims |
 | Localisation | EN (default) + ES, all strings keyed |
+
+---
+
+## v0.3.0 — Orbital Intelligence Layer
+
+| Feature | Detail |
+|---|---|
+| Orbital Band Intelligence | LEO / MEO / GEO analytics — satellite count, percentage, average altitude, and top constellation groups per band |
+| Regional Overflight Intelligence | 13 world regions with real-time satellite counts, dominant orbital band, and top constellation groups per region |
+| Orbital Congestion Score | Composite 0–100 score (Low / Moderate / Elevated / High) derived from density, band concentration, region concentration, and constellation dominance |
+| Constellation Intelligence | Per-group insights: count, dominant band, average altitude, top region |
+| Executive Orbital Brief v2 | 7-section executive summary with congestion assessment and recommended focus |
+| AI Command Agent v2 | 8 new intents: `compare_bands`, `compare_groups`, `congestion_summary`, `region_intelligence`, `band_intelligence`, `constellation_intelligence`, `highest_concentration_region`, `unknown_safe_fallback` |
+| Orbital Intelligence Panel | Collapsible right-side panel with band distribution, regional hotspot, and congestion indicator |
+| Full EN/ES localization | All intelligence features fully localized in English and Spanish |
+
+### Congestion Score Methodology
+
+The **Orbital Congestion Score** is a weighted composite score (0–100) that provides a
+high-level analytical signal about orbital crowding based on the currently visible catalog.
+
+| Component | Weight | Description |
+|---|---|---|
+| Visible satellite density | 40% | Count of currently visible/propagated satellites relative to total catalog |
+| Band concentration (Herfindahl index) | 30% | How concentrated satellites are across LEO/MEO/GEO bands |
+| Region concentration | 20% | How concentrated satellites are across the 13 tracked world regions |
+| Constellation dominance | 10% | Whether a single constellation dominates the visible catalog |
+
+**Score labels:**
+
+| Range | Label |
+|---|---|
+| 0–25 | Low |
+| 26–50 | Moderate |
+| 51–75 | Elevated |
+| 76–100 | High |
+
+> ⚠️ **Important:** The Congestion Score is a **portfolio/demo analytical signal**.
+> It is **not** a flight-safety metric, conjunction assessment, or collision risk indicator.
+> See `DATA_DISCLAIMER.md` for full details.
 
 ---
 

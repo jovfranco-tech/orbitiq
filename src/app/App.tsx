@@ -1,5 +1,5 @@
 // ============================================================
-// OrbitIQ Command Center — App root
+// OrbitIQ Command Center v0.3.0 — App root
 // ============================================================
 import { useRef, useCallback, useEffect, useState } from 'react';
 // satellite.js bundled dep — imported once at module level for the hot tick loop
@@ -11,6 +11,7 @@ import { AgentPanel } from '../components/panels/AgentPanel';
 import { CatalogPanel } from '../components/panels/CatalogPanel';
 import { DetailPanel } from '../components/panels/DetailPanel';
 import { BriefModal } from '../components/panels/BriefModal';
+import { OrbitalIntelligencePanel } from '../components/panels/OrbitalIntelligencePanel';
 import { useStore } from '../state/store';
 import { CS, initCatalogStore } from '../state/catalogStore';
 import { loadSatellites } from '../data/client';
@@ -18,9 +19,10 @@ import { bandFromAltitude, GROUPS, classifyGroup } from '../data/groups';
 import { buildRecords, dataAgeDays, sampleOrbitPath } from '../orbital/propagator';
 import { matchRegion, REGIONS } from '../regions/regions';
 import { parse } from '../ai/agent';
+import { getIntelligence, invalidateIntelligence } from '../intelligence/intelligence';
 import { setLang, t } from '../i18n/i18n';
 import * as THREE from 'three';
-import type { GlobeApi } from '../types';
+import type { GlobeApi, IntelligenceSummary } from '../types';
 import type { AiAgentResponse, GroupKey, BandKey } from '../types';
 
 // ---- Hex color → [r,g,b] 0–1 ----------------------------------------
@@ -30,17 +32,27 @@ function hexToRGB(h: string): [number, number, number] {
 }
 
 const TICK_MS = 900;
+const INTEL_REFRESH_MS = 2000;
 
 export function App() {
   const globeRef  = useRef<GlobeApi | null>(null);
   const tickRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const intelRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   // Stable Vector3 reused for fly-to — avoids creating objects each pick
   const flyVec    = useRef(new THREE.Vector3());
 
   const [agentResult, setAgentResult] = useState<AiAgentResponse | null>(null);
   const [isThinking, setIsThinking]   = useState(false);
+  const [intelligence, setIntelligence] = useState<IntelligenceSummary | null>(null);
 
   const store = useStore();
+
+  // ---- Intelligence refresh (decoupled from tick) -----------------------
+  const refreshIntel = useCallback(() => {
+    if (CS.N === 0) return;
+    const intel = getIntelligence();
+    setIntelligence(intel);
+  }, []);
 
   // ---- Propagation tick (hot path — zero React state writes per frame) ----
   // NOTE: tick accesses store state via getState() to avoid stale closure.
@@ -130,6 +142,9 @@ export function App() {
 
     const validRec = CS.recs.find((r) => r && !r.error);
     if (validRec) useStore.getState().setAgeDays(dataAgeDays(validRec, new Date()));
+
+    // Invalidate intelligence cache after catalog change
+    invalidateIntelligence();
   }, []);
 
   // ---- Globe ready (called once after mount) ---------------------------
@@ -147,6 +162,9 @@ export function App() {
     // First propagation frame immediately
     tick();
 
+    // First intelligence computation
+    refreshIntel();
+
     // Reveal UI once Earth textures are ready (max 4.5 s fallback)
     const reveal = () => {
       document.getElementById('loading')?.classList.add('gone');
@@ -160,12 +178,16 @@ export function App() {
 
     // Propagation cadence — positions evolve near-real-time
     tickRef.current = setInterval(tick, TICK_MS);
-  }, [loadCatalog, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Intelligence refresh — decoupled from tick for performance
+    intelRef.current = setInterval(refreshIntel, INTEL_REFRESH_MS);
+  }, [loadCatalog, tick, refreshIntel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- Cleanup on unmount (StrictMode double-mount safe) ---------------
   useEffect(() => {
     return () => {
       if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+      if (intelRef.current) { clearInterval(intelRef.current); intelRef.current = null; }
     };
   }, []);
 
@@ -319,6 +341,11 @@ export function App() {
     store.setLang(l);
   }, [store]);
 
+  // ---- Intelligence toggle ---------------------------------------------
+  const handleToggleIntel = useCallback(() => {
+    store.setShowIntelligence(!store.showIntelligence);
+  }, [store]);
+
   // ---- Keyboard shortcuts ---------------------------------------------
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -349,7 +376,7 @@ export function App() {
     return unsub;
   }, []);
 
-  const { showBrief, isLoading, selected } = store;
+  const { showBrief, showIntelligence, isLoading, selected } = store;
 
   return (
     <>
@@ -375,6 +402,8 @@ export function App() {
           onResetView={() => globeRef.current?.resetView()}
           onToggleRotate={() => store.setAutoRotate(!store.autoRotate)}
           onSetLang={handleSetLang}
+          onToggleIntel={handleToggleIntel}
+          intelligence={intelligence}
         />
 
         <aside className="left">
@@ -384,6 +413,14 @@ export function App() {
 
         {selected >= 0 && CS.catalog[selected] && (
           <DetailPanel onClose={clearSelection} onToggleTrack={toggleTrack} />
+        )}
+
+        {/* Intelligence panel — only when no detail panel and toggle is on */}
+        {showIntelligence && selected < 0 && (
+          <OrbitalIntelligencePanel
+            intelligence={intelligence}
+            onClose={() => store.setShowIntelligence(false)}
+          />
         )}
 
         <Legend />

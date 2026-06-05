@@ -1,5 +1,5 @@
 // ============================================================
-// OrbitIQ — AI Command Agent panel
+// OrbitIQ v0.3.0 — AI Command Agent panel
 // ============================================================
 import { useState, useCallback } from 'react';
 import { t } from '../../i18n/i18n';
@@ -14,6 +14,10 @@ const EXAMPLES = [
   'Find the ISS',
   'Give me an executive brief',
   'Which orbit band is most crowded right now?',
+  'Show congestion score',
+  'Compare LEO vs GEO',
+  'Summarize GNSS coverage',
+  'Which region has highest concentration?',
 ];
 
 interface Props {
@@ -88,6 +92,8 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
   if (actions.brief) chips.push('open brief');
   if (result.intent === 'reset') chips.push('reset all');
 
+  const intel = result.intelligence;
+
   return (
     <div className="agent-output">
       <p className="agent-answer">{result.answer}</p>
@@ -106,6 +112,45 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
           </div>
         )}
       </div>
+
+      {/* Intelligence attachment */}
+      {intel && (
+        <div className="agent-intel">
+          {intel.mostCrowdedBand && (
+            <div className="agent-intel-row">
+              <span className="meta-k">{t('intel_most_crowded')}</span>
+              <span className="astat-v accent">{intel.mostCrowdedBand}</span>
+            </div>
+          )}
+          {intel.congestionScore != null && (
+            <div className="agent-intel-row">
+              <span className="meta-k">{t('cong_title')}</span>
+              <span className="astat-v">
+                {intel.congestionScore}/100
+                {intel.congestionLevel && (
+                  <span className={`cong-level ${intel.congestionLevel}`}
+                    style={{ marginLeft: '6px', fontSize: '8px', padding: '1px 5px' }}>
+                    <i />{intel.congestionLevel}
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+          {intel.highestConcentrationRegion && (
+            <div className="agent-intel-row">
+              <span className="meta-k">{t('intel_region_hot')}</span>
+              <span className="astat-v accent">{intel.highestConcentrationRegion}</span>
+            </div>
+          )}
+          {intel.dominantGroup && (
+            <div className="agent-intel-row">
+              <span className="meta-k">{t('intel_dominant_band')}</span>
+              <span className="astat-v">{intel.dominantGroup}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="agent-meta">
         <div>
           <span className="meta-k">{t('agent_intent')}</span>

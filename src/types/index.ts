@@ -92,6 +92,59 @@ export interface AiAgentResponse {
   filtersApplied: Record<string, unknown>;
   visibleCount: number;
   sourceMode: DataMode;
+  intelligence?: AiAgentIntelligence;
+}
+
+// ============================================================
+// v0.3.0 — Intelligence types
+// ============================================================
+
+export type CongestionLevel = 'low' | 'moderate' | 'elevated' | 'high';
+
+export interface BandIntelligence {
+  band: BandKey;
+  count: number;
+  pct: number;
+  avgAlt: number;
+  topGroups: { group: GroupKey; count: number }[];
+}
+
+export interface RegionIntelligence {
+  key: string;
+  label: string;
+  count: number;
+  dominantBand: BandKey;
+  topGroups: { group: GroupKey; count: number }[];
+}
+
+export interface ConstellationIntelligence {
+  group: GroupKey;
+  count: number;
+  dominantBand: BandKey;
+  avgAlt: number;
+  topRegion: string;
+  relevance: string;
+}
+
+export interface IntelligenceSummary {
+  bands: BandIntelligence[];
+  mostCrowdedBand: BandKey;
+  regions: RegionIntelligence[];
+  highestConcentrationRegion: string;
+  dominantGroup: GroupKey;
+  congestionScore: number;
+  congestionLevel: CongestionLevel;
+  timestamp: number;
+}
+
+export interface AiAgentIntelligence {
+  mostCrowdedBand?: string;
+  highestConcentrationRegion?: string;
+  dominantGroup?: string;
+  congestionScore?: number;
+  congestionLevel?: CongestionLevel;
+  bandBreakdown?: Record<string, number>;
+  regionBreakdown?: Record<string, number>;
 }
 
 // ============================================================

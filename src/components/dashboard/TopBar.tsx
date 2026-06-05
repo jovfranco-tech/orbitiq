@@ -1,9 +1,11 @@
 // ============================================================
 // OrbitIQ — Top bar: brand, provenance chip, metrics, actions
+// v0.3.0: + congestion metric + intelligence toggle
 // ============================================================
 import { t } from '../../i18n/i18n';
 import { useStore } from '../../state/store';
-import type { DataMode } from '../../types';
+import { CongestionIndicator } from '../panels/CongestionIndicator';
+import type { DataMode, IntelligenceSummary } from '../../types';
 
 const PROV_MAP: Record<DataMode, [string, string, string]> = {
   live:    ['prov_live',    'prov_live_note',   'm-live'],
@@ -18,10 +20,12 @@ interface Props {
   onResetView: () => void;
   onToggleRotate: () => void;
   onSetLang: (l: 'en' | 'es') => void;
+  onToggleIntel: () => void;
+  intelligence: IntelligenceSummary | null;
 }
 
-export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang }: Props) {
-  const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate } = useStore();
+export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, onToggleIntel, intelligence }: Props) {
+  const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence } = useStore();
   const [lblKey, noteKey, cls] = PROV_MAP[dataMode] ?? PROV_MAP['fallback'];
 
   const fresh = ageDays < 1
@@ -60,6 +64,18 @@ export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang }: 
         <Metric label={t('m_rendered')} value={renderedCount.toLocaleString()} accent />
         <Metric label={t('m_fresh')} value={fresh} />
         {filterRegion && <Metric label={t('m_region')} value={regionCount.toLocaleString()} accent />}
+        {intelligence && (
+          <div className="metric">
+            <div className="metric-k">{t('cong_title')}</div>
+            <div className="metric-v">
+              <CongestionIndicator
+                score={intelligence.congestionScore}
+                level={intelligence.congestionLevel}
+                compact
+              />
+            </div>
+          </div>
+        )}
         <Metric label={t('m_ai')} value={t('ai_ready')} green />
       </div>
 
@@ -70,6 +86,15 @@ export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang }: 
             <path d="M4 5h16M4 12h16M4 19h10" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round"/>
           </svg>
           <span>{t('brief_title')}</span>
+        </button>
+        <button
+          className={`ctl ctl-icon${showIntelligence ? ' intel-active' : ''}`}
+          onClick={onToggleIntel}
+          title={t('intel_title')}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path d="M3 18v-4h4v4H3zM10 18V8h4v10h-4zM17 18V2h4v16h-4z" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </button>
         <button className="ctl ctl-icon" onClick={onResetView} title={t('reset_view')}>
           <svg viewBox="0 0 24 24" width="16" height="16">

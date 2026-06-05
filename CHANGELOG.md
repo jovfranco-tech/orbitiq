@@ -4,6 +4,38 @@ All notable changes to OrbitIQ Command Center.
 
 ---
 
+## [0.3.0-orbital-intelligence] — 2026-06-05
+
+### Phase: Orbital Intelligence Layer
+
+#### Added — Intelligence Engine
+- **Orbital Band Intelligence**: LEO / MEO / GEO analytics — satellite count, percentage, average altitude, and top constellation groups per band
+- **Regional Overflight Intelligence**: 13 world regions with real-time satellite counts, dominant orbital band, and top constellation groups per region
+- **Orbital Congestion Score**: Composite 0–100 score (Low / Moderate / Elevated / High) based on weighted components — visible satellite density (40%), band concentration via Herfindahl index (30%), region concentration (20%), constellation dominance (10%)
+- **Constellation Intelligence**: Per-group insights including count, dominant band, average altitude, and top region
+
+#### Added — AI Agent v2
+- 8 new intents: `compare_bands`, `compare_groups`, `congestion_summary`, `region_intelligence`, `band_intelligence`, `constellation_intelligence`, `highest_concentration_region`, `unknown_safe_fallback`
+- Safe fallback intent for unrecognized queries — never hallucinates, always responds helpfully
+
+#### Added — Executive Brief v2
+- 7-section executive summary with congestion assessment and recommended focus
+- Integrates band distribution, regional hotspots, and congestion scoring into a single situational report
+
+#### Added — UI Components
+- **Orbital Intelligence Panel**: Collapsible right-side panel displaying band distribution, regional hotspot, and congestion indicator
+- Panel toggleable from the top bar, persists state across interactions
+
+#### Added — Localization
+- Full EN/ES localization for all intelligence features, panel labels, congestion labels, band names, and agent intents
+
+#### Added — Data Honesty
+- Congestion Score explicitly documented as a portfolio/demo analytical signal, **not** a flight-safety metric
+- Regional matching documented as approximate bounding-box matching, not precise geodetic boundaries
+- Orbital band classification documented as simple altitude thresholds (LEO <2000 km, MEO 2000–35 000 km, GEO >35 000 km)
+
+---
+
 ## [0.2.0-production-port] — 2026-06-05
 
 ### Phase: Production Hardening & Final Audit

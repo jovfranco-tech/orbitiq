@@ -96,6 +96,31 @@ const DICT: Record<LangKey, Dict> = {
     source_cached: 'Cached CelesTrak data',
     source_fallback: 'Representative demo catalog',
     source_mixed: 'Mixed data sources',
+    // v0.3.0 — Intelligence
+    intel_title: 'Orbital Intelligence',
+    intel_sub: 'Band · Region · Congestion',
+    intel_band_dist: 'Band Distribution',
+    intel_region_hot: 'Regional Hotspot',
+    intel_top_groups: 'Top groups',
+    intel_avg_alt: 'Avg altitude',
+    intel_objects: 'objects',
+    intel_most_crowded: 'Most crowded',
+    intel_dominant_band: 'Dominant band',
+    intel_sats_overhead: 'satellites overhead',
+    intel_no_data: 'Intelligence data will appear after catalog loads.',
+    // Congestion
+    cong_title: 'Congestion',
+    cong_score: 'Score',
+    cong_low: 'Low',
+    cong_moderate: 'Moderate',
+    cong_elevated: 'Elevated',
+    cong_high: 'High',
+    cong_caveat: 'Analytical portfolio signal — not a flight-safety metric.',
+    // Data honesty
+    disclaimer_intel: 'Public TLE-based orbital intelligence.',
+    disclaimer_density: 'Density indicators are analytical portfolio signals, not flight-safety metrics.',
+    disclaimer_region: 'Regional overflight is approximate and based on propagated subpoints.',
+    disclaimer_ops: 'Not for conjunction assessment or operational aerospace decisions.',
   },
 
   es: {
@@ -181,6 +206,31 @@ const DICT: Record<LangKey, Dict> = {
     source_cached: 'Datos CelesTrak en caché',
     source_fallback: 'Catálogo demo representativo',
     source_mixed: 'Fuentes de datos mixtas',
+    // v0.3.0 — Inteligencia
+    intel_title: 'Inteligencia Orbital',
+    intel_sub: 'Banda · Región · Congestión',
+    intel_band_dist: 'Distribución por Banda',
+    intel_region_hot: 'Hotspot Regional',
+    intel_top_groups: 'Grupos principales',
+    intel_avg_alt: 'Altitud promedio',
+    intel_objects: 'objetos',
+    intel_most_crowded: 'Más congestionada',
+    intel_dominant_band: 'Banda dominante',
+    intel_sats_overhead: 'satélites sobre',
+    intel_no_data: 'Los datos de inteligencia aparecerán después de cargar el catálogo.',
+    // Congestión
+    cong_title: 'Congestión',
+    cong_score: 'Puntuación',
+    cong_low: 'Baja',
+    cong_moderate: 'Moderada',
+    cong_elevated: 'Elevada',
+    cong_high: 'Alta',
+    cong_caveat: 'Señal analítica de portafolio — no es una métrica de seguridad de vuelo.',
+    // Honestidad de datos
+    disclaimer_intel: 'Inteligencia orbital basada en TLE públicos.',
+    disclaimer_density: 'Los indicadores de densidad son señales analíticas de portafolio, no métricas de seguridad de vuelo.',
+    disclaimer_region: 'El sobrevuelo regional es aproximado y basado en subpuntos propagados.',
+    disclaimer_ops: 'No apto para evaluación de conjunciones ni decisiones aeroespaciales operativas.',
   },
 };
 

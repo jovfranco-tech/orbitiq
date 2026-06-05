@@ -47,6 +47,63 @@ Do not treat representative catalog entries as individually real objects.
 
 ---
 
+## Intelligence Layer Disclaimers (v0.3.0)
+
+The Orbital Intelligence Layer (band analytics, regional overflight, congestion scoring,
+constellation intelligence) provides **analytical portfolio signals** derived from the
+currently visible satellite catalog. These indicators are designed for demonstration,
+education, and situational awareness.
+
+They are **not**:
+- Flight-safety metrics
+- Conjunction or collision assessments
+- Operationally validated density models
+- Inputs to any safety-of-life decision
+
+### Congestion Score
+
+The **Orbital Congestion Score** is a weighted composite score (0–100) computed from:
+
+| Component | Weight |
+|---|---|
+| Visible satellite density | 40% |
+| Band concentration (Herfindahl index) | 30% |
+| Region concentration | 20% |
+| Constellation dominance | 10% |
+
+**Limitations:**
+- The score is based only on the currently loaded catalog (live, cached, or representative).
+  It does not account for debris, classified objects, or untracked payloads.
+- It is a **single-moment snapshot**, not a time-averaged or predicted trend.
+- It is **not** a conjunction/collision assessment and must not be treated as one.
+- The Herfindahl-based band concentration component reflects catalog composition, not
+  physical proximity or collision probability.
+
+### Regional Matching
+
+Regional overflight counts use **approximate bounding-box matching** based on latitude
+and longitude ranges. This means:
+- Boundaries are rectangular approximations, not precise geodetic or political borders.
+- Satellites near region edges may be counted in adjacent regions or missed.
+- Ocean regions and polar areas may have less precise coverage.
+- Regional counts should be treated as approximate indicators, not exact tallies.
+
+### Orbital Band Classification
+
+Orbital bands are classified using simple **altitude thresholds**:
+
+| Band | Altitude range |
+|---|---|
+| LEO (Low Earth Orbit) | < 2,000 km |
+| MEO (Medium Earth Orbit) | 2,000 – 35,000 km |
+| GEO (Geostationary/Geosynchronous) | > 35,000 km |
+
+These thresholds are conventional approximations. Real orbital regimes have nuanced
+boundaries (e.g., HEO, SSO, sub-GEO transfer orbits) that are not distinguished by
+this classification.
+
+---
+
 ## Intended use
 
 This application is designed for:
