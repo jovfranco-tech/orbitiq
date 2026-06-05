@@ -56,3 +56,6 @@ All satellite data originates from public CelesTrak GP feeds (USSPACECOM public 
 subject to CelesTrak's terms of service. No proprietary or classified data is used or claimed.
 
 See `DATA_DISCLAIMER.md` for the full data honesty statement.
+
+## AI Command Agent API
+OrbitIQ v0.4.0 introduces an LLM backend via `/api/agent`. The `OPENAI_API_KEY` MUST ONLY be provided in server-side environments (Vercel edge/serverless). It is NEVER exposed to the frontend. Validations are enforced using strict schema parsing (Zod) server-side to prevent injection of malicious actions.

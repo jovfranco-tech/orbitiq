@@ -125,3 +125,6 @@ Public TLE data: [CelesTrak](https://celestrak.org/) (Dr T.S. Kelso).
 Propagation: [satellite.js](https://github.com/shashwatak/satellite-js) (SGP4/SDP4).
 
 Use of CelesTrak data is subject to [CelesTrak's terms of service](https://celestrak.org/faq.php#usage).
+
+### AI Command Agent (v0.4.0 LLM Backend)
+The AI Command Agent uses an LLM (Large Language Model) via OpenAI API proxy to interpret natural language. The LLM has NO direct access to manipulate the orbital database or propagate orbits. It only translates intent into deterministic UI filters. Responses may contain errors. Always verify applied filters in the UI.

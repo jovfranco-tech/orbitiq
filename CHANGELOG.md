@@ -1,3 +1,11 @@
+## [v0.4.0-llm-agent-backend] - 2026-06-05
+### Added
+- Real LLM Backend via `/api/agent` Vercel serverless function.
+- Strictly typed JSON contract for agent actions (`AgentAction` discriminated union) via Zod validation.
+- Graceful fallback: If LLM API fails, times out, or returns invalid schema, seamlessly falls back to local deterministic regex parsing.
+- UI indicators for agent mode (LLM vs Deterministic Fallback).
+- Safety Notice caveats parsed from LLM responses displayed directly in UI.
+
 # Changelog
 
 All notable changes to OrbitIQ Command Center.

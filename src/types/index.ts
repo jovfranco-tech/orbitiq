@@ -79,6 +79,19 @@ export interface AgentActions {
   brief: boolean;
 }
 
+export type AgentAction =
+  | { type: 'filter_by_group'; group: string }
+  | { type: 'filter_by_region'; region: string }
+  | { type: 'filter_by_band'; band: 'LEO' | 'MEO' | 'GEO' | 'OTHER' | 'UNKNOWN' }
+  | { type: 'altitude_threshold'; operator: 'below' | 'above'; km: number }
+  | { type: 'find_satellite'; query: string }
+  | { type: 'compare_bands'; bands?: string[] }
+  | { type: 'compare_groups'; groups?: string[] }
+  | { type: 'congestion_summary' }
+  | { type: 'executive_brief' }
+  | { type: 'reset_view' }
+  | { type: 'unknown_safe_fallback' };
+
 /** Formal output contract for the AI agent.
  *  Deterministic v1 emits the same shape a real LLM backend would,
  *  enabling a drop-in swap without touching the UI.
@@ -92,7 +105,22 @@ export interface AiAgentResponse {
   filtersApplied: Record<string, unknown>;
   visibleCount: number;
   sourceMode: DataMode;
+  responseMode?: 'llm' | 'deterministic';
+  safetyCaveat?: string;
   intelligence?: AiAgentIntelligence;
+}
+
+export interface LlmAgentResponse {
+  answer: string;
+  intent: string;
+  confidence: number;
+  assumptions: string[];
+  actions: AgentAction[];
+  filtersApplied: Record<string, unknown>;
+  visibleCount?: number;
+  sourceMode: 'live' | 'cached' | 'fallback' | 'mixed';
+  safetyCaveat: string;
+  language: 'en' | 'es';
 }
 
 // ============================================================

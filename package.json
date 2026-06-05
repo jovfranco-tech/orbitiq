@@ -1,6 +1,6 @@
 {
   "name": "orbitiq-command-center",
-  "version": "0.3.0-orbital-intelligence",
+  "version": "0.4.0-llm-agent-backend",
   "description": "Real-time 3D satellite orbit tracker and AI-native orbital intelligence dashboard.",
   "private": true,
   "type": "module",
@@ -16,9 +16,11 @@
     "react-dom": "^18.3.1",
     "satellite.js": "^5.0.0",
     "three": "^0.128.0",
+    "zod": "^4.4.3",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@types/node": "^25.9.1",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.128.0",

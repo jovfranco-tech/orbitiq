@@ -12,7 +12,7 @@ import {
 } from '../intelligence/intelligence';
 import type {
   AiAgentResponse, AgentActions, ExecutiveBrief, GroupKey, BandKey,
-  DataMode, IntelligenceSummary, AiAgentIntelligence,
+  DataMode, IntelligenceSummary, AiAgentIntelligence, LlmAgentResponse
 } from '../types';
 
 // ---- Helpers ---------------------------------------------------------------
@@ -108,9 +108,9 @@ function buildIntelAttachment(intel: IntelligenceSummary): AiAgentIntelligence {
   };
 }
 
-// ---- Main parse -----------------------------------------------------------
+// ---- Main deterministic parse -----------------------------------------------
 
-export function parse(rawQuery: string, ctx: AgentContext): AiAgentResponse {
+export function deterministicParse(rawQuery: string, ctx: AgentContext): AiAgentResponse {
   const q = (rawQuery ?? '').toLowerCase().trim();
   const a = blankActions();
   let intent = 'unknown';
@@ -309,10 +309,10 @@ export function parse(rawQuery: string, ctx: AgentContext): AiAgentResponse {
   // ---- Safe fallback ------------------------------------------------------
   confidence = 0.34;
   return {
-    answer: "I couldn't map that to an action yet. Try asking about a constellation (\"Starlink\"), " +
-      'a region (\"over Japan\"), a band (\"GEO\"), an altitude (\"below 600 km\"), ' +
-      'density (\"show congestion\"), a comparison (\"compare LEO vs GEO\"), ' +
-      'or request an executive brief.',
+    answer: "I couldn't map that to an action yet. Try asking about a constellation ('Starlink'), " +
+      "a region ('over Japan'), a band ('GEO'), an altitude ('below 600 km'), " +
+      "density ('show congestion'), a comparison ('compare LEO vs GEO'), " +
+      "or request an executive brief.",
     intent: 'unknown_safe_fallback', confidence, assumptions: [],
     actions: a, filtersApplied: {}, visibleCount: ctx.rendered, sourceMode: 'fallback',
   };
@@ -345,6 +345,99 @@ function buildFiltersApplied(a: AgentActions): Record<string, unknown> {
   if (a.focusSatnum != null)f.focusSatnum = a.focusSatnum;
   if (a.brief)              f.brief = true;
   return f;
+}
+
+// ---- LLM execute wrapper ---------------------------------------------------
+
+export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, lang: 'en' | 'es'): Promise<AiAgentResponse> {
+  if (!rawQuery.trim()) {
+    return { ...deterministicParse(rawQuery, ctx), responseMode: 'deterministic' };
+  }
+
+  try {
+    const intel = getIntelligence();
+    const payload = {
+      query: rawQuery,
+      context: {
+        language: lang,
+        total: ctx.total,
+        rendered: ctx.rendered,
+        groupCounts: ctx.groupCounts,
+        bandCounts: ctx.bandCounts,
+        intelligenceSummary: buildIntelAttachment(intel),
+      }
+    };
+
+    const res = await fetch('/api/agent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10_000)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const llmResp: LlmAgentResponse = await res.json();
+    
+    // Map LlmAgentResponse to AiAgentResponse
+    const a = blankActions();
+    for (const action of llmResp.actions) {
+      if (action.type === 'filter_by_group') {
+        const groups = detectGroups(action.group);
+        if (groups.length) a.groups = [...(a.groups || []), ...groups];
+      }
+      else if (action.type === 'filter_by_region') {
+        const region = detectRegion(action.region);
+        if (region) a.region = region;
+      }
+      else if (action.type === 'filter_by_band') {
+        if (action.band !== 'OTHER' && action.band !== 'UNKNOWN') {
+          a.band = action.band;
+        }
+      }
+      else if (action.type === 'altitude_threshold') {
+        if (action.operator === 'below') a.altMax = action.km;
+        if (action.operator === 'above') a.altMin = action.km;
+      }
+      else if (action.type === 'find_satellite') {
+        const hit = ctx.find(action.query);
+        if (hit) a.focusSatnum = hit.satnum;
+      }
+      else if (action.type === 'executive_brief') {
+        a.brief = true;
+      }
+      else if (action.type === 'reset_view') {
+        // blankActions handles reset
+      }
+      else if (action.type === 'congestion_summary' || action.type === 'compare_bands' || action.type === 'compare_groups') {
+        // these are informational intents, they don't apply filters (except maybe highest region or most crowded band)
+        // If LLM wants to filter, it explicitly returned a filter action
+      }
+    }
+
+    const finalRes: AiAgentResponse = {
+      answer: llmResp.answer,
+      intent: llmResp.intent,
+      confidence: llmResp.confidence,
+      assumptions: llmResp.assumptions,
+      actions: a,
+      filtersApplied: buildFiltersApplied(a),
+      visibleCount: llmResp.visibleCount || ctx.rendered,
+      sourceMode: llmResp.sourceMode as DataMode,
+      responseMode: 'llm',
+      safetyCaveat: llmResp.safetyCaveat,
+      intelligence: buildIntelAttachment(intel),
+    };
+
+    return finalRes;
+  } catch (error) {
+    console.error('LLM agent failed, falling back to deterministic router:', error);
+    const fallbackRes = deterministicParse(rawQuery, ctx);
+    fallbackRes.responseMode = 'deterministic';
+    return fallbackRes;
+  }
 }
 
 // ---- Executive brief v2 ----------------------------------------------------

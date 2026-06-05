@@ -429,3 +429,8 @@ input,select,button{font-family:inherit}
   .intel{display:none}
 }
 
+
+.agent-mode { margin-bottom: 8px; }
+.mode-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.mode-badge.llm { background: rgba(67, 97, 238, 0.2); color: #4cc9f0; border: 1px solid rgba(76, 201, 240, 0.3); }
+.mode-badge.deterministic { background: rgba(247, 37, 133, 0.15); color: #f72585; border: 1px solid rgba(247, 37, 133, 0.3); }

@@ -96,6 +96,11 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
 
   return (
     <div className="agent-output">
+      <div className="agent-mode">
+        <span className={`mode-badge ${result.responseMode === 'llm' ? 'llm' : 'deterministic'}`}>
+          <i />{result.responseMode === 'llm' ? t('agent_mode_llm') : t('agent_mode_fallback')}
+        </span>
+      </div>
       <p className="agent-answer">{result.answer}</p>
       <div className="agent-stats">
         <div className="astat">
@@ -166,6 +171,12 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
           <div className="agent-assume">
             <span className="meta-k">{t('agent_assumptions')}</span>
             <span>{result.assumptions.join(' ')}</span>
+          </div>
+        )}
+        {result.safetyCaveat && (
+          <div className="agent-assume" style={{ marginTop: '4px', borderLeftColor: '#f72585' }}>
+            <span className="meta-k" style={{ color: '#f72585' }}>{t('agent_safety_notice')}</span>
+            <span>{result.safetyCaveat}</span>
           </div>
         )}
       </div>

@@ -18,9 +18,9 @@ import { loadSatellites } from '../data/client';
 import { bandFromAltitude, GROUPS, classifyGroup } from '../data/groups';
 import { buildRecords, dataAgeDays, sampleOrbitPath } from '../orbital/propagator';
 import { matchRegion, REGIONS } from '../regions/regions';
-import { parse } from '../ai/agent';
+import { executeAgentCommand } from '../ai/agent';
+import { getLang, setLang, t } from '../i18n/i18n';
 import { getIntelligence, invalidateIntelligence } from '../intelligence/intelligence';
-import { setLang, t } from '../i18n/i18n';
 import * as THREE from 'three';
 import type { GlobeApi, IntelligenceSummary } from '../types';
 import type { AiAgentResponse, GroupKey, BandKey } from '../types';
@@ -92,7 +92,7 @@ export function App() {
 
     globe.setEarthRotation(gmst);
     globe.writePositions(CS.posBuf);
-    applyFilter(globe);
+    applyFilter();
     globe.renderOnce();
     updateCounts();
 
@@ -102,7 +102,9 @@ export function App() {
   }, []); // stable — reads everything via getState() or module-level CS
 
   // ---- Filter pass (hot path) ------------------------------------------
-  const applyFilter = useCallback((globe: GlobeApi) => {
+  const applyFilter = useCallback(() => {
+    if (!globeRef.current) return;
+    const globe = globeRef.current;
     const { activeGroups, filterBand, filterRegion, altMin, altMax, selected } = useStore.getState();
     let rendered = 0, regionCount = 0;
     for (let i = 0; i < CS.N; i++) {
@@ -271,69 +273,72 @@ export function App() {
   }, []);
 
   // ---- Run AI agent command --------------------------------------------
-  const runAgent = useCallback((query: string) => {
+  const runAgent = useCallback(async (query: string) => {
     if (!query.trim()) return;
     setIsThinking(true);
-    setTimeout(() => {
-      const state = useStore.getState();
-      const groupCounts: Record<string, number> = {};
-      const bandCounts = { LEO: 0, MEO: 0, GEO: 0 };
-      for (let i = 0; i < CS.N; i++) {
-        if (CS.alt[i] < 0) continue;
-        groupCounts[CS.group[i]] = (groupCounts[CS.group[i]] ?? 0) + 1;
-        if (CS.band[i] in bandCounts) bandCounts[CS.band[i] as keyof typeof bandCounts]++;
-      }
 
-      const ctx = {
-        count: countWhere,
-        find: findSat,
-        groupLabel: (g: GroupKey) => (GROUPS[g] ?? GROUPS['other']).label,
-        regionCount: regionCountFor,
-        total: CS.N,
-        rendered: state.renderedCount,
-        groupCounts,
-        bandCounts,
-      };
+    const state = useStore.getState();
+    const groupCounts: Record<string, number> = {};
+    const bandCounts = { LEO: 0, MEO: 0, GEO: 0 };
+    for (let i = 0; i < CS.N; i++) {
+      if (CS.alt[i] < 0) continue;
+      groupCounts[CS.group[i]] = (groupCounts[CS.group[i]] ?? 0) + 1;
+      if (CS.band[i] in bandCounts) bandCounts[CS.band[i] as keyof typeof bandCounts]++;
+    }
 
-      const res = parse(query, ctx);
-      res.sourceMode = state.dataMode === 'live' ? 'live' : state.dataMode === 'cached' ? 'cached' : 'fallback';
-      res.visibleCount = state.renderedCount;
-      setAgentResult(res);
+    const ctx = {
+      count: countWhere,
+      find: findSat,
+      groupLabel: (g: GroupKey) => (GROUPS[g] ?? GROUPS['other']).label,
+      regionCount: regionCountFor,
+      total: CS.N,
+      rendered: state.renderedCount,
+      groupCounts,
+      bandCounts,
+    };
 
-      // Apply declarative actions to store
-      const a = res.actions;
-      if (res.intent === 'reset') {
+    const res = await executeAgentCommand(query, ctx, getLang());
+    // Use the latest state since the await could take a few seconds
+    const latestState = useStore.getState();
+    res.sourceMode = latestState.dataMode === 'live' ? 'live' : latestState.dataMode === 'cached' ? 'cached' : 'fallback';
+    res.visibleCount = latestState.renderedCount;
+    setAgentResult(res);
+
+    // Apply declarative actions to store
+    const a = res.actions;
+    if (res.intent === 'reset') {
+      store.resetFilters();
+      globeRef.current?.setRegionMarker(null);
+    } else {
+      const hasFilter = a.groups || a.band || a.region || a.altMax != null || a.altMin != null;
+      if (hasFilter) {
         store.resetFilters();
-        globeRef.current?.setRegionMarker(null);
-      } else {
-        const hasFilter = a.groups || a.band || a.region || a.altMax != null || a.altMin != null;
-        if (hasFilter) {
-          store.resetFilters();
-          if (a.groups && a.groups.length > 0) {
-            useStore.setState({ activeGroups: new Set(a.groups) });
-          }
-          if (a.band) store.setFilterBand(a.band);
-          if (a.altMax != null || a.altMin != null) {
-            store.setAltFilter(a.altMin, a.altMax);
-          }
-          if (a.region) {
-            store.setFilterRegion(a.region);
-            const c = REGIONS[a.region]?.center;
-            if (c) globeRef.current?.setRegionMarker(c[0], c[1]);
-          }
+        if (a.groups && a.groups.length > 0) {
+          useStore.setState({ activeGroups: new Set(a.groups) });
         }
-        if (a.brief) store.setShowBrief(true);
-        if (a.focusSatnum != null) {
-          const idx = CS.catalog.findIndex((c) => c?.satnum === a.focusSatnum);
-          if (idx >= 0 && globeRef.current) {
-            selectSat(globeRef.current, idx, true);
-          }
+        if (a.band) store.setFilterBand(a.band);
+        if (a.altMax != null || a.altMin != null) {
+          store.setAltFilter(a.altMin, a.altMax);
+        }
+        if (a.region) {
+          store.setFilterRegion(a.region);
+          const c = REGIONS[a.region]?.center;
+          if (c) globeRef.current?.setRegionMarker(c[0], c[1]);
         }
       }
+      if (a.brief) store.setShowBrief(true);
+      if (a.focusSatnum != null) {
+        const idx = CS.catalog.findIndex((c) => c?.satnum === a.focusSatnum);
+        if (idx >= 0 && globeRef.current) {
+          selectSat(globeRef.current, idx, true);
+        }
+      }
+    }
+    // Re-apply filters explicitly to get fresh counts
+    applyFilter();
 
-      setIsThinking(false);
-    }, 260);
-  }, [countWhere, findSat, regionCountFor, store, selectSat]);
+    setIsThinking(false);
+  }, [countWhere, findSat, regionCountFor, store, selectSat, applyFilter]);
 
   // ---- Language switch -------------------------------------------------
   const handleSetLang = useCallback((l: 'en' | 'es') => {
