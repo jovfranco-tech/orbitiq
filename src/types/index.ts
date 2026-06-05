@@ -42,6 +42,9 @@ export type BandKey = 'LEO' | 'MEO' | 'GEO';
 /** Data source / freshness mode reported in the UI. */
 export type DataMode = 'live' | 'cached' | 'fallback' | 'mixed' | 'loading';
 
+/** API Health state */
+export type ApiHealth = 'healthy' | 'degraded' | 'unavailable' | 'fallback';
+
 /** Metadata attached to a TLE dataset returned by /api/tle. */
 export interface TleApiMeta {
   source: string;
@@ -51,6 +54,10 @@ export interface TleApiMeta {
   freshness: 'live' | 'cached' | 'fallback';
   dataMode: DataMode;
   count: number;
+  sourceHealth?: ApiHealth;
+  cacheAgeSeconds?: number;
+  cacheTtlSeconds?: number;
+  fallbackReason?: string;
 }
 
 /** Full response from /api/tle. */
@@ -80,6 +87,9 @@ export interface AgentActions {
   missionScenario: MissionScenarioType | null;
   showRiskLayer: boolean;
   timeAction: Extract<AgentAction, { type: 'set_time_mode' | 'set_time_speed' | 'jump_time' | 'reset_to_now' | 'pause_simulation' | 'resume_simulation' }> | null;
+  watchlistAction?: 'add' | 'remove' | 'show' | null;
+  savedViewAction?: { type: 'save' | 'load' | 'recommend'; payload?: string } | null;
+  snapshotAction?: 'create' | 'export' | null;
 }
 
 export type AgentAction =
@@ -106,6 +116,14 @@ export type AgentAction =
   | { type: 'reset_to_now' }
   | { type: 'pause_simulation' }
   | { type: 'resume_simulation' }
+  | { type: 'add_to_watchlist' }
+  | { type: 'remove_from_watchlist' }
+  | { type: 'show_watchlist' }
+  | { type: 'save_current_view'; name?: string }
+  | { type: 'load_saved_view'; viewIdOrName?: string }
+  | { type: 'create_snapshot' }
+  | { type: 'export_snapshot' }
+  | { type: 'recommend_saved_view' }
   | { type: 'unknown_safe_fallback' };
 
 /** Formal output contract for the AI agent.
@@ -244,6 +262,65 @@ export interface BriefSection {
 export interface ExecutiveBrief {
   headline: string;
   sections: BriefSection[];
+}
+
+// ============================================================
+// v0.7.0 — Local Persistence (Watchlists, Views, Snapshots)
+// ============================================================
+
+export interface WatchlistItem {
+  name: string;
+  satnum: number;
+  group: string;
+  band: string;
+  alt: number;
+  region: string;
+  sourceMode: string;
+  addedAt: number;
+}
+
+export interface SavedMissionView {
+  id: string;
+  name: string;
+  description: string;
+  filters: {
+    groups: GroupKey[];
+    band: BandKey | null;
+    region: string | null;
+    altMin: number | null;
+    altMax: number | null;
+  };
+  simMode: 'live' | 'paused' | 'simulating';
+  simOffsetMs: number;
+  missionScenario: MissionScenarioType | null;
+  showRiskLayer: boolean;
+  lang: 'en' | 'es';
+  createdAt: number;
+}
+
+export interface ExecutiveSnapshot {
+  id: string;
+  timestamp: number;
+  simOffsetMs: number;
+  sourceMode: string;
+  totalLoaded: number;
+  visibleCount: number;
+  mostCrowdedBand: string;
+  highestConcentrationRegion: string;
+  dominantGroup: string;
+  selectedSatellite: { name: string; satnum: number; lat: number; lon: number; alt: number } | null;
+  executiveBrief: ExecutiveBrief | null;
+  missionBrief: MissionScenario | null;
+  riskLayerSummary: RiskSignal | null;
+  caveats: string[];
+}
+
+export interface UserExportData {
+  version: string;
+  exportedAt: number;
+  watchlists: WatchlistItem[];
+  savedViews: SavedMissionView[];
+  snapshots: ExecutiveSnapshot[];
 }
 
 // ============================================================

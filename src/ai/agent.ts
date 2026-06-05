@@ -15,6 +15,7 @@ import type {
   DataMode, IntelligenceSummary, AiAgentIntelligence, LlmAgentResponse, MissionScenarioType
 } from '../types';
 import { CS } from '../state/catalogStore';
+import { useStore } from '../state/store';
 
 // ---- Helpers ---------------------------------------------------------------
 
@@ -35,6 +36,10 @@ export interface AgentContext {
   rendered: number;
   groupCounts: Record<string, number>;
   bandCounts: { LEO: number; MEO: number; GEO: number };
+  activeRegion: string | null;
+  activeBand: string | null;
+  activeMission: MissionScenarioType | null;
+  timeOffsetMs: number;
 }
 
 const GROUP_WORDS: Record<string, string[]> = {
@@ -91,6 +96,7 @@ const blankActions = (): AgentActions => ({
   altMax: null, altMin: null, focusSatnum: null, brief: false,
   missionScenario: null, showRiskLayer: false,
   timeAction: null,
+  watchlistAction: null, savedViewAction: null, snapshotAction: null,
 });
 
 /** Build intelligence attachment for the response. */
@@ -113,7 +119,7 @@ function buildIntelAttachment(intel: IntelligenceSummary): AiAgentIntelligence {
 
 // ---- Main deterministic parse -----------------------------------------------
 
-export function deterministicParse(rawQuery: string, ctx: AgentContext): AiAgentResponse {
+export function deterministicParse(rawQuery: string, ctx: AgentContext, lang: 'en' | 'es' = 'en'): AiAgentResponse {
   const q = (rawQuery ?? '').toLowerCase().trim();
   const a = blankActions();
   let intent = 'unknown';
@@ -127,6 +133,44 @@ export function deterministicParse(rawQuery: string, ctx: AgentContext): AiAgent
       intent: 'idle', confidence: 0, assumptions: [],
       actions: a, filtersApplied: {}, visibleCount: ctx.rendered, sourceMode: 'fallback',
     };
+  }
+
+  // ---- Predictive Simulation Logic ----
+  if (q.includes('simulate') || q.includes('predict') || q.includes('tomorrow') || q.includes('simula') || q.includes('predice') || q.includes('mañana')) {
+    const isTomorrow = q.includes('tomorrow') || q.includes('mañana') || q.includes('24');
+    const offset = isTomorrow ? 86400000 : 3600000;
+    return {
+      answer: lang === 'es'
+        ? `Simulando la propagación orbital para predecir la congestión ${isTomorrow ? 'de mañana' : 'futura'}.`
+        : `Simulating orbital propagation to predict ${isTomorrow ? 'tomorrow\'s' : 'future'} congestion.`,
+      intent: 'predict_congestion',
+      confidence: 0.9,
+      assumptions: ['Simulating time forward'],
+      filtersApplied: {},
+      visibleCount: ctx.total,
+      actions: { ...blankActions(), timeAction: { type: 'jump_time', offsetMs: offset } },
+      sourceMode: 'fallback'
+    };
+  }
+
+  // ---- Contextual Awareness ----
+  if (q.includes('here') || q.includes('this region') || q.includes('looking at') || q.includes('aqui') || q.includes('esta region')) {
+    if (ctx.activeRegion) {
+      a.region = ctx.activeRegion;
+      return {
+        answer: lang === 'es'
+          ? `Estás observando la región: ${REGIONS[ctx.activeRegion]?.label ?? ctx.activeRegion}. Aplicando filtros de inteligencia.`
+          : `You are looking at region: ${REGIONS[ctx.activeRegion]?.label ?? ctx.activeRegion}. Applying intelligence filters.`,
+        intent: 'region_intelligence',
+        confidence: 0.9,
+        assumptions: ['User refers to active viewport'],
+        filtersApplied: { region: ctx.activeRegion },
+        visibleCount: ctx.regionCount(ctx.activeRegion),
+        actions: a,
+        sourceMode: 'fallback',
+        intelligence: buildIntelAttachment(getIntelligence())
+      };
+    }
   }
 
   // ---- Executive brief ---------------------------------------------------
@@ -299,6 +343,56 @@ export function deterministicParse(rawQuery: string, ctx: AgentContext): AiAgent
     return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
   }
 
+  // ---- Local Persistence / Watchlists / Views ------------------------------
+  if (/add.*watchlist/i.test(q)) {
+    a.watchlistAction = 'add';
+    intent = 'add_to_watchlist'; confidence = 0.95;
+    answer = 'Adding selected satellite to watchlist.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/remove.*watchlist/i.test(q)) {
+    a.watchlistAction = 'remove';
+    intent = 'remove_from_watchlist'; confidence = 0.95;
+    answer = 'Removing selected satellite from watchlist.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/show.*watchlist|open.*watchlist/i.test(q)) {
+    a.watchlistAction = 'show';
+    intent = 'show_watchlist'; confidence = 0.95;
+    answer = 'Opening your satellite watchlist.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/save.*view/i.test(q)) {
+    a.savedViewAction = { type: 'save' };
+    intent = 'save_current_view'; confidence = 0.95;
+    answer = 'Saving the current mission view locally.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/load.*view|open.*view/i.test(q)) {
+    a.savedViewAction = { type: 'load' };
+    intent = 'load_saved_view'; confidence = 0.95;
+    answer = 'Opening saved views panel to load a view.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/recommend.*view/i.test(q)) {
+    a.savedViewAction = { type: 'recommend' };
+    intent = 'recommend_saved_view'; confidence = 0.95;
+    answer = 'Recommending a saved mission view.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/create.*snapshot|take.*snapshot|executive.*snapshot/i.test(q)) {
+    a.snapshotAction = 'create';
+    intent = 'create_snapshot'; confidence = 0.95;
+    answer = 'Creating an executive snapshot of the current state.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/export.*snapshot|export.*markdown/i.test(q)) {
+    a.snapshotAction = 'export';
+    intent = 'export_snapshot'; confidence = 0.95;
+    answer = 'Opening snapshots panel for export.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+
   // ---- Constellation intelligence ----------------------------------------
   if (/summarize|coverage|intelligence|insight|analyze|analyz/.test(q)) {
     const groups = detectGroups(q);
@@ -444,7 +538,7 @@ function buildFiltersApplied(a: AgentActions): Record<string, unknown> {
 
 export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, lang: 'en' | 'es'): Promise<AiAgentResponse> {
   if (!rawQuery.trim()) {
-    return { ...deterministicParse(rawQuery, ctx), responseMode: 'deterministic' };
+    return { ...deterministicParse(rawQuery, ctx, lang), responseMode: 'deterministic' };
   }
 
   try {
@@ -455,6 +549,10 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
         language: lang,
         total: ctx.total,
         rendered: ctx.rendered,
+        activeRegion: ctx.activeRegion,
+        activeBand: ctx.activeBand,
+        activeMission: ctx.activeMission,
+        timeOffsetMs: ctx.timeOffsetMs,
         groupCounts: ctx.groupCounts,
         bandCounts: ctx.bandCounts,
         intelligenceSummary: buildIntelAttachment(intel),
@@ -473,6 +571,8 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
     }
 
     const llmResp: LlmAgentResponse = await res.json();
+    
+    useStore.getState().setAgentHealth('healthy');
     
     // Map LlmAgentResponse to AiAgentResponse
     const a = blankActions();
@@ -546,7 +646,8 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
     return finalRes;
   } catch (error) {
     console.error('LLM agent failed, falling back to deterministic router:', error);
-    const fallbackRes = deterministicParse(rawQuery, ctx);
+    useStore.getState().setAgentHealth('fallback');
+    const fallbackRes = deterministicParse(rawQuery, ctx, lang);
     fallbackRes.responseMode = 'deterministic';
     
     // Import DICT to safely grab the string without risking React context issues

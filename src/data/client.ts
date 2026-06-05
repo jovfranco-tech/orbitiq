@@ -3,7 +3,7 @@
 // Fetches from /api/tle (server-side cached CelesTrak).
 // Falls back to the representative catalog on any failure.
 // ============================================================
-import type { SatelliteRecord, TleApiResponse, DataMode } from '../types';
+import type { SatelliteRecord, TleApiResponse, DataMode, TleApiMeta } from '../types';
 import { buildCatalog } from './catalog';
 import { classifyGroup } from './groups';
 
@@ -12,6 +12,7 @@ export interface LoadResult {
   dataMode: DataMode;
   source: string;
   fetchedAt: string;
+  meta?: TleApiMeta;
 }
 
 /**
@@ -40,6 +41,7 @@ export async function loadSatellites(): Promise<LoadResult> {
         : 'fallback',
       source: json.meta.source,
       fetchedAt: json.meta.fetchTimestamp,
+      meta: json.meta,
     };
   } catch {
     // Graceful fallback — representative demo catalog
@@ -48,6 +50,16 @@ export async function loadSatellites(): Promise<LoadResult> {
       dataMode: 'fallback',
       source: 'representative-catalog',
       fetchedAt: new Date().toISOString(),
+      meta: {
+        source: 'fallback — client-side representative catalog',
+        fetchTimestamp: new Date().toISOString(),
+        cacheTimestamp: new Date().toISOString(),
+        freshness: 'fallback',
+        dataMode: 'fallback',
+        count: 0,
+        sourceHealth: 'unavailable',
+        fallbackReason: 'Network or API failure',
+      }
     };
   }
 }

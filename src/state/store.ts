@@ -6,7 +6,7 @@
 // propagation tick. Only UI-driving state goes here.
 // ============================================================
 import { create } from 'zustand';
-import type { DataMode, GroupKey, BandKey, MissionScenarioType } from '../types';
+import type { DataMode, GroupKey, BandKey, MissionScenarioType, ApiHealth, TleApiMeta } from '../types';
 import { CS } from './catalogStore';
 
 export interface UIState {
@@ -17,6 +17,12 @@ export interface UIState {
   regionCount: number;
   ageDays: number;
   isLoading: boolean;
+  
+  // source health
+  tleHealth: ApiHealth;
+  agentHealth: ApiHealth;
+  tleMeta: TleApiMeta | null;
+  showDataHealthPanel: boolean;
 
   // filters
   activeGroups: Set<GroupKey>;
@@ -38,6 +44,7 @@ export interface UIState {
   curRegionForCount: string | null;
   showMissionPanel: boolean;
   activeMissionScenario: MissionScenarioType | null;
+  showRiskLayer: boolean;
 
   // Simulation
   simMode: 'live' | 'paused' | 'simulating';
@@ -50,7 +57,13 @@ export interface UIActions {
   setAgeDays(d: number): void;
   setLoading(v: boolean): void;
 
+  setTleHealth(health: ApiHealth): void;
+  setAgentHealth(health: ApiHealth): void;
+  setTleMeta(meta: TleApiMeta | null): void;
+  setShowDataHealthPanel(v: boolean): void;
+
   toggleGroup(g: GroupKey): void;
+  setActiveGroups(groups: Set<GroupKey>): void;
   setFilterBand(b: BandKey | null): void;
   setFilterRegion(r: string | null): void;
   setAltFilter(min: number | null, max: number | null): void;
@@ -67,6 +80,7 @@ export interface UIActions {
   setCurRegion(key: string | null): void;
   setShowMissionPanel(v: boolean): void;
   setActiveMissionScenario(s: MissionScenarioType | null): void;
+  setShowRiskLayer(v: boolean): void;
 
   setSimMode(mode: 'live' | 'paused' | 'simulating'): void;
   setSimSpeed(speed: number): void;
@@ -84,6 +98,12 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   regionCount: 0,
   ageDays: 0,
   isLoading: true,
+  
+  tleHealth: 'healthy',
+  agentHealth: 'healthy',
+  tleMeta: null,
+  showDataHealthPanel: false,
+
   activeGroups: new Set<GroupKey>(),
   filterBand: null,
   filterRegion: null,
@@ -99,6 +119,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   curRegionForCount: null,
   showMissionPanel: false,
   activeMissionScenario: null,
+  showRiskLayer: false,
 
   simMode: 'live',
   simSpeed: 1,
@@ -106,8 +127,13 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   // --- actions ---
   setDataMode: (mode) => set({ dataMode: mode }),
   setCounts:   (total, rendered, region) => set({ totalCount: total, renderedCount: rendered, regionCount: region }),
-  setAgeDays:  (d) => set({ ageDays: d }),
-  setLoading:  (v) => set({ isLoading: v }),
+  setAgeDays: (d) => set({ ageDays: d }),
+  setLoading: (v) => set({ isLoading: v }),
+
+  setTleHealth: (h) => set({ tleHealth: h }),
+  setAgentHealth: (h) => set({ agentHealth: h }),
+  setTleMeta: (m) => set({ tleMeta: m }),
+  setShowDataHealthPanel: (v) => set({ showDataHealthPanel: v }),
 
   toggleGroup(g) {
     const cur = get().activeGroups;
@@ -116,6 +142,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
     if (next.size === ALL_GROUPS.length) next.clear(); // back to "all = unrestricted"
     set({ activeGroups: next });
   },
+  setActiveGroups: (groups) => set({ activeGroups: groups }),
 
   setFilterBand:   (b) => set({ filterBand: b }),
   setFilterRegion: (r) => set({ filterRegion: r }),
@@ -139,6 +166,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   setCurRegion: (k) => set({ curRegionForCount: k }),
   setShowMissionPanel: (v) => set({ showMissionPanel: v }),
   setActiveMissionScenario: (s) => set({ activeMissionScenario: s }),
+  setShowRiskLayer: (v) => set({ showRiskLayer: v }),
 
   setSimMode: (mode) => {
     if (get().simMode === 'live' && mode !== 'live') {

@@ -9,7 +9,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div id="root"></div>
+  <noscript>
+    <div style="padding: 20px; font-family: sans-serif; color: white; background: #0a0a0f; height: 100vh;">
+      <strong>JavaScript is required.</strong> OrbitIQ Command Center relies on JavaScript for 3D orbital visualization and propagation.
+    </div>
+  </noscript>
+  <div id="root">
+    <!-- Static fallback shown until React mounts or if WebGL fails entirely -->
+    <div id="fallback-message" style="display: none; padding: 20px; font-family: sans-serif; color: white; background: #0a0a0f; height: 100vh; z-index: 9999; position: absolute; top: 0; left: 0; width: 100%;">
+      <strong>WebGL not supported.</strong> Your browser or device does not support WebGL, which is required for 3D satellite rendering.
+    </div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

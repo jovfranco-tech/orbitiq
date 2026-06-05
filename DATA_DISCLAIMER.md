@@ -1,9 +1,6 @@
-# Data Disclaimer — OrbitIQ Command Center
+# OrbitIQ Command Center — Data Honesty & Intelligence Disclaimer
 
-## What this tool shows
-
-OrbitIQ Command Center visualizes satellite orbital positions derived from
-**public Two-Line Element (TLE) sets** propagated with the **SGP4** algorithm.
+OrbitIQ Command Center is an **AI-native 3D satellite intelligence command center for public orbital visibility, infrastructure dependency awareness, mission scenario briefs and executive space resilience insights.**
 
 ---
 
@@ -104,21 +101,6 @@ this classification.
 
 ---
 
-## Intended use
-
-This application is designed for:
-- Portfolio demonstration
-- Educational exploration of orbital mechanics
-- Situational awareness of the publicly tracked orbital environment
-
-This application is **not** designed or suitable for:
-- Flight safety assessments
-- Conjunction analysis or collision avoidance
-- Operational mission planning
-- Any safety-of-life application
-
----
-
 ## Data source
 
 Public TLE data: [CelesTrak](https://celestrak.org/) (Dr T.S. Kelso).  
@@ -132,9 +114,22 @@ The AI Command Agent uses an LLM (Large Language Model) via OpenAI API proxy to 
 ## v0.5.0 Mission Briefs & Space Infrastructure Risk Layer
 - **Mission Briefs** are deterministic portfolio intelligence summaries based on visible public satellite object counts in approximate regional boundaries.
 - **Risk Signals** are analytical scenario indicators intended to summarize portfolio dependency pressures (e.g. density, signal reliance, optical crowding). They are **NOT** operational aerospace risk assessments.
-- OrbitIQ is strictly for situational awareness, education, and portfolio analytics. It cannot and should not be used for conjunction analysis, collision avoidance, flight safety, or real-world operational command decisions.
+
+## 5. Not for Flight Safety or Conjunction Assessment
+OrbitIQ is entirely disconnected from operational aerospace command and control systems. It provides **portfolio/educational analytical system indicators** rather than active space domain awareness guarantees.
+- **NO GUARANTEED REAL-TIME**: It does not offer guaranteed real-time tracking.
+- **NO COLLISION WARNINGS**: It does not calculate conjunctions, close approaches, or collision probabilities.
+- **NO OPERATIONAL CAPABILITY**: It cannot and should not be used for satellite tasking, maneuver planning, or flight safety.
+
+For authoritative space situational awareness, refer to Space-Track.org and official national space agencies.
 
 ## v0.6.0 Time Controls & Scenario Simulation Disclaimers
 - **SGP4 Accuracy Decay**: Orbit propagation accuracy degrades continuously as the simulation time moves further away from the original TLE epoch. Simulating days or weeks into the future (or past) using a single TLE snapshot will result in significant positional divergence from reality.
 - **Maneuvers Excluded**: The simulation does not predict or incorporate future orbital maneuvers. A satellite simulated three days into the future may have performed station-keeping in reality, rendering the simulated position inaccurate.
 - **Not for Predictive Safety**: Simulated scenarios are for educational "what-if" analysis and portfolio visualization only. They are absolutely **NOT** suitable for flight safety, predictive conjunction assessment, or mission planning.
+
+## v0.7.0 Local Persistence & Snapshots Disclaimers
+- **Metadata Only**: OrbitIQ snapshots and saved views only store analytical metadata, view preferences, and generic satellite identification (name, NORAD ID). Raw TLE arrays are not persistently stored.
+- **Data Freshness upon Reload**: When loading a saved view at a later date, OrbitIQ fetches the latest live TLE data from CelesTrak. If the saved view relies on a specific simulation time offset, the UI re-applies the relative offset, but positions may differ due to updated anchor epochs.
+- **Client-Side Export**: Exported JSON files are generated entirely locally. You are responsible for securely storing your own exports.
+

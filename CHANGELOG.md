@@ -1,3 +1,38 @@
+## [0.9.0-release-candidate] - 2026-06-05
+
+### Added
+- **Canvas Fallback**: Added `<noscript>` and non-WebGL fallback messages to ensure proper communication when environments cannot support 3D rendering.
+- **GitHub Packaging**: Added `GITHUB_PACKAGING.md` with repo descriptions, exact topics, demo scripts, and portfolio copy.
+
+### Changed
+- **UX & Accessibility Polish**: Audited UI elements for consistent spacing and typography. Injected `aria-label`s into icon-only buttons across `TopBar.tsx`, `DetailPanel.tsx`, and `MissionPanel.tsx` to improve screen-reader compatibility.
+- **Product Positioning**: Standardized all product copy to focus on "public orbital visibility, infrastructure dependency awareness, mission scenario briefs and executive space resilience insights."
+- **Data Honesty**: Further sterilized any remaining terminology related to "flight safety" and "conjunction alerts", cementing the application as an analytical/portfolio tool.
+- **Localization**: Synced new tagline and missing UI strings across the English and Spanish dictionaries.
+
+## [0.8.0-production-data-hardening-reliability-layer] - 2026-06-05
+
+### Added
+- **Data Source Health Layer**: Complete runtime observability of `/api/tle` and `/api/agent` through a collapsible `DataHealthPanel`.
+- **TopBar Health Indicator**: Color-coded, compact health badge that allows users to seamlessly check the status of live tracking and AI.
+- **Serverless API Reliability Hardening**: `/api/tle` and `/api/agent` have explicit timeouts, stricter error boundary logic, and safe response shaping for failures.
+- **Client-Side Safe Fallback State**: The application UI correctly detects API degradation (including backend schema or fetch failures) and visually updates the health layer while staying completely functional via deterministic routines.
+- **Error Boundaries**: A React tree `ErrorBoundary` to gracefully handle catastrophic UI or WebGL failures without white-screening.
+
+### Changed
+- Refactored `loadSatellites` in `src/data/client.ts` to surface detailed cache metadata, TTLs, and health reasons to the global Zustand store.
+- Upgraded `/api/agent` to enforce strict request body limits and mask Zod schema errors securely from the client.
+- Thoroughly audited `src/state/userStore.ts` and `src/intelligence/intelligence.ts` to ensure computations and local storage operations do not interfere with 60FPS WebGL performance.
+
+## [0.7.0-watchlists-saved-mission-views] - 2026-06-05
+
+### Added
+- **Satellite Watchlist**: Locally persistent tracking of individual satellites of interest.
+- **Saved Mission Views**: Ability to save and reload complex filter configurations, scenario contexts, and time states.
+- **Executive Snapshots**: Capture the current state of the orbital simulation and export it to JSON or Markdown.
+- **JSON Export/Import**: Full backup and restore capabilities for user preferences via strictly validated JSON.
+- **AI Agent Local Context Actions**: Agent understands intents like "add to watchlist", "save this view", "export snapshot".
+
 ## [0.6.0-time-controls-scenario-simulation] - 2026-06-05
 
 ### Added

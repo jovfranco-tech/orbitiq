@@ -5,6 +5,9 @@
 // ============================================================
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import type { GlobeApi } from '../../types';
 
 const RE_SCENE = 1.0;
@@ -34,6 +37,19 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   // ECI inertial frame: Earth group spins under fixed satellite positions
   const earthGroup = new THREE.Group();
   scene.add(earthGroup);
+
+  // ---- Post-Processing (Bloom) ----
+  const renderScene = new RenderPass(scene, camera);
+  const bloomPass = new UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.85, // strength
+    0.5,  // radius
+    0.35  // threshold
+  );
+  
+  const composer = new EffectComposer(renderer);
+  composer.addPass(renderScene);
+  composer.addPass(bloomPass);
 
   // ---- Lighting ----
   scene.add(new THREE.AmbientLight(0x3a4a66, 0.9));
@@ -293,7 +309,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     if (ring.visible) ring.lookAt(camera.position);
     ring.scale.setScalar(1 + 0.12 * Math.sin(performance.now() * 0.005));
     controls.update();
-    renderer.render(scene, camera);
+    composer.render();
   }
 
   function loop(): void {
@@ -306,6 +322,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     const h = container.clientHeight || window.innerHeight;
     if (w === 0 || h === 0) return;
     renderer.setSize(w, h, false);
+    composer.setSize(w, h);
     camera.aspect = w / h; camera.updateProjectionMatrix();
     satMat.uniforms['uScale'].value = h / (2 * Math.tan((camera.fov * Math.PI / 180) / 2));
   }

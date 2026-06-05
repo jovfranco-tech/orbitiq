@@ -35,7 +35,20 @@ const ActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('highlight_relevant_groups'), groups: z.array(z.string()) }),
   z.object({ type: z.literal('highlight_relevant_region'), region: z.string() }),
   z.object({ type: z.literal('recommend_next_view') }),
-  z.object({ type: z.literal('reset_view') }),
+  z.object({ type: z.literal('set_time_mode'), mode: z.enum(['live', 'paused', 'simulating']) }),
+  z.object({ type: z.literal('set_time_speed'), speed: z.number() }),
+  z.object({ type: z.literal('jump_time'), offsetMs: z.number() }),
+  z.object({ type: z.literal('reset_to_now') }),
+  z.object({ type: z.literal('pause_simulation') }),
+  z.object({ type: z.literal('resume_simulation') }),
+  z.object({ type: z.literal('add_to_watchlist') }),
+  z.object({ type: z.literal('remove_from_watchlist') }),
+  z.object({ type: z.literal('show_watchlist') }),
+  z.object({ type: z.literal('save_current_view'), name: z.string().optional() }),
+  z.object({ type: z.literal('load_saved_view'), viewIdOrName: z.string().optional() }),
+  z.object({ type: z.literal('create_snapshot') }),
+  z.object({ type: z.literal('export_snapshot') }),
+  z.object({ type: z.literal('recommend_saved_view') }),
   z.object({ type: z.literal('unknown_safe_fallback') }),
 ]);
 
@@ -82,6 +95,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(400).json({ error: 'Missing or invalid query (max 500 chars)' });
     return;
   }
+  
+  if (JSON.stringify(context || {}).length > 10000) {
+    res.status(400).json({ error: 'Context payload too large' });
+    return;
+  }
 
   const model = process.env.LLM_MODEL || 'gpt-4o-mini';
 
@@ -120,6 +138,20 @@ type AgentAction =
 | { type: 'highlight_relevant_region'; region: string }
 | { type: 'recommend_next_view' }
 | { type: 'reset_view' }
+| { type: 'set_time_mode'; mode: 'live' | 'paused' | 'simulating' }
+| { type: 'set_time_speed'; speed: number }
+| { type: 'jump_time'; offsetMs: number }
+| { type: 'reset_to_now' }
+| { type: 'pause_simulation' }
+| { type: 'resume_simulation' }
+| { type: 'add_to_watchlist' }
+| { type: 'remove_from_watchlist' }
+| { type: 'show_watchlist' }
+| { type: 'save_current_view'; name?: string }
+| { type: 'load_saved_view'; viewIdOrName?: string }
+| { type: 'create_snapshot' }
+| { type: 'export_snapshot' }
+| { type: 'recommend_saved_view' }
 | { type: 'unknown_safe_fallback' };
 
 type LlmAgentResponse = {
@@ -167,13 +199,18 @@ type LlmAgentResponse = {
 
     const parsed = JSON.parse(content);
     
-    // Zod validation throws if shape is invalid, falling back to catch block -> HTTP 500
+    // Zod validation throws if shape is invalid
     const validatedData = ResponseSchema.parse(parsed);
 
     res.status(200).json(validatedData);
-  } catch (error) {
-    console.error('[/api/agent] LLM processing failed:', error);
-    // Returning 500 allows the client to gracefully fall back to deterministic parse
-    res.status(500).json({ error: 'LLM failed or returned invalid schema' });
+  } catch (err: any) {
+    // Return a generic safe error without raw stack traces
+    if (err instanceof z.ZodError) {
+      console.error('[/api/agent] LLM Response Schema mismatch');
+      res.status(500).json({ error: 'invalid_schema' });
+    } else {
+      console.error('[/api/agent] LLM fetch or parse failed');
+      res.status(503).json({ error: 'provider_unavailable' });
+    }
   }
 }

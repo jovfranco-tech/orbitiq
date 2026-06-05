@@ -10,6 +10,7 @@ import { regionOf } from '../../regions/regions';
 import { satelliteRelevance } from '../../ai/agent';
 import { CS } from '../../state/catalogStore';
 import { useStore } from '../../state/store';
+import { useUserStore } from '../../state/userStore';
 
 const BAND_FULL: Record<string, string> = {
   LEO: 'Low Earth Orbit', MEO: 'Medium Earth Orbit', GEO: 'Geostationary',
@@ -26,6 +27,8 @@ interface Props {
 
 export function DetailPanel({ onClose, onToggleTrack }: Props) {
   const { selected, tracking, dataMode, simMode } = useStore();
+  const { watchlists, addToWatchlist, removeFromWatchlist } = useUserStore();
+  
   const [live, setLive] = useState<LiveData | null>(null);
   const [sim, setSim] = useState<LiveData | null>(null);
 
@@ -129,10 +132,36 @@ export function DetailPanel({ onClose, onToggleTrack }: Props) {
         <p>{satelliteRelevance(grp)}</p>
       </div>
 
-      <div className="detail-track">
-        <button className={tracking ? 'on' : ''} onClick={onToggleTrack}>
+      <div className="detail-track" style={{ display: 'flex', gap: '8px' }}>
+        <button className={tracking ? 'on' : ''} onClick={onToggleTrack} style={{ flex: 1 }}>
           {tracking ? t('untrack') : t('track')}
         </button>
+        {(() => {
+          const inWatchlist = watchlists.some(w => w.satnum === c.satnum);
+          return (
+            <button 
+              className={inWatchlist ? 'on' : ''} 
+              onClick={() => {
+                if (inWatchlist) {
+                  removeFromWatchlist(c.satnum);
+                } else {
+                  addToWatchlist({
+                    name: c.name,
+                    satnum: c.satnum,
+                    group: grp,
+                    band: (simMode !== 'live' ? sim?.band : live?.band) ?? 'LEO',
+                    alt: (simMode !== 'live' ? sim?.alt : live?.alt) ?? 0,
+                    region: (simMode !== 'live' ? sim?.region : live?.region) ?? 'Unknown',
+                    sourceMode: dataMode
+                  });
+                }
+              }}
+              style={{ flex: 1 }}
+            >
+              {inWatchlist ? '🔖 In Watchlist' : '🔖 Add to Watchlist'}
+            </button>
+          );
+        })()}
       </div>
 
       <div className="detail-source">

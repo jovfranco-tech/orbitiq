@@ -46,6 +46,10 @@ interface TleMeta {
   freshness: 'live' | 'cached' | 'fallback';
   dataMode: 'live' | 'cached' | 'fallback';
   count: number;
+  sourceHealth?: 'healthy' | 'degraded' | 'unavailable';
+  cacheAgeSeconds?: number;
+  cacheTtlSeconds?: number;
+  fallbackReason?: string;
 }
 
 interface TleResponse {
@@ -60,8 +64,8 @@ const CELESTRAK_URL =
 
 async function fetchCelesTrak(): Promise<SatPayload[]> {
   const res = await fetch(CELESTRAK_URL, {
-    signal: AbortSignal.timeout(15_000),
-    headers: { 'User-Agent': 'OrbitIQ-CommandCenter/0.2.0' },
+    signal: AbortSignal.timeout(8_000), // Strict 8s timeout
+    headers: { 'User-Agent': 'OrbitIQ-CommandCenter/0.8.0' },
   });
   if (!res.ok) throw new Error(`CelesTrak HTTP ${res.status}`);
 
@@ -124,6 +128,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         dataMode: 'cached',
         cacheTimestamp: new Date(cache.fetchedAt).toISOString(),
         fetchTimestamp: new Date(now).toISOString(),
+        sourceHealth: 'healthy',
+        cacheAgeSeconds: Math.floor((now - cache.fetchedAt) / 1000),
+        cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
       },
     };
     res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=7200');
@@ -143,6 +150,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         freshness: 'live',
         dataMode: 'live',
         count: satellites.length,
+        sourceHealth: 'healthy',
+        cacheAgeSeconds: 0,
+        cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
       },
       satellites,
     };
@@ -163,6 +173,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         freshness: 'fallback',
         dataMode: 'fallback',
         count: 0,
+        sourceHealth: 'unavailable',
+        fallbackReason: errorMsg,
       },
       satellites: [], // empty signals the client to use its own catalog
     };

@@ -1,8 +1,9 @@
 # OrbitIQ — Command Center
 
-**v0.3.0** — Orbital Intelligence Layer (React + Vite + TypeScript).
+**v0.9.0** — Release Candidate (React + Vite + TypeScript).
 
-A real-time 3D satellite-orbit tracker and AI-native orbital intelligence dashboard.
+AI-native 3D satellite intelligence command center for public orbital visibility, infrastructure dependency awareness, mission scenario briefs and executive space resilience insights.
+
 Thousands of satellites are propagated with **SGP4** from public TLE/GP elements and
 rendered as a GPU point cloud around a textured Earth, with a natural-language command
 agent, click-to-inspect, constellation/region/altitude filters, and an executive brief.
@@ -25,6 +26,7 @@ agent, click-to-inspect, constellation/region/altitude filters, and an executive
 | Filters | Constellation, orbital band, region, altitude range, name/NORAD search |
 | Executive brief | Auto-generated situational summary from the live propagated snapshot |
 | Data provenance | Live / cached / fallback clearly labeled; no false claims |
+| Observability | Runtime UI layer showing exact API / LLM health and data cache metadata |
 | Localisation | EN (default) + ES, all strings keyed |
 
 ---
@@ -130,7 +132,8 @@ orbitiq/
 - **Server-side only** — browser never hits CelesTrak directly
 - Cached in-memory for up to 6 hours per warm lambda instance
 - Returns JSON: `{ meta, satellites[] }`
-- Meta includes `source`, `fetchTimestamp`, `cacheTimestamp`, `tleEpoch`, `freshness`, `dataMode`
+- Meta includes `source`, `fetchTimestamp`, `cacheTimestamp`, `tleEpoch`, `freshness`, `dataMode`, `sourceHealth`, `cacheAgeSeconds`, `cacheTtlSeconds`
+- Includes strict AbortSignal timeouts and error boundaries that return gracefully-degraded fallback responses.
 
 ### Fallback: representative catalog
 
@@ -148,6 +151,52 @@ representative, not a live observation.
 - Elements age continuously; accuracy degrades with time since epoch
 - Maneuvers are not reflected until a new TLE is published
 - Not all objects tracked by SSN appear in public CelesTrak feeds
+- Scenario simulation drifts further from physical reality the farther it deviates from TLE epochs
+
+---
+
+## Deployment & Setup
+
+### Local Development
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/your-username/orbitiq-command-center.git
+   cd orbitiq-command-center
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment variables**:
+   Create a `.env` file in the root directory (use `.env.example` as a template).
+   ```
+   OPENAI_API_KEY=your_openai_api_key_here
+   ```
+   *Note: The app will run without an API key by gracefully degrading to the deterministic fallback agent.*
+
+4. **Run the development server**:
+   ```bash
+   npm run dev
+   ```
+
+### Vercel Deployment
+
+OrbitIQ is optimized for Vercel edge/serverless environments.
+
+1. **Deploy to Vercel**:
+   Connect your GitHub repository to Vercel.
+
+2. **Environment Variables**:
+   In your Vercel project settings, add the `OPENAI_API_KEY` environment variable.
+
+3. **Build Settings**:
+   The default Vite build settings are pre-configured:
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+   - Install Command: `npm install`
 - This tool is **not** suitable for collision avoidance, proximity operations, or flight safety
 
 ---
@@ -245,6 +294,16 @@ OrbitIQ v0.6.0 introduces **Scenario Simulation**, allowing users to alter the t
 - **AI Agent Time Commands**: The AI agent natively understands temporal instructions (e.g., "fast forward 12 hours", "pause the simulation", "reset to live").
 - **Simulation-Aware Intelligence**: Mission Briefs and the Space Infrastructure Risk Layer evaluate the environment based on the *simulated* time, allowing "what-if" orbital congestion analysis.
 - **Data Caveat**: Simulation accuracy degrades as you move further from the TLE epoch. This tool is purely for scenario demonstration and is strictly **not** for flight safety or true conjunction assessment.
+
+## v0.7.0 — Watchlists & Saved Mission Views
+
+OrbitIQ v0.7.0 introduces **Local Persistence**, elevating the app into a personalized daily workspace without sacrificing privacy or requiring backend databases.
+
+- **Satellite Watchlists**: Track specific satellites of interest across sessions.
+- **Saved Mission Views**: Snapshot the entire workspace state (active filters, time simulation offset, mission context) and restore it later.
+- **Executive Snapshots**: Freeze the current state of orbital intelligence (congestion score, hotspots, etc.) and generate Markdown or JSON reports.
+- **Privacy-First Export/Import**: All preferences are saved locally in the browser's `localStorage` and can be exported to or imported from strict-schema JSON files.
+- **AI Agent Local Context**: The agent can add/remove objects from the watchlist and trigger local snapshots via natural language.
 
 ## Roadmap toward v1.0
 
