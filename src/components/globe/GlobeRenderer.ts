@@ -156,25 +156,22 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     transparent: true, depthTest: true, depthWrite: false, blending: THREE.AdditiveBlending,
     uniforms: { uSize: { value: 0.0145 }, uScale: { value: 700 } },
     vertexShader: `
-      attribute vec3 color; attribute float vis;
-      varying vec3 vColor; varying float vVis;
+      attribute float vis;
+      varying float vVis;
       uniform float uSize; uniform float uScale;
       void main(){
-        vColor = color; vVis = vis;
+        vVis = vis;
         vec4 mv = modelViewMatrix*vec4(position,1.0);
         gl_PointSize = vis * uSize * (uScale / -mv.z);
         gl_PointSize = clamp(gl_PointSize, vis > 0.5 ? 1.6 : 0.0, 7.0);
         gl_Position = projectionMatrix*mv;
       }`,
     fragmentShader: `
-      varying vec3 vColor; varying float vVis;
+      varying float vVis;
       void main(){
         vec2 d = gl_PointCoord - vec2(0.5);
-        float r = length(d);
-        if(r>0.5) discard;
-        float core = smoothstep(0.5,0.0,r);
-        vec3 c = vColor + vec3(0.55) * pow(core, 3.5);
-        gl_FragColor = vec4(c, (0.45 + 0.55*core) * vVis);
+        if(length(d)>0.5) discard;
+        gl_FragColor = vec4(1.0, 0.0, 0.0, vVis); // SOLID RED
       }`,
   });
 
