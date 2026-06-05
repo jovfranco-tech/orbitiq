@@ -1,6 +1,6 @@
 {
   "name": "orbitiq-command-center",
-  "version": "0.5.0-mission-briefs-risk-layer",
+  "version": "0.6.0-time-controls-scenario-simulation",
   "description": "Real-time 3D satellite orbit tracker and AI-native orbital intelligence dashboard.",
   "private": true,
   "type": "module",

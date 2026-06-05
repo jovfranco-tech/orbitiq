@@ -14,6 +14,7 @@ import type {
   AiAgentResponse, AgentActions, ExecutiveBrief, GroupKey, BandKey,
   DataMode, IntelligenceSummary, AiAgentIntelligence, LlmAgentResponse, MissionScenarioType
 } from '../types';
+import { CS } from '../state/catalogStore';
 
 // ---- Helpers ---------------------------------------------------------------
 
@@ -89,6 +90,7 @@ const blankActions = (): AgentActions => ({
   groups: null, band: null, region: null,
   altMax: null, altMin: null, focusSatnum: null, brief: false,
   missionScenario: null, showRiskLayer: false,
+  timeAction: null,
 });
 
 /** Build intelligence attachment for the response. */
@@ -144,6 +146,69 @@ export function deterministicParse(rawQuery: string, ctx: AgentContext): AiAgent
       'This is an analytical portfolio signal, not a flight-safety metric.';
     assumptions.push('Congestion score is a weighted composite of density, band concentration, region concentration, and constellation dominance.');
     return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+  }
+
+  // ---- Time Controls & Simulation ----------------------------------------
+  if (/simulation brief|what changes/i.test(q)) {
+    const match = q.match(/(\d+)\s+(hour|minute|min|hr|h|m)/i);
+    if (match) {
+      const amt = parseInt(match[1], 10);
+      const isHour = match[2].toLowerCase().startsWith('h');
+      const offsetMs = isHour ? amt * 3600000 : amt * 60000;
+      a.timeAction = { type: 'jump_time', offsetMs };
+    }
+    
+    if (/latam|latin america/.test(q)) {
+      a.missionScenario = 'LATAM_Connectivity';
+    } else {
+      a.brief = true;
+    }
+    intent = 'generate_simulation_brief'; confidence = 0.98;
+    answer = 'Generating simulation brief...';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);
+  }
+  
+  if (/(fast forward|jump ahead|skip ahead|jump|forward|ahead)\s+(\d+)\s+(hour|minute|min|hr|h|m)/i.test(q)) {
+    const match = q.match(/(fast forward|jump ahead|skip ahead|jump|forward|ahead)\s+(\d+)\s+(hour|minute|min|hr|h|m)/i);
+    if (match) {
+      const amt = parseInt(match[2], 10);
+      const isHour = match[3].toLowerCase().startsWith('h');
+      const offsetMs = isHour ? amt * 3600000 : amt * 60000;
+      a.timeAction = { type: 'jump_time', offsetMs };
+      intent = 'jump_time'; confidence = 0.98;
+      answer = `Jumping simulation forward by ${amt} ${isHour ? 'hours' : 'minutes'}.`;
+      return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+    }
+  }
+  if (/(rewind|jump back|go back|back)\s+(\d+)\s+(hour|minute|min|hr|h|m)/i.test(q)) {
+    const match = q.match(/(rewind|jump back|go back|back)\s+(\d+)\s+(hour|minute|min|hr|h|m)/i);
+    if (match) {
+      const amt = parseInt(match[2], 10);
+      const isHour = match[3].toLowerCase().startsWith('h');
+      const offsetMs = -(isHour ? amt * 3600000 : amt * 60000);
+      a.timeAction = { type: 'jump_time', offsetMs };
+      intent = 'jump_time'; confidence = 0.98;
+      answer = `Jumping simulation backward by ${amt} ${isHour ? 'hours' : 'minutes'}.`;
+      return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+    }
+  }
+  if (/pause|stop|halt/i.test(q) && /simulation|time/i.test(q)) {
+    a.timeAction = { type: 'pause_simulation' };
+    intent = 'pause_simulation'; confidence = 0.95;
+    answer = 'Pausing orbital simulation.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/resume|play|continue/i.test(q) && /simulation|time/i.test(q)) {
+    a.timeAction = { type: 'resume_simulation' };
+    intent = 'resume_simulation'; confidence = 0.95;
+    answer = 'Resuming orbital simulation.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/reset|real time|live|now/i.test(q) && !/reset view|clear/.test(q)) {
+    a.timeAction = { type: 'reset_to_now' };
+    intent = 'reset_to_now'; confidence = 0.95;
+    answer = 'Resetting simulation to live real-time state.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
   }
 
   // ---- Mission Scenarios & Risk ------------------------------------------
@@ -455,6 +520,10 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
       else if (action.type === 'highlight_relevant_region') {
         a.region = action.region;
       }
+      else if (['set_time_mode', 'set_time_speed', 'jump_time', 'reset_to_now', 'pause_simulation', 'resume_simulation'].includes(action.type)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        a.timeAction = action as any;
+      }
       else if (action.type === 'recommend_next_view') {
         // LLM decided to recommend a view, just handled as an answer
       }
@@ -521,12 +590,19 @@ export function generateBrief(ctx: {
     : dataMode === 'cached' ? 'Cached CelesTrak public TLE data'
     : 'Representative demo catalog';
 
+  const isSimulated = CS.liveSnapshot != null;
+  const simOffsetHours = isSimulated ? ((CS.simTimestampMs - Date.now()) / 3600000).toFixed(1) : '0';
+  const pictureTitle = isSimulated ? 'Simulated orbital picture' : 'Current orbital picture';
+  const pictureBody = isSimulated 
+    ? `Source: ${sourceLabel}. ${total.toLocaleString()} objects loaded, ${rendered.toLocaleString()} rendered. SIMULATION MODE ACTIVE: Time offset is ${simOffsetHours} hours from live.`
+    : `Source: ${sourceLabel}. ${total.toLocaleString()} objects loaded, ${rendered.toLocaleString()} currently rendered and propagated in near-real-time via SGP4.`;
+
   return {
     headline: `${rendered.toLocaleString()} of ${total.toLocaleString()} tracked objects in view`,
     sections: [
       {
-        title: 'Current orbital picture',
-        body: `Source: ${sourceLabel}. ${total.toLocaleString()} objects loaded, ${rendered.toLocaleString()} currently rendered and propagated in near-real-time via SGP4.`,
+        title: pictureTitle,
+        body: pictureBody,
       },
       {
         title: 'Key concentration',
@@ -565,6 +641,7 @@ export function generateBrief(ctx: {
       {
         title: 'Data caveat',
         body: 'Positions derive from public two-line elements propagated with SGP4. Element sets age, maneuvers are not reflected, and accuracy degrades with time since epoch. ' +
+          (isSimulated ? 'SCENARIO SIMULATION ACTIVE: Predictive accuracy decays significantly for time offsets > 24 hours. ' : '') +
           'This view is for portfolio, education and situational awareness only — never flight safety or operational conjunction assessment.',
       },
       {

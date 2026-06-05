@@ -13,6 +13,7 @@ import { MissionPanel } from '../components/panels/MissionPanel';
 import { DetailPanel } from '../components/panels/DetailPanel';
 import { BriefModal } from '../components/panels/BriefModal';
 import { OrbitalIntelligencePanel } from '../components/panels/OrbitalIntelligencePanel';
+import { TimeControlsPanel } from '../components/panels/TimeControlsPanel';
 import { useStore } from '../state/store';
 import { CS, initCatalogStore } from '../state/catalogStore';
 import { loadSatellites } from '../data/client';
@@ -39,6 +40,7 @@ export function App() {
   const globeRef  = useRef<GlobeApi | null>(null);
   const tickRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const intelRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTickTimeRef = useRef<number>(performance.now());
   // Stable Vector3 reused for fly-to — avoids creating objects each pick
   const flyVec    = useRef(new THREE.Vector3());
 
@@ -57,11 +59,22 @@ export function App() {
 
   // ---- Propagation tick (hot path — zero React state writes per frame) ----
   // NOTE: tick accesses store state via getState() to avoid stale closure.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const tick = useCallback(() => {
     if (!globeRef.current || CS.N === 0) return;
+    
+    const nowPerf = performance.now();
+    const dt = nowPerf - lastTickTimeRef.current;
+    lastTickTimeRef.current = nowPerf;
+    
+    const storeState = useStore.getState();
+    if (storeState.simMode === 'live') {
+      CS.simTimestampMs = Date.now();
+    } else if (storeState.simMode === 'simulating') {
+      CS.simTimestampMs += dt * storeState.simSpeed;
+    }
+    
     const globe = globeRef.current;
-    const date  = new Date();
+    const date  = new Date(CS.simTimestampMs);
     const scale = 1.0 / 6378.137;
 
     const gmst = satJs.gstime(date) as number;
@@ -184,7 +197,7 @@ export function App() {
 
     // Intelligence refresh — decoupled from tick for performance
     intelRef.current = setInterval(refreshIntel, INTEL_REFRESH_MS);
-  }, [loadCatalog, tick, refreshIntel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadCatalog, tick, refreshIntel]);
 
   // ---- Cleanup on unmount (StrictMode double-mount safe) ---------------
   useEffect(() => {
@@ -341,6 +354,15 @@ export function App() {
           selectSat(globeRef.current, idx, true);
         }
       }
+      if (a.timeAction) {
+        const t = a.timeAction;
+        if (t.type === 'jump_time') store.jumpTime(t.offsetMs);
+        if (t.type === 'set_time_speed') store.setSimSpeed(t.speed);
+        if (t.type === 'set_time_mode') store.setSimMode(t.mode);
+        if (t.type === 'reset_to_now') store.resetTime();
+        if (t.type === 'pause_simulation') store.setSimMode('paused');
+        if (t.type === 'resume_simulation') store.setSimMode('simulating');
+      }
     }
     // Re-apply filters explicitly to get fresh counts
     applyFilter();
@@ -442,6 +464,8 @@ export function App() {
         )}
         
         {store.showMissionPanel && <MissionPanel />}
+
+        <TimeControlsPanel />
 
         <Legend />
 

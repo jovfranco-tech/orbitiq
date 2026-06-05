@@ -26,7 +26,7 @@ export function GlobeMount({ onReady }: Props) {
       globeRef.current?.destroy();
       globeRef.current = null;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div

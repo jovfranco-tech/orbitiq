@@ -7,6 +7,7 @@ import type {
   GroupKey, BandKey, RiskSignal, RiskLevel, 
   MissionScenario
 } from '../types';
+import { getIntelligence } from './intelligence';
 
 let cachedScenarios: Record<string, MissionScenario> | null = null;
 let lastRiskUpdate = 0;
@@ -62,7 +63,24 @@ export function getMissionScenarios(): Record<string, MissionScenario> {
     return cachedScenarios;
   }
   
-  const N = Math.max(1, CS.N); // Avoid div by 0
+  const N = CS.N;
+  if (N === 0) return {};
+  
+  let simNote = '';
+  if (CS.liveSnapshot) {
+    const live = CS.liveSnapshot;
+    const intel = getIntelligence();
+    const simTotal = CS.N;
+    const simTopRegion = intel.highestConcentrationRegion;
+    const simTopGroup = intel.regions[0]?.topGroups[0]?.group || 'other';
+    const simLeo = intel.bands.find(b => b.band === 'LEO')?.count || 0;
+    
+    simNote = `\n[SIMULATED SCENARIO ACTIVE]
+    • Visible Count: Live (${live.total.toLocaleString()}) vs Sim (${simTotal.toLocaleString()})
+    • LEO Density: Live (${live.bands.LEO.toLocaleString()}) vs Sim (${simLeo.toLocaleString()})
+    • Top Region: Live (${REGIONS[live.topRegion]?.label || live.topRegion}) vs Sim (${REGIONS[simTopRegion]?.label || simTopRegion})
+    • Dominant Group: Live (${live.topGroup.toUpperCase()}) vs Sim (${simTopGroup.toUpperCase()})`;
+  }
 
   // GNSS Dependency
   const gnssCount = countSatellites(['gnss'], ['MEO'], []);
@@ -196,11 +214,18 @@ export function getMissionScenarios(): Record<string, MissionScenario> {
     relevantBands: [],
     relevantRegions: [],
     visibleCount: CS.N,
-    insight: `Tracking ${CS.N.toLocaleString()} total space objects across all regimes.`,
+    insight: `Tracking ${CS.N.toLocaleString()} total space objects across all regimes.` + simNote,
     operationalRelevance: 'Baseline situational awareness of humanity’s active orbital infrastructure.',
     caveat: 'Near-real-time public orbital data where available; representative fallback catalog may be active.',
     recommendedAction: { type: 'executive_brief' }
   };
+
+  if (simNote) {
+    [gnssScenario, latamScenario, weatherScenario, disasterScenario, leoScenario].forEach(s => {
+      s.insight += simNote;
+      s.caveat = 'Scenario simulation active. Accuracy may degrade away from TLE epoch. ' + s.caveat;
+    });
+  }
 
   cachedScenarios = {
     GNSS_Dependency: gnssScenario,

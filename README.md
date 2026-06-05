@@ -207,15 +207,6 @@ npx vercel           # or push to a repo connected to Vercel
 ---
 
 
-## Adding time acceleration / replay (future)
-
-1. Replace `new Date()` in the propagation tick with a `simulationTime` ref.
-2. Add a time-scrubber component that advances `simulationTime` at a multiplier.
-3. Expose a `setSimTime(date)` action in `store.ts`.
-4. No changes to `propagator.ts`, `GlobeRenderer.ts`, or the AI agent.
-
----
-
 ## Security baseline
 
 - No API keys in frontend code or committed to the repo
@@ -245,3 +236,20 @@ If the LLM API fails, times out, returns an invalid schema, or if `OPENAI_API_KE
 2. Add your `OPENAI_API_KEY`
 3. Run `npx vercel dev` or `npm run dev`
 
+## v0.6.0 — Time Controls & Scenario Simulation
+
+OrbitIQ v0.6.0 introduces **Scenario Simulation**, allowing users to alter the temporal state of the orbital environment.
+
+- **Time Controls**: Sleek panel to play, pause, fast-forward, or jump to specific dates, powered by continuous SGP4 mathematical time propagation.
+- **Current vs Simulated Comparison**: When entering simulation mode, a snapshot of the live catalog is captured. The UI allows comparing the simulated state against the cached "live" baseline.
+- **AI Agent Time Commands**: The AI agent natively understands temporal instructions (e.g., "fast forward 12 hours", "pause the simulation", "reset to live").
+- **Simulation-Aware Intelligence**: Mission Briefs and the Space Infrastructure Risk Layer evaluate the environment based on the *simulated* time, allowing "what-if" orbital congestion analysis.
+- **Data Caveat**: Simulation accuracy degrades as you move further from the TLE epoch. This tool is purely for scenario demonstration and is strictly **not** for flight safety or true conjunction assessment.
+
+## Roadmap toward v1.0
+
+As we approach v1.0, future additions aim to elevate OrbitIQ from a visualization dashboard to a truly autonomous intelligence platform:
+
+- **Multi-Agent Orchestration**: Introducing specialized subagents (e.g., a dedicated Risk Analyst Agent, a Telemetry Agent) that collaborate and debate over orbital events to synthesize higher-confidence briefs.
+- **Real LLM Deployment**: Finalizing the transition to a production-grade LLM backend, moving past the deterministic fallback for robust natural-language interaction in all environments.
+- **Enhanced Data Pipelines**: Investigating integrations with broader Space Domain Awareness (SDA) data feeds to enrich public TLEs.

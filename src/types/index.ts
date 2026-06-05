@@ -79,6 +79,7 @@ export interface AgentActions {
   brief: boolean;
   missionScenario: MissionScenarioType | null;
   showRiskLayer: boolean;
+  timeAction: Extract<AgentAction, { type: 'set_time_mode' | 'set_time_speed' | 'jump_time' | 'reset_to_now' | 'pause_simulation' | 'resume_simulation' }> | null;
 }
 
 export type AgentAction =
@@ -92,12 +93,19 @@ export type AgentAction =
   | { type: 'congestion_summary' }
   | { type: 'executive_brief' }
   | { type: 'generate_mission_brief'; scenario: string }
+  | { type: 'generate_simulation_brief' }
   | { type: 'select_mission_scenario'; scenario: string }
   | { type: 'show_risk_layer' }
   | { type: 'highlight_relevant_groups'; groups: string[] }
   | { type: 'highlight_relevant_region'; region: string }
   | { type: 'recommend_next_view' }
   | { type: 'reset_view' }
+  | { type: 'set_time_mode'; mode: 'live' | 'paused' | 'simulating' }
+  | { type: 'set_time_speed'; speed: number }
+  | { type: 'jump_time'; offsetMs: number }
+  | { type: 'reset_to_now' }
+  | { type: 'pause_simulation' }
+  | { type: 'resume_simulation' }
   | { type: 'unknown_safe_fallback' };
 
 /** Formal output contract for the AI agent.

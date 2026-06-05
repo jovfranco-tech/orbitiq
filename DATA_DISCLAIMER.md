@@ -133,3 +133,8 @@ The AI Command Agent uses an LLM (Large Language Model) via OpenAI API proxy to 
 - **Mission Briefs** are deterministic portfolio intelligence summaries based on visible public satellite object counts in approximate regional boundaries.
 - **Risk Signals** are analytical scenario indicators intended to summarize portfolio dependency pressures (e.g. density, signal reliance, optical crowding). They are **NOT** operational aerospace risk assessments.
 - OrbitIQ is strictly for situational awareness, education, and portfolio analytics. It cannot and should not be used for conjunction analysis, collision avoidance, flight safety, or real-world operational command decisions.
+
+## v0.6.0 Time Controls & Scenario Simulation Disclaimers
+- **SGP4 Accuracy Decay**: Orbit propagation accuracy degrades continuously as the simulation time moves further away from the original TLE epoch. Simulating days or weeks into the future (or past) using a single TLE snapshot will result in significant positional divergence from reality.
+- **Maneuvers Excluded**: The simulation does not predict or incorporate future orbital maneuvers. A satellite simulated three days into the future may have performed station-keeping in reality, rendering the simulated position inaccurate.
+- **Not for Predictive Safety**: Simulated scenarios are for educational "what-if" analysis and portfolio visualization only. They are absolutely **NOT** suitable for flight safety, predictive conjunction assessment, or mission planning.

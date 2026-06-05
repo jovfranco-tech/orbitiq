@@ -92,7 +92,8 @@ export function inspect(rec: SatRec, date: Date): InspectResult | null {
   const gd = sat.eciToGeodetic(pv.position, gmst) as { latitude: number; longitude: number; height: number };
   const lat: number = sat.degreesLat(gd.latitude) as number;
   const lon: number = sat.degreesLong(gd.longitude) as number;
-  const v = pv.velocity!;
+  if (!pv.velocity) return null;
+  const v = pv.velocity;
   const speed = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
   return { lat, lon, alt: gd.height, speed, gmst, eci: pv.position };
 }

@@ -1,3 +1,13 @@
+## [0.6.0-time-controls-scenario-simulation] - 2026-06-05
+
+### Added
+- **Time Controls & Scenario Simulation**: Added deterministic time-travel capabilities for the entire SGP4-propagated catalog.
+- **Glassmorphism Time Controls Panel**: Draggable, sleek UI component for adjusting time (`Live`, `Paused`, `Simulated`), playback speed multiplier, and jumping forward/backward in time.
+- **Simulation Snapshot Cache (Current vs Simulated)**: Automatically captures current live visibility baselines before switching to scenario simulation, allowing context-aware Current vs Simulated comparative intelligence.
+- **AI Agent Time Commands**: AI agent can now interpret time instructions natively (e.g. "pause the simulation", "fast forward by 24 hours", "reset to now").
+- **Simulation Data Honesty**: Emphasizes that temporal accuracy degrades away from the TLE epoch.
+- **Performance Optimization**: Advanced time progression relies heavily on `performance.now()` in the `tick` loop to decouple frame rate from the simulation clock, ensuring zero React state mutations per frame during time jumps.
+
 ## [0.5.0-mission-briefs-risk-layer] - 2026-06-05
 
 ### Added

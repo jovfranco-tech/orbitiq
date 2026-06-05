@@ -20,6 +20,15 @@ export interface CatalogStore {
   group: GroupKey[];
   colorBase: Float32Array;
   vis: Float32Array;
+  selected: number;
+  simTimestampMs: number;
+  liveSnapshot: {
+    total: number;
+    bands: { LEO: number; MEO: number; GEO: number };
+    topRegion: string;
+    topGroup: string;
+    selectedPos: { lat: number; lon: number; alt: number; } | null;
+  } | null;
 }
 
 function empty(): CatalogStore {
@@ -30,6 +39,9 @@ function empty(): CatalogStore {
     band: [], group: [],
     colorBase: new Float32Array(0),
     vis: new Float32Array(0),
+    selected: -1,
+    simTimestampMs: Date.now(),
+    liveSnapshot: null
   };
 }
 

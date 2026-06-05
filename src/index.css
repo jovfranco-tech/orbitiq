@@ -551,3 +551,134 @@ input,select,button{font-family:inherit}
   border-radius: 4px;
 }
 
+
+/* Time Controls Panel */
+.time-controls-panel {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 380px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 10;
+}
+.time-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.time-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.status-dot.live {
+  background: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+}
+.status-dot.paused {
+  background: #f59e0b;
+}
+.status-dot.sim {
+  background: #8b5cf6;
+  box-shadow: 0 0 8px #8b5cf6;
+}
+.speed-badge {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+.time-offset {
+  font-family: monospace;
+  color: #f59e0b;
+  font-size: 0.85rem;
+}
+.time-display {
+  font-family: monospace;
+  font-size: 1.5rem;
+  text-align: center;
+  font-weight: 300;
+  letter-spacing: 1px;
+}
+.time-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+}
+.time-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.time-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.time-btn.play-pause {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  background: rgba(255, 255, 255, 0.1);
+}
+.speed-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8rem;
+}
+.speed-options {
+  display: flex;
+  gap: 4px;
+}
+.speed-pill {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.speed-pill.active {
+  background: var(--primary);
+  color: #fff;
+}
+.reset-time-btn {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  width: 100%;
+  transition: all 0.2s;
+}
+.reset-time-btn:hover {
+  background: rgba(245, 158, 11, 0.3);
+}
+.time-caveat {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.3;
+}

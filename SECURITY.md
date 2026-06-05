@@ -59,3 +59,6 @@ See `DATA_DISCLAIMER.md` for the full data honesty statement.
 
 ## AI Command Agent API
 OrbitIQ v0.4.0 introduces an LLM backend via `/api/agent`. The `OPENAI_API_KEY` MUST ONLY be provided in server-side environments (Vercel edge/serverless). It is NEVER exposed to the frontend. Validations are enforced using strict schema parsing (Zod) server-side to prevent injection of malicious actions.
+
+## v0.6.0 Scenario Simulation Security
+Time Simulation execution is purely client-side mathematical propagation via the `satellite.js` library. No new backend compute, database reads, or additional API calls are made during time travel. This maintains the zero-auth, zero-PII security baseline. All data remains public and fully client-side safe.

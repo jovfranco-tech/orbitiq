@@ -7,6 +7,7 @@
 // ============================================================
 import { create } from 'zustand';
 import type { DataMode, GroupKey, BandKey, MissionScenarioType } from '../types';
+import { CS } from './catalogStore';
 
 export interface UIState {
   // data / loading
@@ -37,6 +38,10 @@ export interface UIState {
   curRegionForCount: string | null;
   showMissionPanel: boolean;
   activeMissionScenario: MissionScenarioType | null;
+
+  // Simulation
+  simMode: 'live' | 'paused' | 'simulating';
+  simSpeed: number;
 }
 
 export interface UIActions {
@@ -62,6 +67,11 @@ export interface UIActions {
   setCurRegion(key: string | null): void;
   setShowMissionPanel(v: boolean): void;
   setActiveMissionScenario(s: MissionScenarioType | null): void;
+
+  setSimMode(mode: 'live' | 'paused' | 'simulating'): void;
+  setSimSpeed(speed: number): void;
+  jumpTime(offsetMs: number): void;
+  resetTime(): void;
 }
 
 const ALL_GROUPS: GroupKey[] = ['starlink', 'leo', 'meo', 'geo', 'gnss', 'weather', 'stations', 'science'];
@@ -89,6 +99,9 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   curRegionForCount: null,
   showMissionPanel: false,
   activeMissionScenario: null,
+
+  simMode: 'live',
+  simSpeed: 1,
 
   // --- actions ---
   setDataMode: (mode) => set({ dataMode: mode }),
@@ -126,4 +139,50 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   setCurRegion: (k) => set({ curRegionForCount: k }),
   setShowMissionPanel: (v) => set({ showMissionPanel: v }),
   setActiveMissionScenario: (s) => set({ activeMissionScenario: s }),
+
+  setSimMode: (mode) => {
+    if (get().simMode === 'live' && mode !== 'live') {
+      // Capture live snapshot before shifting time
+      import('../intelligence/intelligence').then(({ getIntelligence }) => {
+        const intel = getIntelligence();
+        CS.liveSnapshot = {
+          total: CS.N,
+          bands: { 
+            LEO: intel.bands.find(b => b.band === 'LEO')?.count || 0,
+            MEO: intel.bands.find(b => b.band === 'MEO')?.count || 0,
+            GEO: intel.bands.find(b => b.band === 'GEO')?.count || 0
+          },
+          topRegion: intel.highestConcentrationRegion,
+          topGroup: intel.regions[0]?.topGroups[0]?.group || 'other',
+          selectedPos: get().selected >= 0 ? { lat: CS.lat[get().selected], lon: CS.lon[get().selected], alt: CS.alt[get().selected] } : null
+        };
+      });
+    }
+    set({ simMode: mode });
+  },
+  setSimSpeed: (speed) => set({ simSpeed: speed }),
+  jumpTime: (offsetMs) => {
+    if (get().simMode === 'live') {
+      import('../intelligence/intelligence').then(({ getIntelligence }) => {
+        const intel = getIntelligence();
+        CS.liveSnapshot = {
+          total: CS.N,
+          bands: { 
+            LEO: intel.bands.find(b => b.band === 'LEO')?.count || 0,
+            MEO: intel.bands.find(b => b.band === 'MEO')?.count || 0,
+            GEO: intel.bands.find(b => b.band === 'GEO')?.count || 0
+          },
+          topRegion: intel.highestConcentrationRegion,
+          topGroup: intel.regions[0]?.topGroups[0]?.group || 'other',
+          selectedPos: get().selected >= 0 ? { lat: CS.lat[get().selected], lon: CS.lon[get().selected], alt: CS.alt[get().selected] } : null
+        };
+        set({ simMode: 'paused' });
+      });
+    }
+    CS.simTimestampMs += offsetMs;
+  },
+  resetTime: () => {
+    CS.simTimestampMs = Date.now();
+    set({ simMode: 'live', simSpeed: 1 });
+  },
 }));

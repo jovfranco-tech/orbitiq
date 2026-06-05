@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function BriefModal({ onClose }: Props) {
-  const { dataMode, renderedCount, totalCount } = useStore();
+  const { dataMode, renderedCount, totalCount, simMode } = useStore();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -49,6 +49,18 @@ export function BriefModal({ onClose }: Props) {
     <div className="brief-overlay" onClick={(e) => { if (e.currentTarget === e.target) onClose(); }}>
       <div className="brief glass">
         <div className="brief-head">
+          {dataMode === 'fallback' && (
+            <div className="caveat warn">
+              <strong>{t('fallback_mode')}</strong> {t('disclaimer_demo')}
+            </div>
+          )}
+          {simMode !== 'live' && (
+            <div className="caveat sim-warn">
+              <strong>{t('simulated') || 'Simulated'}</strong> {t('simulation_caveat') || 'Scenario simulation uses SGP4 propagation from public TLE data. Accuracy may degrade as simulation time moves away from the TLE epoch. Not for operational aerospace decisions.'}
+              <br/>
+              <em>Time: {new Date(CS.simTimestampMs).toISOString().replace('T', ' ').substring(0, 19)} UTC</em>
+            </div>
+          )}
           <div>
             <div className="brief-kicker">{t('brief_generated')}</div>
             <h2>{brief.headline}</h2>

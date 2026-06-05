@@ -28,6 +28,7 @@ export function MissionPanel() {
           onChange={(e) => useStore.getState().setActiveMissionScenario(e.target.value as MissionScenarioType)}
         >
           {scenarios.map(s => (
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             <option key={s.id} value={s.id}>{t(`scenario_${s.id}` as any) || s.title}</option>
           ))}
         </select>
@@ -95,6 +96,7 @@ function RiskSignalCard({ score, level, explanation, action }: { score: number, 
       <div className="risk-header">
         <div className="risk-score" style={{ color }}>{score}</div>
         <div className="risk-level" style={{ backgroundColor: `${color}20`, color }}>
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {t(`risk_${level}` as any) || level.toUpperCase()}
         </div>
       </div>
@@ -111,9 +113,11 @@ function dispatchAction(action: AgentAction) {
   const store = useStore.getState();
   if (action.type === 'filter_by_group') {
     store.resetFilters();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     store.toggleGroup(action.group as any);
   } else if (action.type === 'filter_by_band') {
     store.resetFilters();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     store.setFilterBand(action.band as any);
   } else if (action.type === 'highlight_relevant_region') {
     store.resetFilters();
