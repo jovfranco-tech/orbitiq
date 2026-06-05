@@ -90,6 +90,7 @@ export interface AgentActions {
   watchlistAction?: 'add' | 'remove' | 'show' | null;
   savedViewAction?: { type: 'save' | 'load' | 'recommend'; payload?: string } | null;
   snapshotAction?: 'create' | 'export' | null;
+  chartAction?: { type: 'bar' | 'pie'; dataKey: string; data: Record<string, number | string>[] } | null;
 }
 
 export type AgentAction =
@@ -124,6 +125,7 @@ export type AgentAction =
   | { type: 'create_snapshot' }
   | { type: 'export_snapshot' }
   | { type: 'recommend_saved_view' }
+  | { type: 'render_chart'; chartType: 'bar' | 'pie'; dataKey: string; data: Record<string, number | string>[] }
   | { type: 'unknown_safe_fallback' };
 
 /** Formal output contract for the AI agent.

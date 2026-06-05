@@ -5,9 +5,7 @@
 // ============================================================
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { GlobeApi } from '../../types';
 
 const RE_SCENE = 1.0;
@@ -38,28 +36,23 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   const earthGroup = new THREE.Group();
   scene.add(earthGroup);
 
-  // ---- Post-Processing (Bloom) ----
-  const renderScene = new RenderPass(scene, camera);
-  const bloomPass = new UnrealBloomPass(
-    new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.6,  // strength (reduced)
-    0.4,  // radius
-    0.7   // threshold (higher = less bloom on bright surfaces)
-  );
-  
-  const composer = new EffectComposer(renderer);
-  composer.addPass(renderScene);
-  composer.addPass(bloomPass);
+  // ---- CSS2D Label Renderer ----
+  const labelRenderer = new CSS2DRenderer();
+  labelRenderer.setSize(container.clientWidth || window.innerWidth, container.clientHeight || window.innerHeight);
+  labelRenderer.domElement.style.position = 'absolute';
+  labelRenderer.domElement.style.top = '0';
+  labelRenderer.domElement.style.pointerEvents = 'none';
+  container.appendChild(labelRenderer.domElement);
 
   // ---- Lighting ----
-  scene.add(new THREE.AmbientLight(0x1a2436, 0.5));
-  const sun = new THREE.DirectionalLight(0xfff5e6, 1.6);
+  scene.add(new THREE.AmbientLight(0x1a2436, 0.55));
+  const sun = new THREE.DirectionalLight(0xfff5e6, 2.0);
   sun.position.set(5, 0, 0);
   scene.add(sun);
 
   // ---- Earth ----
   const earthMat = new THREE.MeshPhongMaterial({
-    color: 0x0a1830, emissive: 0x04101f, specular: 0x0a1520, shininess: 30,
+    color: 0x0a1830, emissive: 0x04101f, specular: 0x16243a, shininess: 18,
   });
   const earth = new THREE.Mesh(new THREE.SphereGeometry(RE_SCENE, 96, 96), earthMat);
   earthGroup.add(earth);
@@ -83,6 +76,14 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     earthMat.emissiveIntensity = 1.3;
     earthMat.needsUpdate = true; settle();
   }, undefined, () => settle());
+
+  // Bump + Specular maps for relief
+  TL.load(CDN + 'earth-topology.png', (tex) => {
+    earthMat.bumpMap = tex; earthMat.bumpScale = 0.015; earthMat.needsUpdate = true;
+  });
+  TL.load(CDN + 'earth-water.png', (tex) => {
+    earthMat.specularMap = tex; earthMat.needsUpdate = true;
+  });
 
   earthGroup.add(buildGraticule(RE_SCENE * 1.0015, 0x2aa7c8, 0.14));
 
@@ -126,6 +127,33 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   );
   scene.add(atmo);
 
+  // ---- Outer glow atmosphere (fake bloom) ----
+  const outerAtmo = new THREE.Mesh(
+    new THREE.SphereGeometry(RE_SCENE * 1.12, 48, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0x1a5faa, transparent: true, opacity: 0.06,
+      side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
+    })
+  );
+  scene.add(outerAtmo);
+
+  // ---- Sun glow sprite ----
+  const sunGlowCanvas = document.createElement('canvas');
+  sunGlowCanvas.width = 128; sunGlowCanvas.height = 128;
+  const sctx = sunGlowCanvas.getContext('2d')!;
+  const grad = sctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,240,200,0.7)');
+  grad.addColorStop(0.3, 'rgba(255,200,100,0.25)');
+  grad.addColorStop(0.7, 'rgba(255,150,50,0.06)');
+  grad.addColorStop(1, 'rgba(255,100,20,0)');
+  sctx.fillStyle = grad; sctx.fillRect(0, 0, 128, 128);
+  const sunGlowTex = new THREE.CanvasTexture(sunGlowCanvas);
+  const sunGlow = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: sunGlowTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })
+  );
+  sunGlow.scale.set(3, 3, 1);
+  scene.add(sunGlow);
+
   scene.add(buildStars(2600, 40));
 
   // ---- Satellite point cloud ----
@@ -135,10 +163,23 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   let colAttr: THREE.BufferAttribute;
   let visAttr: THREE.BufferAttribute;
 
+  // ---- Generate glow texture for satellites ----
+  const glowCanvas = document.createElement('canvas');
+  glowCanvas.width = 64; glowCanvas.height = 64;
+  const gctx = glowCanvas.getContext('2d')!;
+  const g2 = gctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g2.addColorStop(0, 'rgba(255,255,255,1)');
+  g2.addColorStop(0.15, 'rgba(200,230,255,0.8)');
+  g2.addColorStop(0.4, 'rgba(100,180,255,0.3)');
+  g2.addColorStop(1, 'rgba(50,100,200,0)');
+  gctx.fillStyle = g2; gctx.fillRect(0, 0, 64, 64);
+  const glowTex = new THREE.CanvasTexture(glowCanvas);
+
   const satMat = new THREE.PointsMaterial({
-    size: 0.02, sizeAttenuation: true, vertexColors: true,
-    transparent: true, opacity: 0.9, depthWrite: false,
+    size: 0.035, sizeAttenuation: true, vertexColors: true,
+    transparent: true, opacity: 0.95, depthWrite: false,
     blending: THREE.AdditiveBlending,
+    map: glowTex, alphaMap: glowTex, alphaTest: 0.01,
   });
 
   const points = new THREE.Points(geom, satMat);
@@ -216,6 +257,44 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     if (_selPos.lengthSq() < 0.01) { ring.visible = false; return; }
     ring.position.copy(_selPos);
     ring.visible = true;
+  }
+
+  // ---- CSS2D Label ----
+  const labelDiv = document.createElement('div');
+  labelDiv.className = 'sat-label';
+  labelDiv.style.cssText = 'color:#e0e8f8;font-size:11px;font-family:"IBM Plex Mono",monospace;background:rgba(10,20,40,0.75);padding:3px 8px;border-radius:4px;border:1px solid rgba(74,175,240,0.3);pointer-events:none;backdrop-filter:blur(4px);white-space:nowrap';
+  const label2D = new CSS2DObject(labelDiv);
+  label2D.visible = false;
+  scene.add(label2D);
+
+  // ---- Nadir line ----
+  let nadirLine: THREE.Line | null = null;
+  function updateNadir(satPos: THREE.Vector3): void {
+    if (nadirLine) { scene.remove(nadirLine); nadirLine.geometry.dispose(); nadirLine = null; }
+    if (satPos.lengthSq() < 0.01) return;
+    const surface = satPos.clone().normalize().multiplyScalar(RE_SCENE);
+    nadirLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([satPos.clone(), surface]),
+      new THREE.LineBasicMaterial({
+        color: 0x00eeff, transparent: true, opacity: 0.4,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    );
+    scene.add(nadirLine);
+  }
+
+  function setSelectedFull(i: number, name?: string, alt?: number): void {
+    setSelected(i, name, alt);
+    if (i < 0 || i >= count || _selPos.lengthSq() < 0.01) {
+      label2D.visible = false;
+      if (nadirLine) { scene.remove(nadirLine); nadirLine.geometry.dispose(); nadirLine = null; }
+      return;
+    }
+    label2D.position.copy(_selPos);
+    label2D.visible = true;
+    const altStr = alt != null ? ` ${alt.toFixed(0)} km` : '';
+    labelDiv.textContent = `${name || `SAT-${i}`}${altStr}`;
+    updateNadir(_selPos);
   }
 
   // ---- Region marker ----
@@ -314,6 +393,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     const y = Math.sin(angle) * Math.cos(eclipticObliquity);
     const z = Math.sin(angle) * Math.sin(eclipticObliquity);
     sun.position.set(x, z, -y).multiplyScalar(5);
+    sunGlow.position.copy(sun.position);
     (atmo.material as THREE.ShaderMaterial).uniforms.uSunPos.value.copy(sun.position).normalize();
   }
 
@@ -337,6 +417,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     }
     controls.update();
     renderer.render(scene, camera);
+    labelRenderer.render(scene, camera);
   }
 
   function loop(): void {
@@ -349,9 +430,8 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     const h = container.clientHeight || window.innerHeight;
     if (w === 0 || h === 0) return;
     renderer.setSize(w, h, false);
-    // composer.setSize(w, h);
+    labelRenderer.setSize(w, h);
     camera.aspect = w / h; camera.updateProjectionMatrix();
-    // satMat.uniforms['uScale'].value = h / (2 * Math.tan((camera.fov * Math.PI / 180) / 2));
   }
 
   const onResize = () => resize();
@@ -372,12 +452,13 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     satMat.dispose();
     renderer.dispose();
     if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
+    if (container.contains(labelRenderer.domElement)) container.removeChild(labelRenderer.domElement);
   }
 
   return {
     allocate, writePositions, setColors, setVisible,
     getPos: (i, out) => getPos(i, out as THREE.Vector3),
-    setOrbit, setSelected, setRegionMarker,
+    setOrbit, setSelected: setSelectedFull, setRegionMarker,
     flyTo: (p) => flyTo(p as THREE.Vector3),
     setAutoRotate, setEarthRotation, setSunTime, onPick, resize, renderOnce, resetView,
     ready: readyPromise,

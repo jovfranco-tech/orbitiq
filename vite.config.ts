@@ -7,18 +7,21 @@ import { resolve } from 'path';
 export default defineConfig({
   plugins: [
     react(),
-    // VitePWA disabled — SW was intercepting worker scripts and caching stale assets
-    // VitePWA({
-    //   registerType: 'autoUpdate',
-    //   manifest: {
-    //     name: 'OrbitIQ Command Center',
-    //     short_name: 'OrbitIQ',
-    //     theme_color: '#05070d',
-    //     background_color: '#05070d',
-    //     display: 'standalone',
-    //     icons: []
-    //   }
-    // })
+    VitePWA({
+      registerType: 'autoUpdate',
+      workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+      },
+      manifest: {
+        name: 'OrbitIQ Command Center',
+        short_name: 'OrbitIQ',
+        theme_color: '#05070d',
+        background_color: '#05070d',
+        display: 'standalone',
+        icons: []
+      }
+    })
   ],
   resolve: {
     alias: {
