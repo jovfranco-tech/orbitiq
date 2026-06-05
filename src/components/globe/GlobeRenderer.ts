@@ -8,7 +8,6 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { GlobeApi } from '../../types';
 
 const RE_SCENE = 1.0;
@@ -26,12 +25,6 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   renderer.setClearColor(0x05070d, 1);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
-
-  const labelRenderer = new CSS2DRenderer();
-  labelRenderer.domElement.style.position = 'absolute';
-  labelRenderer.domElement.style.top = '0px';
-  labelRenderer.domElement.style.pointerEvents = 'none';
-  container.appendChild(labelRenderer.domElement);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -51,7 +44,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     new THREE.Vector2(window.innerWidth, window.innerHeight),
     0.85, // strength
     0.5,  // radius
-    0.65  // threshold (increased to prevent ocean blowout)
+    0.35  // threshold
   );
   
   const composer = new EffectComposer(renderer);
@@ -60,13 +53,13 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
 
   // ---- Lighting ----
   scene.add(new THREE.AmbientLight(0x1a2436, 0.4));
-  const sun = new THREE.DirectionalLight(0xfff5e6, 1.5); // reduced from 2.5
+  const sun = new THREE.DirectionalLight(0xfff5e6, 2.5);
   sun.position.set(5, 0, 0); // initial
   scene.add(sun);
 
   // ---- Earth ----
   const earthMat = new THREE.MeshPhongMaterial({
-    color: 0x0a1830, emissive: 0x04101f, specular: 0x08101a, shininess: 35,
+    color: 0x0a1830, emissive: 0x04101f, specular: 0x16243a, shininess: 12,
   });
   const earth = new THREE.Mesh(new THREE.SphereGeometry(RE_SCENE, 96, 96), earthMat);
   earthGroup.add(earth);
@@ -75,7 +68,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   const TL = new THREE.TextureLoader();
   TL.setCrossOrigin('anonymous');
   const CDN = 'https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/';
-  let pending = 4;
+  let pending = 2;
   let readyResolve!: () => void;
   const readyPromise = new Promise<void>((res) => { readyResolve = res; });
   const settle = () => { if (--pending <= 0) readyResolve(); };
@@ -88,16 +81,6 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     earthMat.emissiveMap = tex;
     earthMat.emissive.set(0xffc06a);
     earthMat.emissiveIntensity = 1.3;
-    earthMat.needsUpdate = true; settle();
-  }, undefined, () => settle());
-  TL.load(CDN + 'earth-topology.png', (tex) => {
-    earthMat.bumpMap = tex;
-    earthMat.bumpScale = 0.015;
-    earthMat.needsUpdate = true; settle();
-  }, undefined, () => settle());
-  TL.load(CDN + 'earth-water.png', (tex) => {
-    earthMat.specularMap = tex;
-    earthMat.specular.set(0x112233);
     earthMat.needsUpdate = true; settle();
   }, undefined, () => settle());
 
@@ -156,22 +139,25 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     transparent: true, depthTest: true, depthWrite: false, blending: THREE.AdditiveBlending,
     uniforms: { uSize: { value: 0.0145 }, uScale: { value: 700 } },
     vertexShader: `
-      attribute float vis;
-      varying float vVis;
+      attribute vec3 color; attribute float vis;
+      varying vec3 vColor; varying float vVis;
       uniform float uSize; uniform float uScale;
       void main(){
-        vVis = vis;
+        vColor = color; vVis = vis;
         vec4 mv = modelViewMatrix*vec4(position,1.0);
         gl_PointSize = vis * uSize * (uScale / -mv.z);
         gl_PointSize = clamp(gl_PointSize, vis > 0.5 ? 1.6 : 0.0, 7.0);
         gl_Position = projectionMatrix*mv;
       }`,
     fragmentShader: `
-      varying float vVis;
+      varying vec3 vColor; varying float vVis;
       void main(){
         vec2 d = gl_PointCoord - vec2(0.5);
-        if(length(d)>0.5) discard;
-        gl_FragColor = vec4(1.0, 0.0, 0.0, vVis); // SOLID RED
+        float r = length(d);
+        if(r>0.5) discard;
+        float core = smoothstep(0.5,0.0,r);
+        vec3 c = vColor + vec3(0.55) * pow(core, 3.5);
+        gl_FragColor = vec4(c, (0.45 + 0.55*core) * vVis);
       }`,
   });
 
@@ -195,28 +181,10 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     points.geometry = geom;
   }
 
-  const diagDiv = document.createElement('div');
-  diagDiv.style.position = 'absolute';
-  diagDiv.style.top = '10px';
-  diagDiv.style.left = '10px';
-  diagDiv.style.color = 'lime';
-  diagDiv.style.zIndex = '9999';
-  diagDiv.style.fontFamily = 'monospace';
-  diagDiv.style.pointerEvents = 'none';
-  container.appendChild(diagDiv);
-
   function writePositions(posBuf: Float32Array): void {
     if (!posAttr) return;
     (posAttr.array as Float32Array).set(posBuf.subarray(0, count * 3));
     posAttr.needsUpdate = true;
-    
-    // Diagnostic update
-    if (count > 0) {
-      diagDiv.innerHTML = `COUNT: ${count}<br>
-        POS[0]: ${posBuf[0]?.toFixed(2)}, ${posBuf[1]?.toFixed(2)}, ${posBuf[2]?.toFixed(2)}<br>
-        VIS[0]: ${visAttr ? visAttr.array[0] : 'null'}<br>
-        CS.vis: ${(visAttr && visAttr.array as Float32Array).length}`;
-    }
   }
   function setColors(c: Float32Array): void {
     if (!colAttr) return;
@@ -249,7 +217,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     scene.add(orbitLine);
   }
 
-  // ---- Selection ring, Nadir Line, & HUD ----
+  // ---- Selection ring ----
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(0.045, 0.065, 40),
     new THREE.MeshBasicMaterial({
@@ -260,58 +228,14 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   ring.visible = false;
   scene.add(ring);
 
-  const nadirLine = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]),
-    new THREE.LineBasicMaterial({
-      color: 0xff2a5f, transparent: true, opacity: 0.6,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-    })
-  );
-  nadirLine.visible = false;
-  scene.add(nadirLine);
-
-  const hudDiv = document.createElement('div');
-  hudDiv.className = 'hud-label';
-  hudDiv.style.color = '#fff';
-  hudDiv.style.fontSize = '11px';
-  hudDiv.style.fontFamily = 'monospace';
-  hudDiv.style.textShadow = '0 0 4px #000';
-  hudDiv.style.pointerEvents = 'none';
-  const hudLabel = new CSS2DObject(hudDiv);
-  hudLabel.position.set(0, 0, 0);
-  hudLabel.visible = false;
-  scene.add(hudLabel);
-
   const _selPos = new THREE.Vector3();
-  function setSelected(i: number, name?: string, alt?: number): void {
-    if (i < 0 || i >= count) { 
-      ring.visible = false; 
-      nadirLine.visible = false; 
-      hudLabel.visible = false;
-      return; 
-    }
+  function setSelected(i: number, _name?: string, _alt?: number): void {
+    if (i < 0 || i >= count) { ring.visible = false; return; }
     getPos(i, _selPos);
-    if (_selPos.lengthSq() < 0.01) { 
-      ring.visible = false; 
-      nadirLine.visible = false; 
-      hudLabel.visible = false;
-      return; 
-    }
+    // Don't show ring if satellite collapsed to origin (failed propagation)
+    if (_selPos.lengthSq() < 0.01) { ring.visible = false; return; }
     ring.position.copy(_selPos);
     ring.visible = true;
-
-    const arr = nadirLine.geometry.attributes.position.array as Float32Array;
-    arr[3] = _selPos.x; arr[4] = _selPos.y; arr[5] = _selPos.z;
-    nadirLine.geometry.attributes.position.needsUpdate = true;
-    nadirLine.visible = true;
-
-    if (name && alt != null) {
-      hudDiv.innerHTML = `<div>${name}</div><div style="color:#06d6a0">${alt.toFixed(0)} km</div>`;
-      hudLabel.position.copy(_selPos);
-      hudLabel.visible = true;
-    } else {
-      hudLabel.visible = false;
-    }
   }
 
   // ---- Region marker ----
@@ -426,26 +350,13 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       camera.position.lerp(flyTarget, e * 0.25);
       if (flyT >= 1) flyTarget = null;
     }
-    
-    // Cinematic Bloom Tween (Macro Lens Effect)
-    if (ring.visible && flyTarget == null) {
-      // Zoomed in, add glow to simulate macro lens
-      bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, 1.4, 0.05);
-      bloomPass.radius = THREE.MathUtils.lerp(bloomPass.radius, 0.8, 0.05);
-    } else {
-      // Zoomed out or flying, clear glow
-      bloomPass.strength = THREE.MathUtils.lerp(bloomPass.strength, 0.85, 0.1);
-      bloomPass.radius = THREE.MathUtils.lerp(bloomPass.radius, 0.5, 0.1);
-    }
-
     if (ring.visible) {
       ring.lookAt(camera.position);
       ring.scale.setScalar(1 + 0.15 * Math.sin(performance.now() * 0.006));
       (ring.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() * 0.003));
     }
     controls.update();
-    renderer.render(scene, camera);
-    labelRenderer.render(scene, camera);
+    composer.render();
   }
 
   function loop(): void {
@@ -458,7 +369,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     const h = container.clientHeight || window.innerHeight;
     if (w === 0 || h === 0) return;
     renderer.setSize(w, h, false);
-    labelRenderer.setSize(w, h);
+    composer.setSize(w, h);
     camera.aspect = w / h; camera.updateProjectionMatrix();
     satMat.uniforms['uScale'].value = h / (2 * Math.tan((camera.fov * Math.PI / 180) / 2));
   }
@@ -481,7 +392,6 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     satMat.dispose();
     renderer.dispose();
     if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
-    if (container.contains(labelRenderer.domElement)) container.removeChild(labelRenderer.domElement);
   }
 
   return {
