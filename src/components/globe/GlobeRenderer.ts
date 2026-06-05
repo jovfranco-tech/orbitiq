@@ -176,7 +176,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
         
         // Heatmap effect: LEO (< 1.2 RE) gets an orange/red tint based on congestion/altitude
         vec3 heatColor = vec3(1.0, 0.3, 0.1);
-        float heatFactor = smoothstep(1.3, 1.0, vAlt) * 0.4; // 40% blend at lowest alt
+        float heatFactor = (1.0 - smoothstep(1.0, 1.3, vAlt)) * 0.4; // 40% blend at lowest alt
         vec3 baseC = mix(vColor, heatColor, heatFactor);
         
         vec3 c = baseC + vec3(0.55) * pow(core, 3.5);
