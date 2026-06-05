@@ -22,7 +22,7 @@ interface Props {
 
 export function CatalogPanel({ onSelectSat }: Props) {
   const {
-    activeGroups, filterBand, filterRegion, search, selected,
+    activeGroups, filterBand, filterRegion, altMin, altMax, search, selected,
     toggleGroup, setFilterBand, setFilterRegion, setSearch, resetFilters,
     totalCount,
   } = useStore();
@@ -34,7 +34,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
     let total = 0;
     for (let i = 0; i < CS.N; i++) {
       if (CS.alt[i] < 0 && i !== selected) continue;
-      const passes = checkPasses(i, activeGroups, filterBand, filterRegion, CS);
+      const passes = checkPasses(i, activeGroups, filterBand, filterRegion, altMin, altMax, CS);
       if (!passes && i !== selected) continue;
       const c = CS.catalog[i];
       if (q && !(c.name.toLowerCase().includes(q) || String(c.satnum).includes(q))) continue;
@@ -42,7 +42,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
       total++;
     }
     return { visibleList: list, totalMatching: total };
-  }, [search, activeGroups, filterBand, filterRegion, selected, totalCount]); // totalCount triggers re-render on catalog load
+  }, [search, activeGroups, filterBand, filterRegion, altMin, altMax, selected, totalCount]); // totalCount triggers re-render on catalog load
 
   return (
     <section className="card glass catalog">
@@ -155,11 +155,15 @@ function checkPasses(
   activeGroups: Set<GroupKey>,
   filterBand: BandKey | null,
   filterRegion: string | null,
+  altMin: number | null,
+  altMax: number | null,
   cs: CatalogStore,
 ): boolean {
   if (cs.alt[i] < 0) return false;
   if (activeGroups.size && !activeGroups.has(cs.group[i])) return false;
   if (filterBand && cs.band[i] !== filterBand) return false;
   if (filterRegion && !matchRegion(cs.lat[i], cs.lon[i], filterRegion)) return false;
+  if (altMax != null && cs.alt[i] > altMax) return false;
+  if (altMin != null && cs.alt[i] < altMin) return false;
   return true;
 }
