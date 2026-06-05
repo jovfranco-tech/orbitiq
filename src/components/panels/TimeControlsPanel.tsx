@@ -19,9 +19,9 @@ function formatOffset(ms: number): string {
 }
 
 function formatSimTime(ms: number): string {
-  const d = new Date(ms);
-  // Example format: YYYY-MM-DD HH:MM:SS UTC
-  return d.toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
+  // Convert ms to UTC-6 by subtracting 6 hours
+  const d = new Date(ms - 6 * 3600 * 1000);
+  return d.toISOString().replace('T', ' ').substring(0, 19) + ' UTC-6';
 }
 
 export function TimeControlsPanel() {

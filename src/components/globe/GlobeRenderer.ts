@@ -51,7 +51,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     new THREE.Vector2(window.innerWidth, window.innerHeight),
     0.85, // strength
     0.5,  // radius
-    0.35  // threshold
+    0.65  // threshold (increased to prevent ocean blowout)
   );
   
   const composer = new EffectComposer(renderer);
@@ -60,13 +60,13 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
 
   // ---- Lighting ----
   scene.add(new THREE.AmbientLight(0x1a2436, 0.4));
-  const sun = new THREE.DirectionalLight(0xfff5e6, 2.5);
+  const sun = new THREE.DirectionalLight(0xfff5e6, 1.5); // reduced from 2.5
   sun.position.set(5, 0, 0); // initial
   scene.add(sun);
 
   // ---- Earth ----
   const earthMat = new THREE.MeshPhongMaterial({
-    color: 0x0a1830, emissive: 0x04101f, specular: 0x16243a, shininess: 12,
+    color: 0x0a1830, emissive: 0x04101f, specular: 0x08101a, shininess: 35,
   });
   const earth = new THREE.Mesh(new THREE.SphereGeometry(RE_SCENE, 96, 96), earthMat);
   earthGroup.add(earth);
@@ -97,7 +97,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   }, undefined, () => settle());
   TL.load(CDN + 'earth-water.png', (tex) => {
     earthMat.specularMap = tex;
-    earthMat.specular.set(0x334455);
+    earthMat.specular.set(0x112233);
     earthMat.needsUpdate = true; settle();
   }, undefined, () => settle());
 
