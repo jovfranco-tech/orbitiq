@@ -1,0 +1,129 @@
+// ============================================================
+// OrbitIQ — AI Command Agent panel
+// ============================================================
+import { useState, useCallback } from 'react';
+import { t } from '../../i18n/i18n';
+import type { AiAgentResponse } from '../../types';
+
+const EXAMPLES = [
+  'Show me all Starlink satellites',
+  'Which satellites are over Japan right now?',
+  'Highlight satellites over LATAM',
+  'Show only GEO satellites',
+  'Show satellites below 600 km',
+  'Find the ISS',
+  'Give me an executive brief',
+  'Which orbit band is most crowded right now?',
+];
+
+interface Props {
+  onRun: (query: string) => void;
+  lastResult: AiAgentResponse | null;
+  isThinking: boolean;
+}
+
+export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
+  const [input, setInput] = useState('');
+
+  const run = useCallback((q: string) => {
+    if (!q.trim()) return;
+    onRun(q.trim());
+  }, [onRun]);
+
+  const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') run(input);
+  };
+
+  return (
+    <section className="card glass" id="agentCard">
+      <div className="card-head">
+        <div className="card-title">
+          <span className="ai-orb" />
+          <div>
+            <div>{t('agent_title')}</div>
+            <div className="card-sub">{t('agent_sub')}</div>
+          </div>
+        </div>
+        <span className={`agent-status${isThinking ? ' busy' : ''}`}>
+          {isThinking ? t('ai_thinking') : t('ai_ready')}
+        </span>
+      </div>
+
+      <div className="agent-input">
+        <input
+          id="agentInput"
+          type="text"
+          autoComplete="off"
+          placeholder={t('agent_placeholder')}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKey}
+        />
+        <button onClick={() => run(input)}>{t('agent_run')}</button>
+      </div>
+
+      <div className="agent-chips">
+        {EXAMPLES.map((q) => (
+          <button key={q} onClick={() => { setInput(q); run(q); }}>{q}</button>
+        ))}
+      </div>
+
+      {lastResult && !isThinking && (
+        <AgentOutput result={lastResult} />
+      )}
+    </section>
+  );
+}
+
+function AgentOutput({ result }: { result: AiAgentResponse }) {
+  const conf = result.confidence;
+  const actions = result.actions;
+  const chips: string[] = [];
+  if (actions.groups) chips.push('groups: ' + actions.groups.join(','));
+  if (actions.band)   chips.push('band: ' + actions.band);
+  if (actions.region) chips.push('region: ' + actions.region);
+  if (actions.altMax != null) chips.push('alt ≤ ' + actions.altMax + 'km');
+  if (actions.altMin != null) chips.push('alt ≥ ' + actions.altMin + 'km');
+  if (actions.focusSatnum != null) chips.push('focus: ' + actions.focusSatnum);
+  if (actions.brief) chips.push('open brief');
+  if (result.intent === 'reset') chips.push('reset all');
+
+  return (
+    <div className="agent-output">
+      <p className="agent-answer">{result.answer}</p>
+      <div className="agent-stats">
+        <div className="astat">
+          <span className="astat-k">{t('agent_confidence')}</span>
+          <div className="conf">
+            <div className={`conf-bar${conf < 0.5 ? ' low' : ''}`} style={{ width: Math.round(conf * 100) + '%' }} />
+          </div>
+          <span className="astat-v">{Math.round(conf * 100)}%</span>
+        </div>
+        {result.visibleCount > 0 && (
+          <div className="astat astat-scope">
+            <span className="astat-k">{t('agent_scope')}</span>
+            <span className="astat-v accent">{result.visibleCount.toLocaleString()} {t('sats_unit')}</span>
+          </div>
+        )}
+      </div>
+      <div className="agent-meta">
+        <div>
+          <span className="meta-k">{t('agent_intent')}</span>
+          <code>{result.intent}</code>
+        </div>
+        <div>
+          <span className="meta-k">{t('agent_actions')}</span>
+          <span className="chips-inline">
+            {chips.length ? chips.map((x) => <span key={x}>{x}</span>) : <span>view query</span>}
+          </span>
+        </div>
+        {result.assumptions.length > 0 && (
+          <div className="agent-assume">
+            <span className="meta-k">{t('agent_assumptions')}</span>
+            <span>{result.assumptions.join(' ')}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
