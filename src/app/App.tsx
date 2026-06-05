@@ -30,6 +30,7 @@ import type { AgentContext } from '../ai/agent';
 import { getLang, setLang, t } from '../i18n/i18n';
 import { getIntelligence, invalidateIntelligence } from '../intelligence/intelligence';
 import * as THREE from 'three';
+import * as satJs from 'satellite.js';
 import type { GlobeApi, IntelligenceSummary } from '../types';
 import type { AiAgentResponse, GroupKey, BandKey } from '../types';
 
@@ -50,9 +51,7 @@ export function App() {
   // Stable Vector3 reused for fly-to — avoids creating objects each pick
   const flyVec    = useRef(new THREE.Vector3());
 
-  const workerRef = useRef<Worker | null>(null);
-  const workerReadyRef = useRef(false);
-  const isWorkerBusyRef = useRef(false);
+  // Worker removed — inline propagation for Apple Silicon compatibility
 
   const [agentResult, setAgentResult] = useState<AiAgentResponse | null>(null);
   const [isThinking, setIsThinking]   = useState(false);
@@ -95,26 +94,6 @@ export function App() {
     setIntelligence(intel);
   }, []);
 
-  // ---- Propagation tick (offloaded to Web Worker) -----------------------
-  const tick = useCallback(() => {
-    if (!globeRef.current || CS.N === 0) return;
-    if (!workerRef.current || !workerReadyRef.current || isWorkerBusyRef.current) return;
-    
-    const nowPerf = performance.now();
-    const dt = nowPerf - lastTickTimeRef.current;
-    lastTickTimeRef.current = nowPerf;
-    
-    const storeState = useStore.getState();
-    if (storeState.simMode === 'live') {
-      CS.simTimestampMs = Date.now();
-    } else if (storeState.simMode === 'simulating') {
-      CS.simTimestampMs += dt * storeState.simSpeed;
-    }
-    
-    isWorkerBusyRef.current = true;
-    workerRef.current.postMessage({ type: 'TICK', payload: { timestampMs: CS.simTimestampMs } });
-  }, []); // stable
-
   // ---- Filter pass (hot path) ------------------------------------------
   const applyFilter = useCallback(() => {
     if (!globeRef.current) return;
@@ -132,11 +111,71 @@ export function App() {
       CS.vis[i] = v; rendered += v;
       if (filterRegion && v) regionCount++;
     }
-    // Selected satellite stays visible even when filtered out
     if (selected >= 0 && selected < CS.N) CS.vis[selected] = 1;
     globe.setVisible(CS.vis);
     useStore.getState().setCounts(CS.N, rendered, regionCount);
   }, []);
+
+  // ---- Propagation tick (inline — worker removed for Apple Silicon compat) ---
+  const tick = useCallback(() => {
+    if (!globeRef.current || CS.N === 0) return;
+    
+    const nowPerf = performance.now();
+    const dt = nowPerf - lastTickTimeRef.current;
+    lastTickTimeRef.current = nowPerf;
+    
+    const storeState = useStore.getState();
+    if (storeState.simMode === 'live') {
+      CS.simTimestampMs = Date.now();
+    } else if (storeState.simMode === 'simulating') {
+      CS.simTimestampMs += dt * storeState.simSpeed;
+    }
+
+    const globe = globeRef.current;
+    const date = new Date(CS.simTimestampMs);
+    const scale = 1.0 / 6378.137;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gmst = (satJs as any).gstime(date) as number;
+
+    for (let i = 0; i < CS.N; i++) {
+      const r = CS.recs[i];
+      const j = i * 3;
+      if (!r || r.error) {
+        CS.posBuf[j] = CS.posBuf[j+1] = CS.posBuf[j+2] = 0;
+        CS.alt[i] = -1; CS.lat[i] = 0; CS.lon[i] = 0; CS.band[i] = 'LEO' as BandKey;
+        continue;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pv = (satJs as any).propagate(r, date) as any;
+      if (pv?.position && isFinite(pv.position.x)) {
+        const p = pv.position;
+        CS.posBuf[j]   = p.x * scale;
+        CS.posBuf[j+1] = p.z * scale;
+        CS.posBuf[j+2] = -p.y * scale;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const gd = (satJs as any).eciToGeodetic(p, gmst) as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        CS.lat[i] = (satJs as any).degreesLat(gd.latitude) as number;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        CS.lon[i] = (satJs as any).degreesLong(gd.longitude) as number;
+        CS.alt[i] = gd.height;
+        const h = gd.height;
+        CS.band[i] = (h < 0 ? 'LEO' : h <= 2000 ? 'LEO' : h <= 35786 ? 'MEO' : 'GEO') as BandKey;
+      } else {
+        CS.posBuf[j] = CS.posBuf[j+1] = CS.posBuf[j+2] = 0;
+        CS.alt[i] = -1; CS.lat[i] = 0; CS.lon[i] = 0; CS.band[i] = 'LEO' as BandKey;
+      }
+    }
+
+    globe.setEarthRotation(gmst);
+    globe.setSunTime(CS.simTimestampMs);
+    globe.writePositions(CS.posBuf);
+    applyFilter();
+    globe.renderOnce();
+
+    const sel = useStore.getState().selected;
+    if (sel >= 0) globe.setSelected(sel);
+  }, [applyFilter]);
 
   // ---- Load catalog into GPU buffers -----------------------------------
   const loadCatalog = useCallback((globe: GlobeApi, catalog: typeof CS.catalog) => {
@@ -156,12 +195,8 @@ export function App() {
     globe.allocate(CS.N);
     globe.setColors(CS.colorBase);
 
-    workerRef.current?.postMessage({ type: 'INIT', payload: { catalog } });
-
     const validRec = CS.recs.find((r) => r && !r.error);
     if (validRec) useStore.getState().setAgeDays(dataAgeDays(validRec, new Date()));
-
-    // Invalidate intelligence cache after catalog change
     invalidateIntelligence();
   }, []);
 
@@ -171,7 +206,6 @@ export function App() {
     globe.setAutoRotate(true);
     globe.onPick((i) => { if (i >= 0) selectSat(globe, i, false); });
 
-    // Load satellite data (live via /api/tle, else representative fallback)
     const result = await loadSatellites();
     loadCatalog(globe, result.catalog);
     
@@ -186,13 +220,9 @@ export function App() {
       }
     }
 
-    // First propagation frame immediately
     tick();
-
-    // First intelligence computation
     refreshIntel();
 
-    // Reveal UI once Earth textures are ready (max 4.5 s fallback)
     const reveal = () => {
       document.getElementById('loading')?.classList.add('gone');
       setTimeout(() => {
@@ -203,51 +233,17 @@ export function App() {
     globe.ready.then(reveal);
     setTimeout(reveal, 4500);
 
-    // Propagation cadence — positions evolve near-real-time
     tickRef.current = setInterval(tick, TICK_MS);
-
-    // Intelligence refresh — decoupled from tick for performance
     intelRef.current = setInterval(refreshIntel, INTEL_REFRESH_MS);
   }, [loadCatalog, tick, refreshIntel]);
 
   // ---- Cleanup on unmount (StrictMode double-mount safe) ---------------
   useEffect(() => {
-    const w = new Worker(new URL('../workers/sgp4.worker.ts', import.meta.url), { type: 'module' });
-    workerRef.current = w;
-    w.onmessage = (e) => {
-      const globe = globeRef.current;
-      if (e.data.type === 'READY') {
-        workerReadyRef.current = true;
-      } else if (e.data.type === 'TICK_RESULT') {
-        isWorkerBusyRef.current = false;
-        if (!globe) return;
-        const { timestampMs, gmst, posBuf, lat, lon, alt, band } = e.data.payload;
-        
-        CS.posBuf = posBuf;
-        CS.lat = lat;
-        CS.lon = lon;
-        CS.alt = alt;
-        const BAND_MAP = ['LEO', 'MEO', 'GEO', 'Unknown'] as const;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        for(let i=0; i<CS.N; i++) CS.band[i] = BAND_MAP[band[i]] as any;
-
-        globe.setEarthRotation(gmst);
-        globe.setSunTime(timestampMs);
-        globe.writePositions(CS.posBuf);
-        applyFilter();
-        globe.renderOnce();
-
-        const sel = useStore.getState().selected;
-        if (sel >= 0) globe.setSelected(sel);
-      }
-    };
-
     return () => {
       if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
       if (intelRef.current) { clearInterval(intelRef.current); intelRef.current = null; }
-      w.terminate();
     };
-  }, [applyFilter]);
+  }, []);
 
   // ---- URL State Sync --------------------------------------------------
   useEffect(() => {
