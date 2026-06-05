@@ -28,6 +28,7 @@ import { matchRegion, REGIONS } from '../regions/regions';
 import { executeAgentCommand } from '../ai/agent';
 import type { AgentContext } from '../ai/agent';
 import { getLang, setLang, t } from '../i18n/i18n';
+import { useLiveTelemetry } from '../hooks/useLiveTelemetry';
 import { getIntelligence, invalidateIntelligence } from '../intelligence/intelligence';
 import * as THREE from 'three';
 import type { GlobeApi, IntelligenceSummary } from '../types';
@@ -61,6 +62,8 @@ export function App() {
   const store = useStore();
   const userStore = useUserStore();
   const hasWarnedRef = useRef(false);
+  
+  const { tickerMsg } = useLiveTelemetry();
 
   // ---- Proactive Agent Monitoring ---------------------------------------
   useEffect(() => {
@@ -238,7 +241,7 @@ export function App() {
         globe.renderOnce();
 
         const sel = useStore.getState().selected;
-        if (sel >= 0) globe.setSelected(sel);
+        if (sel >= 0 && globe) globe.setSelected(sel, CS.catalog[sel]?.name, CS.alt[sel]);
       }
     };
 
@@ -272,7 +275,7 @@ export function App() {
     if (i < 0 || i >= CS.N) return;
     useStore.getState().setSelected(i);
     useStore.getState().setTracking(true); // Auto-track on select
-    globe.setSelected(i);
+    globe.setSelected(i, CS.catalog[i]?.name, CS.alt[i]);
     
     // Auto-draw orbit path
     const rec = CS.recs[i];
@@ -634,6 +637,9 @@ export function App() {
         <Legend />
 
         <footer className="disclaimer" role="contentinfo">
+          <div className="ticker-msg" style={{ color: '#06d6a0', fontWeight: 'bold', marginRight: '16px', display: 'inline-block' }}>
+            {tickerMsg}
+          </div>
           {t('disclaimer')}
         </footer>
 

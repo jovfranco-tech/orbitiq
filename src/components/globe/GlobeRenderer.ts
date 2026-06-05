@@ -8,6 +8,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { GlobeApi } from '../../types';
 
 const RE_SCENE = 1.0;
@@ -25,6 +27,12 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   renderer.setClearColor(0x05070d, 1);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
+
+  const labelRenderer = new CSS2DRenderer();
+  labelRenderer.domElement.style.position = 'absolute';
+  labelRenderer.domElement.style.top = '0px';
+  labelRenderer.domElement.style.pointerEvents = 'none';
+  container.appendChild(labelRenderer.domElement);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -51,6 +59,15 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   composer.addPass(renderScene);
   composer.addPass(bloomPass);
 
+  const bokehPass = new BokehPass(scene, camera, {
+    focus: 1.0,
+    aperture: 0.0, // Start with no depth of field
+    maxblur: 0.01,
+    width: window.innerWidth,
+    height: window.innerHeight
+  });
+  composer.addPass(bokehPass);
+
   // ---- Lighting ----
   scene.add(new THREE.AmbientLight(0x1a2436, 0.4));
   const sun = new THREE.DirectionalLight(0xfff5e6, 2.5);
@@ -68,7 +85,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   const TL = new THREE.TextureLoader();
   TL.setCrossOrigin('anonymous');
   const CDN = 'https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/';
-  let pending = 2;
+  let pending = 4;
   let readyResolve!: () => void;
   const readyPromise = new Promise<void>((res) => { readyResolve = res; });
   const settle = () => { if (--pending <= 0) readyResolve(); };
@@ -81,6 +98,16 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     earthMat.emissiveMap = tex;
     earthMat.emissive.set(0xffc06a);
     earthMat.emissiveIntensity = 1.3;
+    earthMat.needsUpdate = true; settle();
+  }, undefined, () => settle());
+  TL.load(CDN + 'earth-topology.png', (tex) => {
+    earthMat.bumpMap = tex;
+    earthMat.bumpScale = 0.015;
+    earthMat.needsUpdate = true; settle();
+  }, undefined, () => settle());
+  TL.load(CDN + 'earth-water.png', (tex) => {
+    earthMat.specularMap = tex;
+    earthMat.specular.set(0x334455);
     earthMat.needsUpdate = true; settle();
   }, undefined, () => settle());
 
@@ -140,23 +167,29 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     uniforms: { uSize: { value: 0.0145 }, uScale: { value: 700 } },
     vertexShader: `
       attribute vec3 color; attribute float vis;
-      varying vec3 vColor; varying float vVis;
+      varying vec3 vColor; varying float vVis; varying float vAlt;
       uniform float uSize; uniform float uScale;
       void main(){
-        vColor = color; vVis = vis;
+        vColor = color; vVis = vis; vAlt = length(position);
         vec4 mv = modelViewMatrix*vec4(position,1.0);
         gl_PointSize = vis * uSize * (uScale / -mv.z);
         gl_PointSize = clamp(gl_PointSize, vis > 0.5 ? 1.6 : 0.0, 7.0);
         gl_Position = projectionMatrix*mv;
       }`,
     fragmentShader: `
-      varying vec3 vColor; varying float vVis;
+      varying vec3 vColor; varying float vVis; varying float vAlt;
       void main(){
         vec2 d = gl_PointCoord - vec2(0.5);
         float r = length(d);
         if(r>0.5) discard;
         float core = smoothstep(0.5,0.0,r);
-        vec3 c = vColor + vec3(0.55) * pow(core, 3.5);
+        
+        // Heatmap effect: LEO (< 1.2 RE) gets an orange/red tint based on congestion/altitude
+        vec3 heatColor = vec3(1.0, 0.3, 0.1);
+        float heatFactor = smoothstep(1.3, 1.0, vAlt) * 0.4; // 40% blend at lowest alt
+        vec3 baseC = mix(vColor, heatColor, heatFactor);
+        
+        vec3 c = baseC + vec3(0.55) * pow(core, 3.5);
         gl_FragColor = vec4(c, (0.45 + 0.55*core) * vVis);
       }`,
   });
@@ -217,7 +250,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     scene.add(orbitLine);
   }
 
-  // ---- Selection ring ----
+  // ---- Selection ring, Nadir Line, & HUD ----
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(0.045, 0.065, 40),
     new THREE.MeshBasicMaterial({
@@ -228,14 +261,58 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   ring.visible = false;
   scene.add(ring);
 
+  const nadirLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]),
+    new THREE.LineBasicMaterial({
+      color: 0xff2a5f, transparent: true, opacity: 0.6,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    })
+  );
+  nadirLine.visible = false;
+  scene.add(nadirLine);
+
+  const hudDiv = document.createElement('div');
+  hudDiv.className = 'hud-label';
+  hudDiv.style.color = '#fff';
+  hudDiv.style.fontSize = '11px';
+  hudDiv.style.fontFamily = 'monospace';
+  hudDiv.style.textShadow = '0 0 4px #000';
+  hudDiv.style.pointerEvents = 'none';
+  const hudLabel = new CSS2DObject(hudDiv);
+  hudLabel.position.set(0, 0, 0);
+  hudLabel.visible = false;
+  scene.add(hudLabel);
+
   const _selPos = new THREE.Vector3();
-  function setSelected(i: number): void {
-    if (i < 0 || i >= count) { ring.visible = false; return; }
+  function setSelected(i: number, name?: string, alt?: number): void {
+    if (i < 0 || i >= count) { 
+      ring.visible = false; 
+      nadirLine.visible = false; 
+      hudLabel.visible = false;
+      return; 
+    }
     getPos(i, _selPos);
-    // Don't show ring if satellite collapsed to origin (failed propagation)
-    if (_selPos.lengthSq() < 0.01) { ring.visible = false; return; }
+    if (_selPos.lengthSq() < 0.01) { 
+      ring.visible = false; 
+      nadirLine.visible = false; 
+      hudLabel.visible = false;
+      return; 
+    }
     ring.position.copy(_selPos);
     ring.visible = true;
+
+    const arr = nadirLine.geometry.attributes.position.array as Float32Array;
+    arr[3] = _selPos.x; arr[4] = _selPos.y; arr[5] = _selPos.z;
+    nadirLine.geometry.attributes.position.needsUpdate = true;
+    nadirLine.visible = true;
+
+    if (name && alt != null) {
+      hudDiv.innerHTML = `<div>${name}</div><div style="color:#06d6a0">${alt.toFixed(0)} km</div>`;
+      hudLabel.position.copy(_selPos);
+      hudLabel.visible = true;
+    } else {
+      hudLabel.visible = false;
+    }
   }
 
   // ---- Region marker ----
@@ -350,6 +427,19 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       camera.position.lerp(flyTarget, e * 0.25);
       if (flyT >= 1) flyTarget = null;
     }
+    
+    // Depth of Field Tween
+    const bokehUniforms = bokehPass.uniforms as Record<string, { value: number }>;
+    if (ring.visible && flyTarget == null) {
+      // Zoomed in, add macro lens effect
+      bokehUniforms['aperture'].value = THREE.MathUtils.lerp(bokehUniforms['aperture'].value, 0.005, 0.05);
+      bokehUniforms['focus'].value = camera.position.distanceTo(ring.position);
+      bokehUniforms['maxblur'].value = 0.015;
+    } else {
+      // Zoomed out or flying, clear DoF
+      bokehUniforms['aperture'].value = THREE.MathUtils.lerp(bokehUniforms['aperture'].value, 0.0, 0.1);
+    }
+
     if (ring.visible) {
       ring.lookAt(camera.position);
       ring.scale.setScalar(1 + 0.15 * Math.sin(performance.now() * 0.006));
@@ -357,6 +447,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     }
     controls.update();
     composer.render();
+    labelRenderer.render(scene, camera);
   }
 
   function loop(): void {
@@ -370,6 +461,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     if (w === 0 || h === 0) return;
     renderer.setSize(w, h, false);
     composer.setSize(w, h);
+    labelRenderer.setSize(w, h);
     camera.aspect = w / h; camera.updateProjectionMatrix();
     satMat.uniforms['uScale'].value = h / (2 * Math.tan((camera.fov * Math.PI / 180) / 2));
   }
