@@ -1,7 +1,7 @@
 // ============================================================
 // OrbitIQ v0.3.0 — AI Command Agent panel
 // ============================================================
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { t } from '../../i18n/i18n';
 import type { AiAgentResponse } from '../../types';
 import { playClick, playAgentSuccess } from '../../utils/audio';
@@ -113,6 +113,30 @@ export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
 }
 
 function AgentOutput({ result }: { result: AiAgentResponse }) {
+  const [displayedText, setDisplayedText] = useState('');
+
+  useEffect(() => {
+    // Speak
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); // stop previous
+      const utterance = new SpeechSynthesisUtterance(result.answer);
+      utterance.rate = 1.1;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // Typing effect
+    let i = 0;
+    setDisplayedText('');
+    const timer = setInterval(() => {
+      setDisplayedText(result.answer.substring(0, i + 1));
+      i++;
+      if (i >= result.answer.length) clearInterval(timer);
+    }, 20);
+
+    return () => clearInterval(timer);
+  }, [result.answer]);
+
   const conf = result.confidence;
   const actions = result.actions;
   const chips: string[] = [];
@@ -134,7 +158,7 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
           <i />{result.responseMode === 'llm' ? t('agent_mode_llm') : t('agent_mode_fallback')}
         </span>
       </div>
-      <p className="agent-answer">{result.answer}</p>
+      <p className="agent-answer">{displayedText}<span style={{ animation: 'blink 1s step-start infinite', borderRight: '2px solid var(--cyan)' }} /></p>
       <div className="agent-stats">
         <div className="astat">
           <span className="astat-k">{t('agent_confidence')}</span>

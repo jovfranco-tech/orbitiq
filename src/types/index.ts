@@ -396,6 +396,7 @@ export interface GlobeApi {
   flyTo(p: { clone(): { x: number; y: number; z: number } }): void;
   setAutoRotate(v: boolean): void;
   setEarthRotation(gmst: number): void;
+  setSunTime(timestampMs: number): void;
   onPick(cb: (i: number) => void): void;
   resize(): void;
   renderOnce(): void;

@@ -52,9 +52,9 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   composer.addPass(bloomPass);
 
   // ---- Lighting ----
-  scene.add(new THREE.AmbientLight(0x3a4a66, 0.9));
-  const sun = new THREE.DirectionalLight(0xeaf2ff, 1.25);
-  sun.position.set(5, 2, 4);
+  scene.add(new THREE.AmbientLight(0x1a2436, 0.4));
+  const sun = new THREE.DirectionalLight(0xfff5e6, 2.5);
+  sun.position.set(5, 0, 0); // initial
   scene.add(sun);
 
   // ---- Earth ----
@@ -94,18 +94,34 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   const clouds = new THREE.Mesh(new THREE.SphereGeometry(RE_SCENE * 1.008, 64, 64), cloudsMat);
   earthGroup.add(clouds);
 
-  // ---- Atmosphere ----
+  // ---- Atmosphere (Rayleigh Scattering Approx) ----
   const atmo = new THREE.Mesh(
-    new THREE.SphereGeometry(RE_SCENE * 1.13, 64, 64),
+    new THREE.SphereGeometry(RE_SCENE * 1.05, 64, 64),
     new THREE.ShaderMaterial({
       transparent: true, side: THREE.BackSide,
       blending: THREE.AdditiveBlending, depthWrite: false,
-      uniforms: { uColor: { value: new THREE.Color(0x2e8fe6) } },
-      vertexShader: `varying vec3 vN; void main(){ vN = normalize(normalMatrix*normal);
-        gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
-      fragmentShader: `varying vec3 vN; uniform vec3 uColor;
-        void main(){ float i = pow(0.66 - dot(vN, vec3(0.0,0.0,1.0)), 4.2);
-          gl_FragColor = vec4(uColor, 1.0)*clamp(i,0.0,0.9);}`,
+      uniforms: { 
+        uSunPos: { value: new THREE.Vector3(5, 0, 0).normalize() },
+        uColor: { value: new THREE.Color(0x3a8fe6) } 
+      },
+      vertexShader: `
+        varying vec3 vNormal; varying vec3 vPos;
+        void main(){ 
+          vNormal = normalize(normalMatrix * normal);
+          vPos = (modelMatrix * vec4(position, 1.0)).xyz;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        varying vec3 vNormal; varying vec3 vPos;
+        uniform vec3 uSunPos; uniform vec3 uColor;
+        void main(){
+          vec3 viewDir = normalize(cameraPosition - vPos);
+          float intensity = pow(0.6 - dot(vNormal, viewDir), 3.0);
+          float sunDot = dot(vNormal, uSunPos);
+          float dayNight = smoothstep(-0.2, 0.2, sunDot);
+          vec3 finalColor = uColor * clamp(intensity, 0.0, 1.0) * dayNight;
+          gl_FragColor = vec4(finalColor, 1.0);
+        }`,
     })
   );
   scene.add(atmo);
@@ -305,6 +321,22 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   let gmstRot = 0;
   function setEarthRotation(gmst: number): void { gmstRot = gmst; }
 
+  // Simple ECI sun approximation
+  function setSunTime(timestampMs: number): void {
+    const d = new Date(timestampMs);
+    const startOfYear = new Date(d.getUTCFullYear(), 0, 1);
+    const msInYear = 365.25 * 24 * 60 * 60 * 1000;
+    const progress = (d.getTime() - startOfYear.getTime()) / msInYear;
+    // Sun moves ~360 deg per year in ECI. Declination goes from -23.4 to +23.4
+    const angle = progress * Math.PI * 2;
+    const eclipticObliquity = 23.439 * Math.PI / 180;
+    const x = Math.cos(angle);
+    const y = Math.sin(angle) * Math.cos(eclipticObliquity);
+    const z = Math.sin(angle) * Math.sin(eclipticObliquity);
+    sun.position.set(x, z, -y).multiplyScalar(5);
+    (atmo.material as THREE.ShaderMaterial).uniforms.uSunPos.value.copy(sun.position).normalize();
+  }
+
   let rafId = 0;
   let cloudRot = 0;
   function renderOnce(): void {
@@ -318,8 +350,11 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       camera.position.lerp(flyTarget, e * 0.25);
       if (flyT >= 1) flyTarget = null;
     }
-    if (ring.visible) ring.lookAt(camera.position);
-    ring.scale.setScalar(1 + 0.12 * Math.sin(performance.now() * 0.005));
+    if (ring.visible) {
+      ring.lookAt(camera.position);
+      ring.scale.setScalar(1 + 0.15 * Math.sin(performance.now() * 0.006));
+      (ring.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() * 0.003));
+    }
     controls.update();
     composer.render();
   }
@@ -364,7 +399,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     getPos: (i, out) => getPos(i, out as THREE.Vector3),
     setOrbit, setSelected, setRegionMarker,
     flyTo: (p) => flyTo(p as THREE.Vector3),
-    setAutoRotate, setEarthRotation, onPick, resize, renderOnce, resetView,
+    setAutoRotate, setEarthRotation, setSunTime, onPick, resize, renderOnce, resetView,
     ready: readyPromise,
     destroy,
   };

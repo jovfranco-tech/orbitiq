@@ -9,11 +9,13 @@ interface UserState {
   showWatchlistPanel: boolean;
   showSavedViewsPanel: boolean;
   showSnapshotPanel: boolean;
+  hasSeenTour: boolean;
   
   // Panel UI toggles
   setShowWatchlistPanel: (v: boolean) => void;
   setShowSavedViewsPanel: (v: boolean) => void;
   setShowSnapshotPanel: (v: boolean) => void;
+  setHasSeenTour: (v: boolean) => void;
   
   // Watchlist
   addToWatchlist: (item: Omit<WatchlistItem, 'addedAt'>) => void;
@@ -45,10 +47,12 @@ export const useUserStore = create<UserState>()(
       showWatchlistPanel: false,
       showSavedViewsPanel: false,
       showSnapshotPanel: false,
+      hasSeenTour: false,
       
       setShowWatchlistPanel: (v) => set({ showWatchlistPanel: v, showSavedViewsPanel: false, showSnapshotPanel: false }),
       setShowSavedViewsPanel: (v) => set({ showSavedViewsPanel: v, showWatchlistPanel: false, showSnapshotPanel: false }),
       setShowSnapshotPanel: (v) => set({ showSnapshotPanel: v, showWatchlistPanel: false, showSavedViewsPanel: false }),
+      setHasSeenTour: (v) => set({ hasSeenTour: v }),
       
       addToWatchlist: (item) => set((state) => {
         if (state.watchlists.some(w => w.satnum === item.satnum)) return state;

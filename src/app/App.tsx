@@ -10,6 +10,8 @@ import { CatalogPanel } from '../components/panels/CatalogPanel';
 import { MissionPanel } from '../components/panels/MissionPanel';
 import { DetailPanel } from '../components/panels/DetailPanel';
 import { BriefModal } from '../components/panels/BriefModal';
+import { TourModal } from '../components/panels/TourModal';
+import { playAgentSuccess } from '../utils/audio';
 import { OrbitalIntelligencePanel } from '../components/panels/OrbitalIntelligencePanel';
 import { TimeControlsPanel } from '../components/panels/TimeControlsPanel';
 import { WatchlistPanel } from '../components/panels/WatchlistPanel';
@@ -58,7 +60,34 @@ export function App() {
 
   const store = useStore();
   const userStore = useUserStore();
+  const hasWarnedRef = useRef(false);
 
+  // ---- Proactive Agent Monitoring ---------------------------------------
+  useEffect(() => {
+    if (intelligence && intelligence.congestionScore > 80 && !hasWarnedRef.current) {
+      hasWarnedRef.current = true;
+      const band = intelligence.mostCrowdedBand || 'LEO';
+      setAgentResult({
+        answer: `Commander, critical anomaly detected. Orbital congestion has reached ${Math.round(intelligence.congestionScore)}. I have proactively filtered your view to the ${band} band.`,
+        intent: 'congestion_summary',
+        confidence: 0.99,
+        assumptions: ['Proactive monitoring triggered'],
+        actions: { 
+          band, groups: null, region: null, altMax: null, altMin: null, 
+          focusSatnum: null, brief: false, missionScenario: null, showRiskLayer: false, timeAction: null 
+        },
+        filtersApplied: { band },
+        visibleCount: CS.N,
+        sourceMode: 'fallback',
+        responseMode: 'deterministic',
+        intelligence
+      });
+      useStore.getState().setFilterBand(band);
+      // Auto-open agent panel (mission panel)
+      useStore.getState().setShowMissionPanel(true);
+      playAgentSuccess();
+    }
+  }, [intelligence]);
   // ---- Intelligence refresh (decoupled from tick) -----------------------
   const refreshIntel = useCallback(() => {
     if (CS.N === 0) return;
@@ -192,7 +221,7 @@ export function App() {
       } else if (e.data.type === 'TICK_RESULT') {
         isWorkerBusyRef.current = false;
         if (!globe) return;
-        const { gmst, posBuf, lat, lon, alt, band } = e.data.payload;
+        const { timestampMs, gmst, posBuf, lat, lon, alt, band } = e.data.payload;
         
         CS.posBuf = posBuf;
         CS.lat = lat;
@@ -203,6 +232,7 @@ export function App() {
         for(let i=0; i<CS.N; i++) CS.band[i] = BAND_MAP[band[i]] as any;
 
         globe.setEarthRotation(gmst);
+        globe.setSunTime(timestampMs);
         globe.writePositions(CS.posBuf);
         applyFilter();
         globe.renderOnce();
@@ -553,6 +583,7 @@ export function App() {
           </div>
         </div>
       )}
+      <TourModal />
 
       {/* UI overlay */}
       <div id="ui" className="ui">
