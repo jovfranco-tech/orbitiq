@@ -7,21 +7,7 @@ import { resolve } from 'path';
 export default defineConfig({
   plugins: [
     react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
-      },
-      manifest: {
-        name: 'OrbitIQ Command Center',
-        short_name: 'OrbitIQ',
-        theme_color: '#05070d',
-        background_color: '#05070d',
-        display: 'standalone',
-        icons: []
-      }
-    })
+    // PWA disabled — causes infinite reload loops on Apple Silicon
   ],
   resolve: {
     alias: {
