@@ -157,29 +157,23 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     uniforms: { uSize: { value: 0.0145 }, uScale: { value: 700 } },
     vertexShader: `
       attribute vec3 color; attribute float vis;
-      varying vec3 vColor; varying float vVis; varying float vAlt;
+      varying vec3 vColor; varying float vVis;
       uniform float uSize; uniform float uScale;
       void main(){
-        vColor = color; vVis = vis; vAlt = length(position);
+        vColor = color; vVis = vis;
         vec4 mv = modelViewMatrix*vec4(position,1.0);
         gl_PointSize = vis * uSize * (uScale / -mv.z);
         gl_PointSize = clamp(gl_PointSize, vis > 0.5 ? 1.6 : 0.0, 7.0);
         gl_Position = projectionMatrix*mv;
       }`,
     fragmentShader: `
-      varying vec3 vColor; varying float vVis; varying float vAlt;
+      varying vec3 vColor; varying float vVis;
       void main(){
         vec2 d = gl_PointCoord - vec2(0.5);
         float r = length(d);
         if(r>0.5) discard;
         float core = smoothstep(0.5,0.0,r);
-        
-        // Heatmap effect: LEO (< 1.2 RE) gets an orange/red tint based on congestion/altitude
-        vec3 heatColor = vec3(1.0, 0.3, 0.1);
-        float heatFactor = (1.0 - smoothstep(1.0, 1.3, vAlt)) * 0.4; // 40% blend at lowest alt
-        vec3 baseC = mix(vColor, heatColor, heatFactor);
-        
-        vec3 c = baseC + vec3(0.55) * pow(core, 3.5);
+        vec3 c = vColor + vec3(0.55) * pow(core, 3.5);
         gl_FragColor = vec4(c, (0.45 + 0.55*core) * vVis);
       }`,
   });
@@ -473,6 +467,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     satMat.dispose();
     renderer.dispose();
     if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
+    if (container.contains(labelRenderer.domElement)) container.removeChild(labelRenderer.domElement);
   }
 
   return {
