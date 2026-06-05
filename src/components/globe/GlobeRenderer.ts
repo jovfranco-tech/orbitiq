@@ -426,7 +426,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       (ring.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() * 0.003));
     }
     controls.update();
-    composer.render();
+    renderer.render(scene, camera);
     labelRenderer.render(scene, camera);
   }
 
@@ -440,7 +440,6 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     const h = container.clientHeight || window.innerHeight;
     if (w === 0 || h === 0) return;
     renderer.setSize(w, h, false);
-    composer.setSize(w, h);
     labelRenderer.setSize(w, h);
     camera.aspect = w / h; camera.updateProjectionMatrix();
     satMat.uniforms['uScale'].value = h / (2 * Math.tan((camera.fov * Math.PI / 180) / 2));
