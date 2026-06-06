@@ -54,7 +54,7 @@ export function TimeControlsPanel() {
   const isLive = simMode === 'live' && Math.abs(CS.simTimestampMs - Date.now()) < 1000;
 
   return (
-    <div className="time-controls-panel glass-panel">
+    <div className="time-controls-panel glass">
       <div className="time-header">
         <div className="time-status-badge">
           {simMode === 'live' && <span className="status-dot live" />}

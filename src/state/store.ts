@@ -46,6 +46,9 @@ export interface UIState {
   activeMissionScenario: MissionScenarioType | null;
   showRiskLayer: boolean;
 
+  // Mobile active tab
+  activeMobileTab: 'globe' | 'agent' | 'catalog' | 'intel' | 'mission';
+
   // Simulation
   simMode: 'live' | 'paused' | 'simulating';
   simSpeed: number;
@@ -81,6 +84,8 @@ export interface UIActions {
   setShowMissionPanel(v: boolean): void;
   setActiveMissionScenario(s: MissionScenarioType | null): void;
   setShowRiskLayer(v: boolean): void;
+
+  setActiveMobileTab(tab: 'globe' | 'agent' | 'catalog' | 'intel' | 'mission'): void;
 
   setSimMode(mode: 'live' | 'paused' | 'simulating'): void;
   setSimSpeed(speed: number): void;
@@ -120,6 +125,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   showMissionPanel: false,
   activeMissionScenario: null,
   showRiskLayer: false,
+  activeMobileTab: 'globe',
 
   simMode: 'live',
   simSpeed: 1,
@@ -167,6 +173,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   setShowMissionPanel: (v) => set({ showMissionPanel: v }),
   setActiveMissionScenario: (s) => set({ activeMissionScenario: s }),
   setShowRiskLayer: (v) => set({ showRiskLayer: v }),
+  setActiveMobileTab: (tab) => set({ activeMobileTab: tab }),
 
   setSimMode: (mode) => {
     if (get().simMode === 'live' && mode !== 'live') {

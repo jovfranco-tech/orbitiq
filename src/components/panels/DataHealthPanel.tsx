@@ -30,7 +30,7 @@ export function DataHealthPanel() {
   if (!showDataHealthPanel) return null;
 
   return (
-    <div style={{
+    <div className="health-panel" style={{
       position: 'absolute',
       top: '64px',
       right: '16px',

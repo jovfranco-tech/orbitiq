@@ -693,42 +693,186 @@ input,select,button{font-family:inherit}
   color: var(--text-muted);
   text-align: center;
   line-height: 1.3;
-}@media (max-width: 768px) {
+}/* Bottom Tab Bar (hidden on desktop) */
+.bottom-tab-bar {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .bottom-tab-bar {
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    height: 58px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 100;
+    padding: 6px 12px;
+    pointer-events: auto;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  }
+  
+  .tab-item {
+    background: transparent;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px;
+    transition: all 0.2s ease;
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .tab-item:active {
+    transform: scale(0.92);
+  }
+  
+  .tab-item.active {
+    color: var(--cyan-bright);
+    text-shadow: 0 0 10px rgba(95,208,245,0.4);
+  }
+  
+  .tab-icon {
+    font-size: 16px;
+  }
+  
+  .tab-label {
+    font-family: var(--sans);
+    letter-spacing: 0.02em;
+  }
+
+  /* Keep ui pointer-events none to pass-through drag gestures to globe */
   .ui {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr auto;
-    grid-template-areas: "top" "right" "left";
-    padding: 8px;
-    gap: 8px;
-    overflow-y: auto;
-    pointer-events: auto;
+    grid-template-areas: "top" "main" "foot";
+    pointer-events: none !important;
+    overflow-y: hidden !important;
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    padding: 12px;
+    gap: 12px;
+    display: flex;
+    flex-direction: column;
   }
+  
   .ui > * {
     pointer-events: auto;
   }
-  .left {
-    width: 100%;
-    grid-area: left;
-    height: auto;
-  }
-  .right {
-    width: 100%;
-    grid-area: right;
-    position: relative;
-    top: auto;
-    right: auto;
-    bottom: auto;
-    height: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
+  
+  /* Topbar compact rendering */
   .topbar {
-    flex-wrap: wrap;
-    padding: 8px;
-  }
-  .metrics {
+    pointer-events: auto;
+    flex-wrap: nowrap;
+    padding: 8px 12px;
     width: 100%;
-    margin-top: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .topbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .topbar-tag, .metrics {
+    display: none !important;
+  }
+  
+  /* Hide sidebars and panels by default */
+  .left {
+    display: contents !important;
+  }
+  
+  #agentCard,
+  .card.catalog,
+  #intelPanel,
+  .mission-panel,
+  .time-controls-panel {
+    display: none !important;
+  }
+  
+  /* Display active tab panel */
+  .ui.mobile-tab-agent #agentCard {
+    display: flex !important;
+  }
+  .ui.mobile-tab-catalog .card.catalog {
+    display: flex !important;
+  }
+  .ui.mobile-tab-intel #intelPanel {
+    display: flex !important;
+  }
+  .ui.mobile-tab-mission .mission-panel {
+    display: flex !important;
+  }
+  .ui.mobile-tab-mission .time-controls-panel {
+    display: flex !important;
+  }
+  .ui.mobile-tab-globe .time-controls-panel {
+    display: flex !important;
+  }
+  
+  /* Style panels as overlays on mobile */
+  #agentCard,
+  .card.catalog,
+  #intelPanel,
+  .mission-panel {
+    position: fixed !important;
+    top: 76px !important;
+    bottom: 90px !important;
+    left: 16px !important;
+    right: 16px !important;
+    width: auto !important;
+    max-height: calc(100vh - 182px) !important;
+    overflow-y: auto !important;
+    z-index: 90 !important;
+    pointer-events: auto !important;
+    margin: 0 !important;
+  }
+  
+  /* TimeControlsPanel layout on mobile */
+  .time-controls-panel {
+    position: fixed !important;
+    bottom: 90px !important;
+    left: 16px !important;
+    right: 16px !important;
+    width: auto !important;
+    max-width: 480px !important;
+    transform: none !important;
+    z-index: 85 !important;
+    pointer-events: auto !important;
+    margin: 0 auto !important;
+  }
+  
+  /* DetailPanel overlay adjustment on mobile */
+  .detail {
+    position: fixed !important;
+    right: 16px !important;
+    left: 16px !important;
+    top: 76px !important;
+    bottom: 90px !important;
+    width: auto !important;
+    max-height: calc(100vh - 182px) !important;
+    overflow-y: auto !important;
+    z-index: 95 !important;
+    pointer-events: auto !important;
+    margin: 0 !important;
+  }
+
+  /* Make sure health panel stays within bounds */
+  .health-panel {
+    left: 16px !important;
+    right: 16px !important;
+    width: auto !important;
+    top: 76px !important;
+    z-index: 110 !important;
   }
 }

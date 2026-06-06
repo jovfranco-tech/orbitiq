@@ -18,6 +18,7 @@ import { WatchlistPanel } from '../components/panels/WatchlistPanel';
 import { SavedViewsPanel } from '../components/panels/SavedViewsPanel';
 import { SnapshotPanel } from '../components/panels/SnapshotPanel';
 import { DataHealthPanel } from '../components/panels/DataHealthPanel';
+import { BottomTabBar } from '../components/dashboard/BottomTabBar';
 import { useStore } from '../state/store';
 import { useUserStore } from '../state/userStore';
 import { CS, initCatalogStore } from '../state/catalogStore';
@@ -579,7 +580,7 @@ export function App() {
     return unsub;
   }, []);
 
-  const { showBrief, showIntelligence, isLoading, selected } = store;
+  const { showBrief, showIntelligence, isLoading, selected, activeMobileTab } = store;
 
   return (
     <>
@@ -600,7 +601,7 @@ export function App() {
       <TourModal />
 
       {/* UI overlay */}
-      <div id="ui" className="ui">
+      <div id="ui" className={`ui mobile-tab-${activeMobileTab}`}>
         <TopBar
           onOpenBrief={() => store.setShowBrief(true)}
           onResetView={() => globeRef.current?.resetView()}
@@ -621,15 +622,18 @@ export function App() {
           <DetailPanel onClose={clearSelection} onToggleTrack={toggleTrack} />
         )}
 
-        {/* Intelligence panel — only when no detail panel and toggle is on */}
-        {showIntelligence && selected < 0 && (
+        {/* Intelligence panel — only when no detail panel and toggle is on (or mobile tab is active) */}
+        {(showIntelligence && selected < 0 || activeMobileTab === 'intel') && (
           <OrbitalIntelligencePanel
             intelligence={intelligence}
-            onClose={() => store.setShowIntelligence(false)}
+            onClose={() => {
+              store.setShowIntelligence(false);
+              if (activeMobileTab === 'intel') store.setActiveMobileTab('globe');
+            }}
           />
         )}
         
-        {store.showMissionPanel && <MissionPanel />}
+        {(store.showMissionPanel || activeMobileTab === 'mission') && <MissionPanel />}
 
         {userStore.showWatchlistPanel && (
           <WatchlistPanel 
@@ -644,6 +648,7 @@ export function App() {
         {userStore.showSnapshotPanel && <SnapshotPanel onClose={() => userStore.setShowSnapshotPanel(false)} />}
 
         <TimeControlsPanel />
+        <BottomTabBar />
 
         {/* Live Telemetry Ticker */}
         <div className="telemetry-ticker" style={{

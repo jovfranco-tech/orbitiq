@@ -216,6 +216,11 @@ const DICT: Record<LangKey, Dict> = {
     region_equatorial_ocean: 'Equatorial ocean',
     region_northern_ocean: 'Northern ocean',
     region_southern_ocean: 'Southern ocean',
+    tab_globe: 'Globe',
+    tab_agent: 'AI Agent',
+    tab_catalog: 'Catalog',
+    tab_intel: 'Intelligence',
+    tab_mission: 'Mission',
   },
 
   es: {
@@ -420,6 +425,11 @@ const DICT: Record<LangKey, Dict> = {
     region_equatorial_ocean: 'Océano ecuatorial',
     region_northern_ocean: 'Océano norte',
     region_southern_ocean: 'Océano sur',
+    tab_globe: 'Globo',
+    tab_agent: 'Agente IA',
+    tab_catalog: 'Catálogo',
+    tab_intel: 'Inteligencia',
+    tab_mission: 'Misión',
   },
 };
 
