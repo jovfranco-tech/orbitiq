@@ -33,10 +33,10 @@ export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, 
   
   const [lblKey, noteKey, cls] = PROV_MAP[dataMode] ?? PROV_MAP['fallback'];
   
-  const overallHealth = tleHealth === 'unavailable' || agentHealth === 'fallback' ? 'unavailable'
-                      : tleHealth === 'degraded' || agentHealth === 'degraded' ? 'degraded'
+  const overallHealth = tleHealth === 'unavailable' && totalCount === 0 ? 'unavailable'
+                      : tleHealth === 'unavailable' || tleHealth === 'degraded' || agentHealth === 'fallback' || agentHealth === 'degraded' ? 'degraded'
                       : 'healthy';
-  const healthDotColor = overallHealth === 'healthy' ? '#4caf50' : overallHealth === 'degraded' ? '#ff9800' : '#f44336';
+  const healthDotColor = overallHealth === 'healthy' ? '#06d6a0' : overallHealth === 'degraded' ? '#ffd166' : '#ff6b6b';
 
   const fresh = ageDays < 1
     ? `${(ageDays * 24).toFixed(0)}h`
