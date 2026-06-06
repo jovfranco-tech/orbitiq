@@ -9,6 +9,7 @@ import { CS } from '../state/catalogStore';
 import { REGIONS, matchRegion } from '../regions/regions';
 import { GROUPS } from '../data/groups';
 import { satelliteRelevance } from '../ai/agent';
+import { t } from '../i18n/i18n';
 import type {
   BandKey, GroupKey, CongestionLevel,
   BandIntelligence, RegionIntelligence, ConstellationIntelligence,
@@ -147,7 +148,7 @@ function computeRegionIntelligence(): RegionIntelligence[] {
 
 // ---- Constellation Intelligence -------------------------------------------
 
-export function getConstellationIntelligence(group: GroupKey): ConstellationIntelligence {
+export function getConstellationIntelligence(group: GroupKey, lang: 'en' | 'es' = 'en'): ConstellationIntelligence {
   let count = 0;
   let altSum = 0;
   const bandCounts: Record<BandKey, number> = { LEO: 0, MEO: 0, GEO: 0 };
@@ -172,7 +173,7 @@ export function getConstellationIntelligence(group: GroupKey): ConstellationInte
 
   const topRegionKey = Object.entries(regionCounts)
     .sort((a, b) => b[1] - a[1])[0]?.[0] ?? '';
-  const topRegion = REGIONS[topRegionKey]?.label ?? 'Global';
+  const topRegion = topRegionKey ? (t('region_' + topRegionKey) || REGIONS[topRegionKey]?.label || 'Global') : 'Global';
 
   return {
     group,
@@ -180,7 +181,7 @@ export function getConstellationIntelligence(group: GroupKey): ConstellationInte
     dominantBand,
     avgAlt: count > 0 ? Math.round(altSum / count) : 0,
     topRegion,
-    relevance: satelliteRelevance(group),
+    relevance: satelliteRelevance(group, lang),
   };
 }
 
@@ -267,13 +268,24 @@ function findDominantGroup(): GroupKey {
 
 // ---- Compare utilities (used by AI agent v2) --------------------------------
 
-export function compareBands(a: BandKey, b: BandKey): string {
+export function compareBands(a: BandKey, b: BandKey, lang: 'en' | 'es' = 'en'): string {
   const intel = getIntelligence();
   const ba = intel.bands.find((x) => x.band === a);
   const bb = intel.bands.find((x) => x.band === b);
-  if (!ba || !bb) return `Cannot compare ${a} and ${b}.`;
+  if (!ba || !bb) {
+    return lang === 'es' ? `No se puede comparar ${a} y ${b}.` : `Cannot compare ${a} and ${b}.`;
+  }
 
   const winner = ba.count > bb.count ? a : b;
+
+  if (lang === 'es') {
+    return `${a}: ${ba.count.toLocaleString()} objetos (${ba.pct}%), altitud promedio ${ba.avgAlt.toLocaleString()} km. ` +
+      `${b}: ${bb.count.toLocaleString()} objetos (${bb.pct}%), altitud promedio ${bb.avgAlt.toLocaleString()} km. ` +
+      `${winner} tiene más objetos. ` +
+      `Grupos principales en ${a}: ${ba.topGroups.slice(0, 3).map((g) => `${(GROUPS[g.group] ?? GROUPS['other']).label} (${g.count})`).join(', ')}. ` +
+      `Grupos principales en ${b}: ${bb.topGroups.slice(0, 3).map((g) => `${(GROUPS[g.group] ?? GROUPS['other']).label} (${g.count})`).join(', ')}.`;
+  }
+
   return `${a}: ${ba.count.toLocaleString()} objects (${ba.pct}%), avg altitude ${ba.avgAlt.toLocaleString()} km. ` +
     `${b}: ${bb.count.toLocaleString()} objects (${bb.pct}%), avg altitude ${bb.avgAlt.toLocaleString()} km. ` +
     `${winner} has more objects. ` +
@@ -281,11 +293,16 @@ export function compareBands(a: BandKey, b: BandKey): string {
     `Top ${b} groups: ${bb.topGroups.slice(0, 3).map((g) => `${(GROUPS[g.group] ?? GROUPS['other']).label} (${g.count})`).join(', ')}.`;
 }
 
-export function compareGroups(a: GroupKey, b: GroupKey): string {
-  const ca = getConstellationIntelligence(a);
-  const cb = getConstellationIntelligence(b);
+export function compareGroups(a: GroupKey, b: GroupKey, lang: 'en' | 'es' = 'en'): string {
+  const ca = getConstellationIntelligence(a, lang);
+  const cb = getConstellationIntelligence(b, lang);
   const la = (GROUPS[a] ?? GROUPS['other']).label;
   const lb = (GROUPS[b] ?? GROUPS['other']).label;
+
+  if (lang === 'es') {
+    return `${la}: ${ca.count.toLocaleString()} objetos, banda ${ca.dominantBand}, altitud promedio ${ca.avgAlt.toLocaleString()} km, región principal: ${ca.topRegion}. ` +
+      `${lb}: ${cb.count.toLocaleString()} objetos, banda ${cb.dominantBand}, altitud promedio ${cb.avgAlt.toLocaleString()} km, región principal: ${cb.topRegion}.`;
+  }
 
   return `${la}: ${ca.count.toLocaleString()} objects, ${ca.dominantBand} band, avg altitude ${ca.avgAlt.toLocaleString()} km, top region: ${ca.topRegion}. ` +
     `${lb}: ${cb.count.toLocaleString()} objects, ${cb.dominantBand} band, avg altitude ${cb.avgAlt.toLocaleString()} km, top region: ${cb.topRegion}.`;

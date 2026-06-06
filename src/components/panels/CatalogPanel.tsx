@@ -108,7 +108,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
           >
             <option value="">{t('f_all')}</option>
             {Object.entries(REGIONS).map(([k, r]) => (
-              <option key={k} value={k}>{r.label}</option>
+              <option key={k} value={k}>{t('region_' + k)}</option>
             ))}
           </select>
         </div>

@@ -15,7 +15,7 @@ interface Props {
 }
 
 export function BriefModal({ onClose }: Props) {
-  const { dataMode, renderedCount, totalCount, simMode } = useStore();
+  const { dataMode, renderedCount, totalCount, simMode, lang } = useStore();
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -39,6 +39,7 @@ export function BriefModal({ onClose }: Props) {
     groupLabel: (g: GroupKey) => (GROUPS[g] ?? GROUPS['other']).label,
     dataMode,
     intelligence,
+    lang,
   });
 
   const provKey = dataMode === 'live' ? 'prov_live_note'
@@ -58,7 +59,7 @@ export function BriefModal({ onClose }: Props) {
             <div className="caveat sim-warn">
               <strong>{t('simulated') || 'Simulated'}</strong> {t('simulation_caveat') || 'Scenario simulation uses SGP4 propagation from public TLE data. Accuracy may degrade as simulation time moves away from the TLE epoch. Not for operational aerospace decisions.'}
               <br/>
-              <em>Time: {new Date(CS.simTimestampMs).toISOString().replace('T', ' ').substring(0, 19)} UTC</em>
+              <em>Time: {new Date(CS.simTimestampMs - 6 * 3600 * 1000).toISOString().replace('T', ' ').substring(0, 19)} UTC-6</em>
             </div>
           )}
           <div>

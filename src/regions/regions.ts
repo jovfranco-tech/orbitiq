@@ -3,6 +3,7 @@
 // Coarse lat/lon bounding boxes for "which satellites are over X?"
 // ============================================================
 import type { RegionMap } from '../types';
+import { t } from '../i18n/i18n';
 
 export const REGIONS: RegionMap = {
   japan:         { label: 'Japan',           box: [24, 46, 122, 146],   center: [36, 138] },
@@ -39,8 +40,8 @@ const REGION_ORDER: string[] = [
 
 export function regionOf(lat: number, lon: number): string {
   for (const k of REGION_ORDER) {
-    if (inBox(lat, lon, REGIONS[k].box)) return REGIONS[k].label;
+    if (inBox(lat, lon, REGIONS[k].box)) return t('region_' + k);
   }
-  if (Math.abs(lat) < 10) return 'Equatorial ocean';
-  return lat > 0 ? 'Northern ocean' : 'Southern ocean';
+  if (Math.abs(lat) < 10) return t('region_equatorial_ocean') || 'Equatorial ocean';
+  return lat > 0 ? (t('region_northern_ocean') || 'Northern ocean') : (t('region_southern_ocean') || 'Southern ocean');
 }

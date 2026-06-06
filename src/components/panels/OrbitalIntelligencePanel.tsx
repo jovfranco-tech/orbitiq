@@ -91,7 +91,7 @@ export function OrbitalIntelligencePanel({ intelligence, onClose }: Props) {
         <div className="intel-section">
           <div className="intel-section-title">{t('intel_region_hot')}</div>
           <div className="intel-region">
-            <div className="intel-region-name">{topRegion.label}</div>
+            <div className="intel-region-name">{t('region_' + topRegion.key)}</div>
             <div className="intel-region-count">
               {topRegion.count.toLocaleString()}
               <span className="intel-region-unit">{t('intel_sats_overhead')}</span>
@@ -110,7 +110,7 @@ export function OrbitalIntelligencePanel({ intelligence, onClose }: Props) {
             <div className="intel-top-groups" style={{ marginTop: '4px' }}>
               {regions.slice(1, 4).map((r) => (
                 <div key={r.key}>
-                  {REGIONS[r.key]?.label ?? r.key}: <span>{r.count.toLocaleString()}</span> · {r.dominantBand}
+                  {t('region_' + r.key)}: <span>{r.count.toLocaleString()}</span> · {r.dominantBand}
                 </div>
               ))}
             </div>

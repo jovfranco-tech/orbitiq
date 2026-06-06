@@ -647,7 +647,7 @@ export function App() {
 
         {/* Live Telemetry Ticker */}
         <div className="telemetry-ticker" style={{
-          position: 'fixed', bottom: 62, left: '50%', transform: 'translateX(-50%)',
+          position: 'fixed', bottom: 285, left: '50%', transform: 'translateX(-50%)',
           color: '#4cc9f0', fontSize: '10px', fontFamily: '"IBM Plex Mono", monospace',
           opacity: 0.55, whiteSpace: 'nowrap', letterSpacing: '0.5px',
           textShadow: '0 0 8px rgba(76,201,240,0.3)',

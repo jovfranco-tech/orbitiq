@@ -4,8 +4,8 @@ import { t } from '../../i18n/i18n';
 import type { MissionScenarioType, RiskLevel, AgentAction } from '../../types';
 
 export function MissionPanel() {
-  const { activeMissionScenario, showMissionPanel } = useStore();
-  const scenariosMap = getMissionScenarios();
+  const { activeMissionScenario, showMissionPanel, lang } = useStore();
+  const scenariosMap = getMissionScenarios(lang);
   const scenarios = Object.values(scenariosMap);
 
   if (!showMissionPanel) return null;

@@ -49,6 +49,27 @@
 
 ---
 
+## Localization Checklist
+- [x] 1. Dictionary Translations (`src/i18n/i18n.ts`)
+- [x] 2. Core Engine & Helper Localization
+  - [x] Update `regionOf` in `src/regions/regions.ts`
+  - [x] Update `compareBands` & `compareGroups` in `src/intelligence/intelligence.ts`
+  - [x] Update `getMissionScenarios` in `src/intelligence/risk.ts`
+- [x] 3. UI Components Localization
+  - [x] Translate chips in `src/components/panels/AgentPanel.tsx`
+  - [x] Translate region dropdown in `src/components/panels/CatalogPanel.tsx`
+  - [x] Translate hotspots in `src/components/panels/OrbitalIntelligencePanel.tsx`
+  - [x] Pass language to scenarios in `src/components/panels/MissionPanel.tsx`
+  - [x] Pass language to brief in `src/components/panels/BriefModal.tsx`
+- [x] 4. AI Command Agent (`src/ai/agent.ts`)
+  - [x] Update Spanish synonyms and query detection
+  - [x] Localize deterministic fallback answers
+  - [x] Localize simulated brief headings and details
+- [x] 5. Run build and verify
+- [x] 6. Commit changes to Git
+
+---
+
 ## Known limitations (unchanged)
 
 1. `@types/three` for r128 is partial — `@ts-expect-error` used for OrbitControls import and satellite.js

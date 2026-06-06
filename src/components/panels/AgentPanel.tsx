@@ -6,8 +6,9 @@ import { t } from '../../i18n/i18n';
 import type { AiAgentResponse } from '../../types';
 import { playClick, playAgentSuccess } from '../../utils/audio';
 import { ResponsiveContainer, BarChart, XAxis, Tooltip, Bar } from 'recharts';
+import { useStore } from '../../state/store';
 
-const EXAMPLES = [
+const EXAMPLES_EN = [
   'Show me all Starlink satellites',
   'Which satellites are over Japan right now?',
   'Highlight satellites over LATAM',
@@ -22,6 +23,21 @@ const EXAMPLES = [
   'Which region has highest concentration?',
 ];
 
+const EXAMPLES_ES = [
+  'Mostrar todos los satélites Starlink',
+  '¿Qué satélites están sobre Japón ahora?',
+  'Destacar satélites sobre LATAM',
+  'Mostrar solo satélites GEO',
+  'Mostrar satélites por debajo de 600 km',
+  'Buscar la ISS',
+  'Dame un informe ejecutivo',
+  '¿Qué banda orbital está más congestionada ahora?',
+  'Mostrar puntuación de congestión',
+  'Comparar LEO vs GEO',
+  'Resumir cobertura GNSS',
+  '¿Qué región tiene la mayor concentración?',
+];
+
 interface Props {
   onRun: (query: string) => void;
   lastResult: AiAgentResponse | null;
@@ -31,6 +47,8 @@ interface Props {
 export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const lang = useStore((s) => s.lang);
+  const chips = lang === 'es' ? EXAMPLES_ES : EXAMPLES_EN;
 
   const run = useCallback((q: string) => {
     if (!q.trim()) return;
@@ -91,20 +109,20 @@ export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
         />
         <button 
           onClick={toggleListen} 
-          className={`mic-btn ${isListening ? 'listening' : ''}`}
-          title="Voice Command"
-          style={{ background: isListening ? 'var(--danger)' : 'transparent', color: isListening ? '#fff' : 'var(--muted)', padding: '0 8px', border: 0, borderRight: '1px solid var(--border)' }}
-        >
-          🎤
-        </button>
-        <button onClick={() => run(input)}>{t('agent_run')}</button>
-      </div>
+        className={`mic-btn ${isListening ? 'listening' : ''}`}
+        title={lang === 'es' ? 'Comando de voz' : 'Voice Command'}
+        style={{ background: isListening ? 'var(--danger)' : 'transparent', color: isListening ? '#fff' : 'var(--muted)', padding: '0 8px', border: 0, borderRight: '1px solid var(--border)' }}
+      >
+        🎤
+      </button>
+      <button onClick={() => run(input)}>{t('agent_run')}</button>
+    </div>
 
-      <div className="agent-chips">
-        {EXAMPLES.map((q) => (
-          <button key={q} onClick={() => { setInput(q); run(q); }}>{q}</button>
-        ))}
-      </div>
+    <div className="agent-chips">
+      {chips.map((q) => (
+        <button key={q} onClick={() => { setInput(q); run(q); }}>{q}</button>
+      ))}
+    </div>
 
       {lastResult && !isThinking && (
         <AgentOutput result={lastResult} />
