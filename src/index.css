@@ -566,11 +566,10 @@ input,select,button{font-family:inherit}
 
 /* Time Controls Panel */
 .time-controls-panel {
-  position: absolute;
+  position: fixed;
   bottom: 80px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 380px;
+  left: max(16px, calc(50vw - 190px));
+  width: min(380px, calc(100vw - 32px));
   padding: 16px;
   display: flex;
   flex-direction: column;
