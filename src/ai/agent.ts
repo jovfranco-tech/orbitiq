@@ -127,8 +127,8 @@ export function deterministicParse(rawQuery: string, ctx: AgentContext, lang: 'e
   let answer = '';
   let confidence = 0.94;
   const assumptions: string[] = lang === 'es'
-    ? ['Interpretado a partir de la instantánea propagada actual (posiciones SGP4 en vivo).']
-    : ['Interpreted from current propagated snapshot (live SGP4 positions).'];
+    ? ['Interpretado a partir de la instantánea propagada actual con SGP4.']
+    : ['Interpreted from the current SGP4-propagated snapshot.'];
 
   if (!q) {
     return {
@@ -144,11 +144,11 @@ export function deterministicParse(rawQuery: string, ctx: AgentContext, lang: 'e
     const offset = isTomorrow ? 86400000 : 3600000;
     return {
       answer: lang === 'es'
-        ? `Simulando la propagación orbital para predecir la congestión ${isTomorrow ? 'de mañana' : 'futura'}.`
-        : `Simulating orbital propagation to predict ${isTomorrow ? 'tomorrow\'s' : 'future'} congestion.`,
-      intent: 'predict_congestion',
+        ? `Simulando una estimación de escenario orbital ${isTomorrow ? 'a 24 horas' : 'futura'} con SGP4.`
+        : `Simulating an SGP4-based orbital scenario estimate ${isTomorrow ? '24 hours ahead' : 'for a future offset'}.`,
+      intent: 'scenario_estimate',
       confidence: 0.9,
-      assumptions: [lang === 'es' ? 'Simulando el tiempo hacia adelante' : 'Simulating time forward'],
+      assumptions: [lang === 'es' ? 'Estimación propagada; no incorpora maniobras futuras ni evaluación de conjunciones.' : 'Propagated estimate; does not include future maneuvers or conjunction assessment.'],
       filtersApplied: {},
       visibleCount: ctx.total,
       actions: { ...blankActions(), timeAction: { type: 'jump_time', offsetMs: offset } },
@@ -263,7 +263,7 @@ export function deterministicParse(rawQuery: string, ctx: AgentContext, lang: 'e
   if (/reset|real time|live|now|en vivo|ahora|tiempo real/i.test(q) && !/reset view|clear|limpiar|restablecer vista/.test(q)) {
     a.timeAction = { type: 'reset_to_now' };
     intent = 'reset_to_now'; confidence = 0.95;
-    answer = lang === 'es' ? 'Restableciendo simulación al estado en vivo en tiempo real.' : 'Resetting simulation to live real-time state.';
+    answer = lang === 'es' ? 'Restableciendo simulación al estado en vivo actual.' : 'Resetting simulation to the current live state.';
     return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
   }
 
@@ -621,6 +621,7 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
     
     // Map LlmAgentResponse to AiAgentResponse
     const a = blankActions();
+    let resetRequested = false;
     for (const action of llmResp.actions) {
       if (action.type === 'filter_by_group') {
         const groups = detectGroups(action.group);
@@ -647,7 +648,7 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
         a.brief = true;
       }
       else if (action.type === 'reset_view') {
-        // blankActions handles reset
+        resetRequested = true;
       }
       else if (action.type === 'congestion_summary' || action.type === 'compare_bands' || action.type === 'compare_groups') {
         // these are informational intents, they don't apply filters (except maybe highest region or most crowded band)
@@ -676,7 +677,7 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
 
     const finalRes: AiAgentResponse = {
       answer: llmResp.answer,
-      intent: llmResp.intent,
+      intent: resetRequested ? 'reset' : llmResp.intent,
       confidence: llmResp.confidence,
       assumptions: llmResp.assumptions,
       actions: a,
@@ -689,8 +690,8 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
     };
 
     return finalRes;
-  } catch (error) {
-    console.error('LLM agent failed, falling back to deterministic router:', error);
+  } catch {
+    console.warn('LLM agent unavailable; using deterministic fallback.');
     useStore.getState().setAgentHealth('fallback');
     const fallbackRes = deterministicParse(rawQuery, ctx, lang);
     fallbackRes.responseMode = 'deterministic';
@@ -779,7 +780,7 @@ export function generateBrief(ctx: {
         },
         {
           title: 'Relevancia de la infraestructura',
-          body: `La constelación operacional dominante es ${topGroupEntry ? ctx.groupLabel(topGroupEntry[0] as GroupKey) : 'LEO'} con ` +
+          body: `El grupo de infraestructura dominante es ${topGroupEntry ? ctx.groupLabel(topGroupEntry[0] as GroupKey) : 'LEO'} con ` +
             `${topGroupEntry ? topGroupEntry[1].toLocaleString() : '?'} objetos (${topGroupEntry ? pct(topGroupEntry[1]) : 0}% de los visibles). ` +
             `Starlink representa el ${pct(g['starlink'] ?? 0)}% de la vista, lo que refleja el despliegue continuo de LEO comercial. ` +
             `GNSS aporta ${(g['gnss'] ?? 0).toLocaleString()} cargas útiles de navegación y ${(g['geo'] ?? 0).toLocaleString()} activos GEO mantienen el cinturón ecuatorial.`,
@@ -793,13 +794,13 @@ export function generateBrief(ctx: {
         {
           title: 'Señal de riesgo de infraestructura',
           body: highestRisk 
-            ? `Área de mayor riesgo detectada: ${highestRisk.category.replace('_', ' ')} (${highestRisk.level.toUpperCase()}). ${highestRisk.explanation} ${highestRisk.caveat}`
-            : 'No se detectaron riesgos de infraestructura elevados.',
+            ? `Indicador de portafolio más alto: ${highestRisk.category.replace('_', ' ')} (${highestRisk.level.toUpperCase()}). ${highestRisk.explanation} ${highestRisk.caveat}`
+            : 'No hay indicadores elevados de infraestructura en esta vista.',
         },
         {
           title: 'Advertencia de datos',
           body: 'Las posiciones se derivan de elementos de dos líneas (TLE) públicos propagados con SGP4. Los conjuntos de elementos envejecen, las maniobras no se reflejan y la precisión disminuye con el tiempo desde la época. ' +
-            (isSimulated ? 'SIMULACIÓN DE ESCENARIO ACTIVA: La precisión predictiva decae significativamente para desfases > 24 horas. ' : '') +
+            (isSimulated ? 'SIMULACIÓN DE ESCENARIO ACTIVA: La precisión estimada decae significativamente para desfases > 24 horas. ' : '') +
             'Esta vista es solo para portafolio, educación y conciencia situacional — nunca para seguridad de vuelo o evaluación de conjunciones.',
         },
         {
@@ -836,7 +837,7 @@ export function generateBrief(ctx: {
       },
       {
         title: 'Infrastructure relevance',
-        body: `The dominant operational constellation is ${topGroupEntry ? ctx.groupLabel(topGroupEntry[0] as GroupKey) : 'LEO'} with ` +
+        body: `The dominant infrastructure group is ${topGroupEntry ? ctx.groupLabel(topGroupEntry[0] as GroupKey) : 'LEO'} with ` +
           `${topGroupEntry ? topGroupEntry[1].toLocaleString() : '?'} objects (${topGroupEntry ? pct(topGroupEntry[1]) : 0}% of visible). ` +
           `Starlink drives ${pct(g['starlink'] ?? 0)}% of the view, reflecting ongoing commercial LEO build-out. ` +
           `GNSS contributes ${(g['gnss'] ?? 0).toLocaleString()} navigation payloads and ${(g['geo'] ?? 0).toLocaleString()} GEO assets hold the equatorial belt.`,
@@ -850,13 +851,13 @@ export function generateBrief(ctx: {
       {
         title: 'Infrastructure risk signal',
         body: highestRisk 
-          ? `Highest risk area detected: ${highestRisk.category.replace('_', ' ')} (${highestRisk.level.toUpperCase()}). ${highestRisk.explanation} ${highestRisk.caveat}`
-          : 'No elevated infrastructure risks detected.',
+          ? `Highest portfolio indicator: ${highestRisk.category.replace('_', ' ')} (${highestRisk.level.toUpperCase()}). ${highestRisk.explanation} ${highestRisk.caveat}`
+          : 'No elevated infrastructure indicators in this view.',
       },
       {
         title: 'Data caveat',
         body: 'Positions derive from public two-line elements propagated with SGP4. Element sets age, maneuvers are not reflected, and accuracy degrades with time since epoch. ' +
-          (isSimulated ? 'SCENARIO SIMULATION ACTIVE: Predictive accuracy decays significantly for time offsets > 24 hours. ' : '') +
+          (isSimulated ? 'SCENARIO SIMULATION ACTIVE: Estimated accuracy decays significantly for time offsets > 24 hours. ' : '') +
           'This view is for portfolio, education and situational awareness only — never flight safety or operational conjunction assessment.',
       },
       {
@@ -872,26 +873,26 @@ export function generateBrief(ctx: {
 // ---- Satellite AI relevance blurb -----------------------------------------
 
 const RELEVANCE_EN: Record<string, string> = {
-  starlink:  'Commercial LEO broadband node — part of the largest active constellation; drives congestion and conjunction load in the 540–570 km shells.',
-  stations:  'Crewed orbital platform — high public-interest asset under continuous tracking and debris-avoidance watch.',
+  starlink:  'Commercial LEO broadband object — part of a very large active constellation; contributes to analytical density in the 540-570 km shells.',
+  stations:  'Crewed orbital platform — high public-interest object represented through public TLE propagation.',
   gnss:      'Positioning, navigation & timing payload — critical infrastructure underpinning finance, logistics and defense timing.',
   weather:   'Environmental monitoring asset — feeds meteorology, climate and early-warning systems.',
   science:   'Earth-observation / science platform — imaging, mapping and research utility.',
   geo:       'Geostationary communications asset — fixed over its sub-longitude for broadcast, data relay and backhaul.',
   meo:       'Medium-orbit communications / navigation asset.',
-  leo:       'Low-Earth-orbit object — short revisit time, part of the most crowded operational band.',
+  leo:       'Low-Earth-orbit object — short revisit time, part of the most populated public TLE band.',
   other:     'Tracked orbital object.',
 };
 
 const RELEVANCE_ES: Record<string, string> = {
-  starlink:  'Nodo de banda ancha comercial LEO: parte de la constelación activa más grande; genera congestión y carga de conjunciones en las órbitas de 540-570 km.',
-  stations:  'Plataforma orbital tripulada: activo de alto interés público bajo seguimiento continuo y control de evasión de desechos.',
+  starlink:  'Objeto de banda ancha comercial LEO: parte de una constelación activa muy grande; aporta densidad analítica en las órbitas de 540-570 km.',
+  stations:  'Plataforma orbital tripulada: objeto de alto interés público representado mediante propagación TLE pública.',
   gnss:      'Carga útil de posicionamiento, navegación y sincronización (PNT): infraestructura crítica que respalda las finanzas, la logística y la sincronización de la defensa.',
   weather:   'Activo de monitoreo ambiental: alimenta sistemas de meteorología, clima y alerta temprana.',
   science:   'Plataforma de investigación / observación terrestre: utilidad de imágenes, cartografía e investigación.',
   geo:       'Activo de comunicaciones geoestacionario: fijo sobre su longitud para transmisiones, retransmisión de datos y enlaces de retroceso.',
   meo:       'Activo de navegación / comunicaciones en órbita terrestre media.',
-  leo:       'Objeto en órbita terrestre baja: tiempo de paso corto, parte de la banda operativa más concurrida.',
+  leo:       'Objeto en órbita terrestre baja: tiempo de paso corto, parte de la banda TLE pública más poblada.',
   other:     'Objeto orbital rastreado.',
 };
 

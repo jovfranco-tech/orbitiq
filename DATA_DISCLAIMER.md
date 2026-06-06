@@ -9,7 +9,7 @@ OrbitIQ Command Center is an **AI-native 3D satellite intelligence command cente
 | Mode | What it means |
 |---|---|
 | **LIVE PUBLIC TLE** | TLE data freshly fetched from CelesTrak within the last hour. Positions reflect the current public catalog, propagated forward to the current time. |
-| **CACHED PUBLIC TLE** | TLE data fetched from CelesTrak and cached server-side (≤6 hours old). Propagation is still performed in real time; only the source elements are not the most recent possible fetch. |
+| **CACHED PUBLIC TLE** | TLE data fetched from CelesTrak and cached server-side (≤6 hours old under normal cache TTL). Propagation is performed against the current or simulated timestamp; only the source elements are not the most recent possible fetch. |
 | **DEMO · REPRESENTATIVE** | The `/api/tle` endpoint was unreachable. The app is using a deterministic representative catalog generated client-side. Orbital shells, inclinations, and altitudes are physically realistic, but the specific element snapshots are not live observations. |
 
 The current data mode is always shown in the status pill at the top of the screen.
@@ -126,10 +126,9 @@ For authoritative space situational awareness, refer to Space-Track.org and offi
 ## v0.6.0 Time Controls & Scenario Simulation Disclaimers
 - **SGP4 Accuracy Decay**: Orbit propagation accuracy degrades continuously as the simulation time moves further away from the original TLE epoch. Simulating days or weeks into the future (or past) using a single TLE snapshot will result in significant positional divergence from reality.
 - **Maneuvers Excluded**: The simulation does not predict or incorporate future orbital maneuvers. A satellite simulated three days into the future may have performed station-keeping in reality, rendering the simulated position inaccurate.
-- **Not for Predictive Safety**: Simulated scenarios are for educational "what-if" analysis and portfolio visualization only. They are absolutely **NOT** suitable for flight safety, predictive conjunction assessment, or mission planning.
+- **Not for Predictive Safety**: Simulated scenarios are educational "what-if" SGP4 estimates and portfolio visualizations only. They are absolutely **NOT** suitable for flight safety, conjunction assessment, or mission planning.
 
 ## v0.7.0 Local Persistence & Snapshots Disclaimers
 - **Metadata Only**: OrbitIQ snapshots and saved views only store analytical metadata, view preferences, and generic satellite identification (name, NORAD ID). Raw TLE arrays are not persistently stored.
 - **Data Freshness upon Reload**: When loading a saved view at a later date, OrbitIQ fetches the latest live TLE data from CelesTrak. If the saved view relies on a specific simulation time offset, the UI re-applies the relative offset, but positions may differ due to updated anchor epochs.
 - **Client-Side Export**: Exported JSON files are generated entirely locally. You are responsible for securely storing your own exports.
-

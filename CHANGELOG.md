@@ -3,6 +3,22 @@
 ### Added
 - **Mobile Responsive Tab Bar**: Integrated floating bottom navigation bar and touch gestures pass-through on devices `<= 768px` to ensure the 3D globe remains interactive on mobile.
 - **Code Hygiene & Hygiene Audit**: Cleared all remaining unused variables, parameters, and non-null assertions to achieve 100% clean typecheck and ESLint compiles.
+- **Final v1.0 Release Audit**: Completed build, lint, typecheck, npm audit, API, WebGL, performance, security/privacy, data honesty, localization, documentation, and Vercel readiness review.
+- **Environment Template**: Added `.env.example` with server-side LLM placeholders only.
+
+### Changed
+- Upgraded Vite and React plugin to clear npm audit advisories, with Vite 8-compatible manual chunking.
+- `/api/tle` now reports `sourceMode`, `fetchedAt`, `recordCount`, `cacheAgeSeconds`, `cacheTtlSeconds`, `sourceHealth`, and safe fallback reasons.
+- `/api/agent` now bounds LLM time/speed actions and rejects oversized/invalid request context more defensively.
+- Scenario, risk, ticker, tour, and executive brief copy now consistently frame results as public TLE/SGP4 analytical indicators.
+- JSON import now enforces schema version, safe size limits, item caps, and metadata-only sanitization.
+
+### Fixed
+- WebGL initialization failure now shows a safe fallback state instead of leaving the app stuck behind the loading veil.
+- Selected-satellite orbit path sampling now uses the active simulation timestamp.
+- Saved mission views now restore their simulation offset exactly.
+- Time controls no longer update React state every animation frame.
+- Error boundaries no longer render raw error messages to users.
 
 ## [2.0.0-high-fidelity] - 2026-06-05
 
@@ -93,7 +109,7 @@ All notable changes to OrbitIQ Command Center.
 
 #### Added — Intelligence Engine
 - **Orbital Band Intelligence**: LEO / MEO / GEO analytics — satellite count, percentage, average altitude, and top constellation groups per band
-- **Regional Overflight Intelligence**: 13 world regions with real-time satellite counts, dominant orbital band, and top constellation groups per region
+- **Regional Overflight Intelligence**: 13 world regions with current public TLE/SGP4 satellite counts, dominant orbital band, and top constellation groups per region
 - **Orbital Congestion Score**: Composite 0–100 score (Low / Moderate / Elevated / High) based on weighted components — visible satellite density (40%), band concentration via Herfindahl index (30%), region concentration (20%), constellation dominance (10%)
 - **Constellation Intelligence**: Per-group insights including count, dominant band, average altitude, and top region
 

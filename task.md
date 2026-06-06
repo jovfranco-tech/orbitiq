@@ -1,6 +1,6 @@
-# OrbitIQ v0.2.0-production-port — Task Log
+# OrbitIQ v1.0.0-public-portfolio-release — Task Log
 
-## Phase: Production Hardening & Final Audit
+## Phase: Final v1.0 Release-Readiness Audit
 
 ### Status: ✅ Complete
 
@@ -10,19 +10,19 @@
 
 | Area | Status | Notes |
 |---|---|---|
-| Build (npm install) | ⚠️ Sandbox only | Network blocked in sandbox; all deps listed, builds correctly in any Node 18+ env |
-| TypeScript (dependency-free files) | ✅ 0 errors | 8 core files typecheck clean |
-| TypeScript (full project) | ✅ 0 logic errors | Only missing-package errors (resolve on npm install) |
-| Lint | ✅ Clean | No require(), no dangerouslySetInnerHTML, no console.log in src/ |
-| Runtime stability | ✅ Fixed | 13 crash/leak fixes applied (see CHANGELOG) |
+| Build (npm install) | ✅ Clean | Dependencies install and audit clean locally |
+| TypeScript (full project) | ✅ 0 errors | `npm run typecheck` passes |
+| Production build | ✅ Clean | `npm run build` passes on Vite 8 |
+| Lint | ✅ Clean | `npm run lint` passes |
+| Runtime stability | ✅ Fixed | WebGL fallback, cleanup, and selected-state guards verified |
 | Performance | ✅ Preserved | Single draw call point cloud; tick loop zero React writes per frame |
 | /api/tle pipeline | ✅ Clean | Server-side only, 6h cache, graceful fallback, provenance metadata |
 | Data honesty | ✅ Clean | No overclaiming language; fallback always labeled; disclaimer always visible |
 | Security | ✅ Clean | No API keys, no secrets, no localStorage abuse, no eval |
 | Responsible AI | ✅ Clean | Agent discloses assumptions, confidence, filters applied; never claims authority |
-| EN/ES i18n | ✅ Complete | 78 keys, 0 missing in either locale; footer/loading now use t() |
+| EN/ES i18n | ✅ Complete | Used keys have EN/ES entries; no asymmetric dictionary keys |
 | Documentation | ✅ Updated | README, CHANGELOG, SECURITY, DATA_DISCLAIMER, walkthrough all current |
-| Release prep | ✅ Done | Version 0.2.0-production-port, CHANGELOG complete |
+| Release prep | ✅ Done | Version 1.0.0-public-portfolio-release, CHANGELOG complete |
 
 ---
 
@@ -80,18 +80,16 @@
 
 ## Release metadata
 
-- **Version**: `0.2.0-production-port`
-- **Tag**: `v0.2.0-production-port`
-- **Git commit message**: `Finalize OrbitIQ v0.2.0 production port and hardening`
+- **Version**: `1.0.0-public-portfolio-release`
+- **Tag**: `v1.0.0-public-portfolio-release`
+- **Git commit message**: `Finalize OrbitIQ v1.0 release-readiness audit`
 - **Status**: Ready for Vercel deployment
 
 ---
 
-## Next phase: v0.3.0 — Real LLM Agent + Orbital Intelligence
+## Remaining post-v1 ideas
 
-1. `/api/agent` — POST endpoint calling Claude/GPT-4o with `AiAgentResponse` JSON contract
-2. Replace `parse()` in `App.tsx` `runAgent()` with `fetch('/api/agent', { method: 'POST' })`
-3. Time acceleration slider (replace `new Date()` in tick with `simulationTime` ref)
-4. Historical TLE replay (dated snapshots stored in KV or S3)
-5. Add `setActiveGroups(groups: GroupKey[])` action to store (eliminate direct `useStore.setState`)
-6. Coverage footprint projection for selected satellite
+1. Hosted demo screenshots/video for portfolio distribution.
+2. Additional deterministic charts for existing intelligence summaries.
+3. More keyboard-first workflows for saved views and panels.
+4. Optional broader public data overlays with the same provenance/caveat model.

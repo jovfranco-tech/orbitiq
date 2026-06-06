@@ -1,7 +1,7 @@
 {
   "name": "orbitiq-command-center",
   "version": "1.0.0-public-portfolio-release",
-  "description": "Real-time 3D satellite orbit tracker and AI-native orbital intelligence dashboard.",
+  "description": "Public TLE/SGP4-based 3D satellite visualization and AI-native orbital intelligence dashboard.",
   "private": true,
   "type": "module",
   "scripts": {
@@ -29,11 +29,11 @@
     "@types/three": "^0.128.0",
     "@typescript-eslint/eslint-plugin": "^7.13.0",
     "@typescript-eslint/parser": "^7.13.0",
-    "@vitejs/plugin-react": "^4.3.1",
+    "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^8.57.0",
     "jsdom": "^29.1.1",
     "typescript": "^5.4.5",
-    "vite": "^5.3.1",
+    "vite": "^8.0.16",
     "vite-plugin-pwa": "^1.3.0",
     "vitest": "^4.1.8"
   }

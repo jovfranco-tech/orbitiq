@@ -13,7 +13,7 @@ export function TourModal() {
       title: 'Welcome to OrbitIQ Command Center',
       desc: 'OrbitIQ is your AI-native orbital intelligence platform.',
       features: [
-        '✨ Ask the AI Agent for congestion predictions.',
+        'Ask the AI Agent for density indicators and scenario estimates.',
         '🌍 Drag the globe, click satellites, or filter by band.',
         '⏳ Use Time Controls to simulate past or future scenarios.',
       ],
@@ -23,7 +23,7 @@ export function TourModal() {
       title: 'Bienvenido al Centro de Comando OrbitIQ',
       desc: 'OrbitIQ es tu plataforma de inteligencia orbital nativa de IA.',
       features: [
-        '✨ Pide a la IA predicciones de congestión.',
+        'Pide a la IA indicadores de densidad y estimaciones de escenario.',
         '🌍 Gira el globo, selecciona satélites o filtra por banda.',
         '⏳ Usa los controles de tiempo para simular escenarios.',
       ],

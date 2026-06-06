@@ -48,12 +48,15 @@ export type ApiHealth = 'healthy' | 'degraded' | 'unavailable' | 'fallback';
 /** Metadata attached to a TLE dataset returned by /api/tle. */
 export interface TleApiMeta {
   source: string;
+  sourceMode?: DataMode;
   fetchTimestamp: string;     // ISO
+  fetchedAt?: string;         // ISO alias used by release metadata
   cacheTimestamp: string;     // ISO
   tleEpoch?: string;          // ISO of most recent TLE in set
   freshness: 'live' | 'cached' | 'fallback';
   dataMode: DataMode;
   count: number;
+  recordCount?: number;
   sourceHealth?: ApiHealth;
   cacheAgeSeconds?: number;
   cacheTtlSeconds?: number;

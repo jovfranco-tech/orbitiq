@@ -20,32 +20,33 @@ interface VercelResponse {
 
 // ---- Zod Schema for Validation ---------------------------------------------
 const ActionSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('filter_by_group'), group: z.string() }),
-  z.object({ type: z.literal('filter_by_region'), region: z.string() }),
+  z.object({ type: z.literal('filter_by_group'), group: z.string().min(1).max(80) }),
+  z.object({ type: z.literal('filter_by_region'), region: z.string().min(1).max(80) }),
   z.object({ type: z.literal('filter_by_band'), band: z.enum(['LEO', 'MEO', 'GEO', 'OTHER', 'UNKNOWN']) }),
-  z.object({ type: z.literal('altitude_threshold'), operator: z.enum(['below', 'above']), km: z.number() }),
-  z.object({ type: z.literal('find_satellite'), query: z.string() }),
-  z.object({ type: z.literal('compare_bands'), bands: z.array(z.string()).optional() }),
-  z.object({ type: z.literal('compare_groups'), groups: z.array(z.string()).optional() }),
+  z.object({ type: z.literal('altitude_threshold'), operator: z.enum(['below', 'above']), km: z.number().min(0).max(50000) }),
+  z.object({ type: z.literal('find_satellite'), query: z.string().min(1).max(120) }),
+  z.object({ type: z.literal('compare_bands'), bands: z.array(z.string().max(20)).max(4).optional() }),
+  z.object({ type: z.literal('compare_groups'), groups: z.array(z.string().max(40)).max(8).optional() }),
   z.object({ type: z.literal('congestion_summary') }),
   z.object({ type: z.literal('executive_brief') }),
-  z.object({ type: z.literal('generate_mission_brief'), scenario: z.string() }),
-  z.object({ type: z.literal('select_mission_scenario'), scenario: z.string() }),
+  z.object({ type: z.literal('generate_mission_brief'), scenario: z.string().min(1).max(80) }),
+  z.object({ type: z.literal('select_mission_scenario'), scenario: z.string().min(1).max(80) }),
   z.object({ type: z.literal('show_risk_layer') }),
-  z.object({ type: z.literal('highlight_relevant_groups'), groups: z.array(z.string()) }),
-  z.object({ type: z.literal('highlight_relevant_region'), region: z.string() }),
+  z.object({ type: z.literal('highlight_relevant_groups'), groups: z.array(z.string().max(40)).min(1).max(8) }),
+  z.object({ type: z.literal('highlight_relevant_region'), region: z.string().min(1).max(80) }),
   z.object({ type: z.literal('recommend_next_view') }),
+  z.object({ type: z.literal('reset_view') }),
   z.object({ type: z.literal('set_time_mode'), mode: z.enum(['live', 'paused', 'simulating']) }),
-  z.object({ type: z.literal('set_time_speed'), speed: z.number() }),
-  z.object({ type: z.literal('jump_time'), offsetMs: z.number() }),
+  z.object({ type: z.literal('set_time_speed'), speed: z.number().min(0.25).max(360) }),
+  z.object({ type: z.literal('jump_time'), offsetMs: z.number().int().min(-604800000).max(604800000) }),
   z.object({ type: z.literal('reset_to_now') }),
   z.object({ type: z.literal('pause_simulation') }),
   z.object({ type: z.literal('resume_simulation') }),
   z.object({ type: z.literal('add_to_watchlist') }),
   z.object({ type: z.literal('remove_from_watchlist') }),
   z.object({ type: z.literal('show_watchlist') }),
-  z.object({ type: z.literal('save_current_view'), name: z.string().optional() }),
-  z.object({ type: z.literal('load_saved_view'), viewIdOrName: z.string().optional() }),
+  z.object({ type: z.literal('save_current_view'), name: z.string().max(80).optional() }),
+  z.object({ type: z.literal('load_saved_view'), viewIdOrName: z.string().max(80).optional() }),
   z.object({ type: z.literal('create_snapshot') }),
   z.object({ type: z.literal('export_snapshot') }),
   z.object({ type: z.literal('recommend_saved_view') }),
@@ -90,13 +91,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const { query, context } = req.body as { query: string; context: any };
+  if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
+    res.status(400).json({ error: 'Invalid request body' });
+    return;
+  }
+
+  const { query, context } = req.body as { query?: unknown; context?: unknown };
   if (!query || typeof query !== 'string' || query.length > 500) {
     res.status(400).json({ error: 'Missing or invalid query (max 500 chars)' });
     return;
   }
   
-  if (JSON.stringify(context || {}).length > 10000) {
+  let contextSize = 0;
+  try {
+    contextSize = JSON.stringify(context || {}).length;
+  } catch {
+    res.status(400).json({ error: 'Invalid context payload' });
+    return;
+  }
+  if (contextSize > 10000) {
     res.status(400).json({ error: 'Context payload too large' });
     return;
   }

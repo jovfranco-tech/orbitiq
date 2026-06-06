@@ -100,9 +100,9 @@ export function DetailPanel({ onClose, onToggleTrack }: Props) {
         {simMode !== 'live' && sim && live && (
           <div className="sim-comparison">
             <div style={{color: 'var(--yellow)', fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.5rem'}}>
-              <b>Current vs Simulated Position:</b><br />
-              Live: {live.lat.toFixed(2)}°, {live.lon.toFixed(2)}° ({live.region})<br />
-              Sim: {sim.lat.toFixed(2)}°, {sim.lon.toFixed(2)}° ({sim.region})
+              <b>{t('current_vs_simulated_position')}:</b><br />
+              {t('current_position_label')}: {live.lat.toFixed(2)}°, {live.lon.toFixed(2)}° ({live.region})<br />
+              {t('simulated_position_label')}: {sim.lat.toFixed(2)}°, {sim.lon.toFixed(2)}° ({sim.region})
             </div>
           </div>
         )}
@@ -158,7 +158,7 @@ export function DetailPanel({ onClose, onToggleTrack }: Props) {
               }}
               style={{ flex: 1 }}
             >
-              {inWatchlist ? '🔖 In Watchlist' : '🔖 Add to Watchlist'}
+              {inWatchlist ? `🔖 ${t('watchlist_in')}` : `🔖 ${t('watchlist_add')}`}
             </button>
           );
         })()}

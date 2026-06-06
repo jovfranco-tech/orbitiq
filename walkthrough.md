@@ -1,4 +1,4 @@
-# OrbitIQ v0.2.0 — Developer Walkthrough
+# OrbitIQ v1.0.0 — Developer Walkthrough
 
 A guided tour of the codebase for contributors and reviewers.
 
@@ -9,13 +9,13 @@ A guided tour of the codebase for contributors and reviewers.
 ```
 main.tsx
   └── App.tsx (React root)
-       ├── <GlobeMount onReady={onGlobeReady} />
+       ├── <GlobeMount onReady={onGlobeReady} onError={...} />
        │     └── GlobeRenderer.ts (Three.js, imperative)
        └── onGlobeReady()
              ├── loadSatellites()          → /api/tle → fallback catalog
              ├── loadCatalog(globe, data)  → allocate GPU buffers
              ├── tick()                    → first propagation frame
-             └── setInterval(tick, 900ms) → propagation loop
+             └── setInterval(tick, 900ms) → worker-backed propagation loop
 ```
 
 ---
@@ -26,7 +26,7 @@ Called every 900 ms. Runs entirely outside React state to avoid re-renders.
 
 ```
 tick()
-  ├── For each satellite: satellite.js propagate() → ECI xyz
+  ├── Web Worker: for each satellite, satellite.js propagate() → ECI xyz
   ├── ECI → scene coordinates → CS.posBuf (Float32Array)
   ├── eciToGeodetic → lat/lon/alt → CS.lat, CS.lon, CS.alt, CS.band
   ├── globe.setEarthRotation(gmst)
@@ -105,7 +105,8 @@ Browser           →   /api/tle (Vercel serverless)   →   CelesTrak GP
                   ←   JSON { meta, satellites[] }    ←   TLE text
 
                   If cache hit (≤6h): returns cached JSON
-                  If CelesTrak fails: returns { meta: { freshness: 'fallback' }, satellites: [] }
+                  If CelesTrak fails: returns stale degraded cache when available,
+                  otherwise { meta: { sourceMode: 'fallback' }, satellites: [] }
 
 src/data/client.ts:
   loadSatellites()
@@ -153,3 +154,5 @@ src/data/client.ts:
 - Memoize heavy computations in panel components with `useMemo`
 - The catalog results list is capped at 120 items (`RESULT_CAP`) to keep DOM small
 - `Float32Array` buffers are pre-allocated at catalog load time; no GC pressure per tick
+- Time controls update display text on a 500 ms interval rather than every animation frame
+- Import/export persists metadata-only user state; no raw satellite catalog is stored in localStorage

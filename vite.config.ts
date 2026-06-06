@@ -22,10 +22,16 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          three: ['three'],
-          satellite: ['satellite.js'],
-          react: ['react', 'react-dom'],
+        manualChunks(id) {
+          if (id.includes('/node_modules/three/')) {
+            return 'three';
+          }
+          if (id.includes('/node_modules/satellite.js/')) {
+            return 'satellite';
+          }
+          if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/')) {
+            return 'react';
+          }
         },
       },
     },

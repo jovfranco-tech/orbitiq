@@ -6,12 +6,8 @@ AI-native 3D satellite intelligence command center using public TLE/SGP4 data, v
 ## GitHub Topics
 `satellite-tracking`, `orbit-visualization`, `threejs`, `react`, `vite`, `typescript`, `satellitejs`, `sgp4`, `space-intelligence`, `ai-agent`, `llm-agent`, `command-center`, `portfolio-project`, `resilience`, `infrastructure-intelligence`
 
-## Release Notes Draft (v0.9.0 Release Candidate)
-OrbitIQ v0.9.0 is our official Release Candidate. This release completes the hardening of the application, focusing on:
-- **UX & Accessibility Polish**: Aria-labels and responsive tuning.
-- **Product Positioning**: Focused explicitly on public orbital visibility and infrastructure dependency awareness.
-- **Data Honesty**: Further tightened caveats emphasizing that this is a portfolio/educational tool, not an operational flight-safety system.
-- **Documentation**: A complete overhaul of the README and deployment instructions.
+## Release Notes Draft (v1.0.0 Public Portfolio Release)
+OrbitIQ v1.0.0 is the public portfolio release candidate. This release completes release-readiness hardening across build, WebGL fallback, API reliability, deterministic AI fallback, import/export safety, data honesty, EN/ES localization, documentation, and Vercel readiness.
 
 ## Screenshot Checklist
 - [ ] Full 3D globe hero (Overview of Earth with dense satellite cloud)
@@ -38,6 +34,12 @@ OrbitIQ v0.9.0 is our official Release Candidate. This release completes the har
 
 ## Portfolio / LinkedIn Copy
 **OrbitIQ Command Center**
-I just wrapped up v0.9.0 of OrbitIQ, an AI-native 3D satellite intelligence dashboard. It propagates thousands of satellites in real-time directly in the browser using SGP4 mathematics and Three.js. It features a deterministic LLM command agent, mission scenario simulation, and a robust Data Health observability layer. Built with React, Vite, TypeScript, and optimized for edge serverless deployments.
+I just wrapped up v1.0.0 of OrbitIQ, an AI-native 3D satellite intelligence dashboard. It visualizes public TLE/SGP4 orbital data in a GPU point-cloud globe, supports validated LLM or deterministic fallback agent actions, includes mission briefs and scenario simulation, and makes data provenance/degraded modes visible. Built with React, Vite, TypeScript, Three.js, satellite.js, and Vercel serverless functions.
 
 Check out the interactive demo and source code here!
+
+## Resume Bullet
+- Built OrbitIQ, a React/Vite/TypeScript 3D satellite intelligence command center using Three.js GPU point-cloud rendering, satellite.js SGP4 propagation, Vercel serverless TLE caching, validated LLM agent actions, deterministic fallback, scenario simulation, mission briefs, and metadata-only local persistence.
+
+## Interview Pitch
+OrbitIQ demonstrates how I design AI-native interfaces around deterministic domain logic. The LLM never calculates orbital positions; it only suggests schema-validated UI actions, while SGP4 propagation, provenance, degraded mode, import validation, and data-honesty caveats keep the product trustworthy.

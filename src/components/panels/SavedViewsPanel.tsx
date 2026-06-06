@@ -1,6 +1,7 @@
 import { setLang, t } from '../../i18n/i18n';
 import { useUserStore } from '../../state/userStore';
 import { useStore } from '../../state/store';
+import { CS } from '../../state/catalogStore';
 import type { SavedMissionView } from '../../types';
 
 interface Props {
@@ -8,7 +9,7 @@ interface Props {
 }
 
 export function SavedViewsPanel({ onClose }: Props) {
-  const { savedViews, deleteView } = useUserStore();
+  const { savedViews, deleteView, renameView } = useUserStore();
   const store = useStore();
 
   const applyView = (v: SavedMissionView) => {
@@ -17,12 +18,9 @@ export function SavedViewsPanel({ onClose }: Props) {
     store.setFilterRegion(v.filters.region);
     store.setAltFilter(v.filters.altMin, v.filters.altMax);
     
-    store.setSimMode(v.simMode);
     store.setSimSpeed(1);
-    store.jumpTime(v.simOffsetMs - (useStore.getState().simMode === 'live' ? 0 : v.simOffsetMs)); // Rough jump
-    // More accurate way to set offset:
-    // If it's a saved view, we might need an exact jumpTime or just setting the mode.
-    // We will let the App.tsx handle precise offsets if needed, but for now jumping is fine.
+    CS.simTimestampMs = Date.now() + v.simOffsetMs;
+    store.setSimMode(v.simMode);
     
     if (v.missionScenario) {
       store.setShowMissionPanel(true);
@@ -64,8 +62,21 @@ export function SavedViewsPanel({ onClose }: Props) {
                   className="v-remove" 
                   onClick={(e) => { e.stopPropagation(); deleteView(v.id); }}
                   title={t('delete') || 'Delete'}
+                  aria-label={t('delete') || 'Delete'}
                 >
                   ✕
+                </button>
+                <button
+                  className="v-remove"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const next = window.prompt(t('rename_view') || 'Rename view', v.name);
+                    if (next?.trim()) renameView(v.id, next.trim().slice(0, 80));
+                  }}
+                  title={t('rename_view') || 'Rename view'}
+                  aria-label={t('rename_view') || 'Rename view'}
+                >
+                  ✎
                 </button>
               </div>
             ))}

@@ -490,7 +490,14 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     camera.aspect = w / h; camera.updateProjectionMatrix();
   }
 
-  const onResize = () => resize();
+  let resizeRaf = 0;
+  const onResize = () => {
+    if (resizeRaf) return;
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = 0;
+      resize();
+    });
+  };
   window.addEventListener('resize', onResize);
   resize();
   loop();
@@ -498,6 +505,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   // ---- Cleanup ----
   function destroy(): void {
     cancelAnimationFrame(rafId);
+    if (resizeRaf) cancelAnimationFrame(resizeRaf);
     clearTimeout(textureTimeout);
     window.removeEventListener('resize', onResize);
     container.removeEventListener('pointerdown', onPointerDown);

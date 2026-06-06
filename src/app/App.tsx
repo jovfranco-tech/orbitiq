@@ -43,6 +43,9 @@ function hexToRGB(h: string): [number, number, number] {
 
 const TICK_MS = 900;
 const INTEL_REFRESH_MS = 2000;
+const MAX_AGENT_TIME_JUMP_MS = 7 * 24 * 60 * 60 * 1000;
+const MIN_AGENT_SPEED = 0.25;
+const MAX_AGENT_SPEED = 360;
 
 export function App() {
   const globeRef  = useRef<GlobeApi | null>(null);
@@ -70,19 +73,21 @@ export function App() {
     if (intelligence && intelligence.congestionScore > 80 && !hasWarnedRef.current) {
       hasWarnedRef.current = true;
       const band = intelligence.mostCrowdedBand || 'LEO';
+      const currentMode = useStore.getState().dataMode;
       setAgentResult({
-        answer: `Commander, critical anomaly detected. Orbital congestion has reached ${Math.round(intelligence.congestionScore)}. I have proactively filtered your view to the ${band} band.`,
+        answer: `Analytical density threshold reached. Orbital congestion score is ${Math.round(intelligence.congestionScore)}/100, so OrbitIQ filtered the view to the ${band} band for review.`,
         intent: 'congestion_summary',
         confidence: 0.99,
-        assumptions: ['Proactive monitoring triggered'],
+        assumptions: ['Triggered by deterministic portfolio-density threshold, not collision prediction.'],
         actions: { 
           band, groups: null, region: null, altMax: null, altMin: null, 
           focusSatnum: null, brief: false, missionScenario: null, showRiskLayer: false, timeAction: null 
         },
         filtersApplied: { band },
         visibleCount: CS.N,
-        sourceMode: 'fallback',
+        sourceMode: currentMode === 'loading' ? 'fallback' : currentMode,
         responseMode: 'deterministic',
+        safetyCaveat: 'Analytical portfolio signal only. Not for flight safety, collision warning or conjunction assessment.',
         intelligence
       });
       useStore.getState().setFilterBand(band);
@@ -291,7 +296,7 @@ export function App() {
     // Auto-draw orbit path
     const rec = CS.recs[i];
     if (rec && !rec.error) {
-      const path = sampleOrbitPath(rec, new Date(), 200);
+      const path = sampleOrbitPath(rec, new Date(CS.simTimestampMs || Date.now()), 200);
       globe.setOrbit(path);
     } else {
       globe.setOrbit(null);
@@ -318,7 +323,7 @@ export function App() {
     if (next) {
       const rec = CS.recs[selected];
       if (rec && !rec.error) {
-        const path = sampleOrbitPath(rec, new Date(), 200);
+        const path = sampleOrbitPath(rec, new Date(CS.simTimestampMs || Date.now()), 200);
         globeRef.current?.setOrbit(path);
       }
     } else {
@@ -439,8 +444,14 @@ export function App() {
       }
       if (a.timeAction) {
         const t = a.timeAction;
-        if (t.type === 'jump_time') store.jumpTime(t.offsetMs);
-        if (t.type === 'set_time_speed') store.setSimSpeed(t.speed);
+        if (t.type === 'jump_time' && Number.isFinite(t.offsetMs)) {
+          const offsetMs = Math.max(-MAX_AGENT_TIME_JUMP_MS, Math.min(MAX_AGENT_TIME_JUMP_MS, t.offsetMs));
+          store.jumpTime(offsetMs);
+        }
+        if (t.type === 'set_time_speed' && Number.isFinite(t.speed)) {
+          const speed = Math.max(MIN_AGENT_SPEED, Math.min(MAX_AGENT_SPEED, t.speed));
+          store.setSimSpeed(speed);
+        }
         if (t.type === 'set_time_mode') store.setSimMode(t.mode);
         if (t.type === 'reset_to_now') store.resetTime();
         if (t.type === 'pause_simulation') store.setSimMode('paused');
@@ -584,7 +595,7 @@ export function App() {
   return (
     <>
       {/* Globe canvas — imperative Three.js, behind the UI */}
-      <GlobeMount onReady={onGlobeReady} />
+      <GlobeMount onReady={onGlobeReady} onError={() => useStore.getState().setLoading(false)} />
 
       {/* Loading veil */}
       {isLoading && (

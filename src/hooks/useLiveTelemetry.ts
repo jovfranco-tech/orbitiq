@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 
-const SSE_EVENTS = [
-  "Telemetry stream established via WebSocket...",
-  "Recalibrating LEO perturbations...",
-  "High collision probability detected near Starlink-1422",
-  "Solar flare anomaly affecting GEO communications",
-  "Updating nadir trajectory for ISS",
-  "Live telemetry: Nominal operations across MEO band",
-  "Warning: Congestion spike detected in Region 4",
-  "Receiving real-time space weather updates..."
+const STATUS_EVENTS = [
+  'Public TLE snapshot propagated with SGP4.',
+  'Representative fallback catalog available for offline/demo mode.',
+  'LEO density indicator refreshed from current propagated subpoints.',
+  'GEO infrastructure portfolio indicator ready.',
+  'Selected object nadir estimate uses public TLE propagation.',
+  'Scenario mode is an SGP4 estimate, not an operational prediction.',
+  'Regional overflight counts are approximate bounding-box matches.',
+  'AI agent suggests validated UI actions only.'
 ];
 
 export function useLiveTelemetry() {
@@ -16,7 +16,7 @@ export function useLiveTelemetry() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const randomEvent = SSE_EVENTS[Math.floor(Math.random() * SSE_EVENTS.length)];
+      const randomEvent = STATUS_EVENTS[Math.floor(Math.random() * STATUS_EVENTS.length)];
       setTickerMsg(randomEvent);
     }, 8500);
     

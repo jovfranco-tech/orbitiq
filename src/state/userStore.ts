@@ -113,6 +113,7 @@ export const useUserStore = create<UserState>()(
         watchlists: state.watchlists,
         savedViews: state.savedViews,
         snapshots: state.snapshots,
+        hasSeenTour: state.hasSeenTour,
       }), // only persist data, not UI toggles
     }
   )

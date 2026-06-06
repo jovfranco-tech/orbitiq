@@ -1,6 +1,6 @@
 # OrbitIQ — Command Center
 
-**v0.9.0** — Release Candidate (React + Vite + TypeScript).
+**v1.0.0-public-portfolio-release** — public portfolio release candidate (React + Vite + TypeScript).
 
 AI-native 3D satellite intelligence command center for public orbital visibility, infrastructure dependency awareness, mission scenario briefs and executive space resilience insights.
 
@@ -22,7 +22,7 @@ agent, click-to-inspect, constellation/region/altitude filters, and an executive
 | Satellite rendering | Single GPU draw call (`THREE.Points` point cloud) — no per-satellite DOM |
 | Orbit propagation | Real SGP4 via satellite.js, propagated every ~900 ms |
 | Click-to-inspect | Altitude, speed, lat/lon, region, TLE epoch, AI relevance |
-| AI command agent | Deterministic NL→action parser (swap-ready for LLM backend in v0.3.0) |
+| AI command agent | Server-side LLM proxy with schema-validated actions plus deterministic fallback |
 | Filters | Constellation, orbital band, region, altitude range, name/NORAD search |
 | Executive brief | Auto-generated situational summary from the live propagated snapshot |
 | Data provenance | Live / cached / fallback clearly labeled; no false claims |
@@ -36,7 +36,7 @@ agent, click-to-inspect, constellation/region/altitude filters, and an executive
 | Feature | Detail |
 |---|---|
 | Orbital Band Intelligence | LEO / MEO / GEO analytics — satellite count, percentage, average altitude, and top constellation groups per band |
-| Regional Overflight Intelligence | 13 world regions with real-time satellite counts, dominant orbital band, and top constellation groups per region |
+| Regional Overflight Intelligence | 13 world regions with near-real-time public TLE/SGP4 counts where available, dominant orbital band, and top constellation groups per region |
 | Orbital Congestion Score | Composite 0–100 score (Low / Moderate / Elevated / High) derived from density, band concentration, region concentration, and constellation dominance |
 | Constellation Intelligence | Per-group insights: count, dominant band, average altitude, top region |
 | Executive Orbital Brief v2 | 7-section executive summary with congestion assessment and recommended focus |
@@ -133,7 +133,9 @@ orbitiq/
 - Cached in-memory for up to 6 hours per warm lambda instance
 - Returns JSON: `{ meta, satellites[] }`
 - Meta includes `source`, `fetchTimestamp`, `cacheTimestamp`, `tleEpoch`, `freshness`, `dataMode`, `sourceHealth`, `cacheAgeSeconds`, `cacheTtlSeconds`
+- v1 metadata also includes `sourceMode`, `fetchedAt`, `recordCount`, `fallbackReason` when applicable, and `sourceHealth`
 - Includes strict AbortSignal timeouts and error boundaries that return gracefully-degraded fallback responses.
+- If a live refresh fails after a warm cache exists, `/api/tle` serves stale cached data as degraded instead of dropping immediately to demo mode.
 
 ### Fallback: representative catalog
 
@@ -173,7 +175,8 @@ representative, not a live observation.
 3. **Configure environment variables**:
    Create a `.env` file in the root directory (use `.env.example` as a template).
    ```
-   OPENAI_API_KEY=your_openai_api_key_here
+   OPENAI_API_KEY=your_server_side_openai_api_key_here
+   LLM_MODEL=gpt-4o-mini
    ```
    *Note: The app will run without an API key by gracefully degrading to the deterministic fallback agent.*
 
@@ -197,14 +200,16 @@ OrbitIQ is optimized for Vercel edge/serverless environments.
    - Build Command: `npm run build`
    - Output Directory: `dist`
    - Install Command: `npm install`
-- This tool is **not** suitable for collision avoidance, proximity operations, or flight safety
+   - This tool is **not** suitable for collision avoidance, proximity operations, or flight safety
 
 ---
 
 ## AI command agent
 
-`src/ai/agent.ts — parse(query, ctx)` is a deterministic, local NL→action mapper.
-It returns the **same structured contract a real LLM backend would**:
+OrbitIQ uses `/api/agent` as a server-side LLM proxy when `OPENAI_API_KEY` is configured.
+The backend requires strict JSON, validates every returned action with Zod, rejects unsupported
+actions, and never exposes provider errors or API keys to the frontend. The local
+`deterministicParse()` router returns the same response shape when the LLM is unavailable.
 
 ```ts
 type AiAgentResponse = {
@@ -221,11 +226,8 @@ type AiAgentResponse = {
 
 Handled intents: constellation/group filters, region queries ("over Japan"),
 altitude bands ("below 600 km"), orbital bands (GEO/MEO/LEO), satellite lookup
-("find the ISS"), crowding analysis, executive brief.
-
-**To replace with a real LLM backend (v0.3.0):** swap the body of `parse()` in
-`src/ai/agent.ts` with an API call that emits the same JSON. `App.tsx`'s `runAgent()`
-stays unchanged.
+("find the ISS"), density indicators, scenario time controls, mission briefs,
+watchlists, saved views and executive snapshots.
 
 ---
 
@@ -250,7 +252,8 @@ npx vercel           # or push to a repo connected to Vercel
 ```
 
 - `vercel.json` routes `/api/*` to the serverless functions
-- No environment variables required (all data is public)
+- No environment variables are required for the 3D/TLE experience; without `OPENAI_API_KEY`, the command agent uses deterministic fallback
+- Optional server-side environment variables: `OPENAI_API_KEY`, `LLM_MODEL`
 - Static assets get long-cache headers
 
 ---
@@ -270,8 +273,8 @@ See `SECURITY.md` for full baseline.
 
 ## AI Command Agent (v0.4.0 LLM Backend)
 
-OrbitIQ v0.4.0 introduces a real LLM backend for the AI Command Agent.
-It uses a proxy architecture via a Vercel serverless function (`/api/agent`) to communicate with OpenAI (or compatible models). The LLM is forced to emit a strict JSON contract representing an array of allowed `AgentAction`s. This is strictly validated using `zod` on the server.
+OrbitIQ includes a real LLM backend for the AI Command Agent.
+It uses a proxy architecture via a Vercel serverless function (`/api/agent`) to communicate with OpenAI-compatible models. The LLM is forced to emit a strict JSON contract representing an array of allowed `AgentAction`s. This is strictly validated using `zod` on the server.
 
 The LLM has NO direct access to manipulate the orbital database or propagate orbits. It only translates intent into deterministic UI filters.
 
@@ -305,10 +308,20 @@ OrbitIQ v0.7.0 introduces **Local Persistence**, elevating the app into a person
 - **Privacy-First Export/Import**: All preferences are saved locally in the browser's `localStorage` and can be exported to or imported from strict-schema JSON files.
 - **AI Agent Local Context**: The agent can add/remove objects from the watchlist and trigger local snapshots via natural language.
 
-## Roadmap toward v1.0
+## v1.0 Release Readiness
 
-As we approach v1.0, future additions aim to elevate OrbitIQ from a visualization dashboard to a truly autonomous intelligence platform:
+- Build, typecheck, lint and npm audit pass locally.
+- `/api/tle` exposes structured source metadata and degrades through live, cached or fallback modes.
+- `/api/agent` keeps LLM calls server-side, rejects invalid schema/actions, bounds time actions, and falls back deterministically when unavailable.
+- WebGL initialization failure now shows a safe fallback message rather than white-screening.
+- JSON import/export uses a schema version, size limits, item limits and sanitized metadata-only persistence.
+- Scenario simulation remains an SGP4 propagated estimate from public TLE data, not a prediction service.
 
-- **Multi-Agent Orchestration**: Introducing specialized subagents (e.g., a dedicated Risk Analyst Agent, a Telemetry Agent) that collaborate and debate over orbital events to synthesize higher-confidence briefs.
-- **Real LLM Deployment**: Finalizing the transition to a production-grade LLM backend, moving past the deterministic fallback for robust natural-language interaction in all environments.
-- **Enhanced Data Pipelines**: Investigating integrations with broader Space Domain Awareness (SDA) data feeds to enrich public TLEs.
+## Roadmap after v1.0
+
+Future additions that should remain outside the v1.0 public portfolio release:
+
+- Optional richer public data overlays with the same clear provenance model.
+- More chart views for existing deterministic intelligence methods.
+- Deeper accessibility polish and keyboard workflows.
+- Optional hosted demo screenshots/video for portfolio distribution.

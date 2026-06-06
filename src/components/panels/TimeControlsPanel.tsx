@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../../state/store';
 import { CS } from '../../state/catalogStore';
 import { t } from '../../i18n/i18n';
@@ -29,19 +29,14 @@ export function TimeControlsPanel() {
   const [displayTime, setDisplayTime] = useState<string>('');
   const [displayOffset, setDisplayOffset] = useState<string>('');
   
-  // Fast clock sync (decoupled from React states that trigger app-wide re-renders)
-  const reqRef = useRef<number>();
-  
   useEffect(() => {
-    function tick() {
+    const tick = () => {
       setDisplayTime(formatSimTime(CS.simTimestampMs));
       setDisplayOffset(formatOffset(CS.simTimestampMs));
-      reqRef.current = requestAnimationFrame(tick);
-    }
-    reqRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (reqRef.current) cancelAnimationFrame(reqRef.current);
     };
+    tick();
+    const id = setInterval(tick, 500);
+    return () => clearInterval(id);
   }, []);
 
   const speeds = [0.25, 0.5, 1, 5, 10, 60, 360];
@@ -79,21 +74,21 @@ export function TimeControlsPanel() {
       )}
 
       <div className="time-actions">
-        <button className="time-btn" onClick={() => jumpTime(-3600000)} title="-1 Hour">
+        <button className="time-btn" onClick={() => jumpTime(-3600000)} title="-1 Hour" aria-label="Rewind 1 hour">
           -1h
         </button>
-        <button className="time-btn" onClick={() => jumpTime(-600000)} title="-10 Minutes">
+        <button className="time-btn" onClick={() => jumpTime(-600000)} title="-10 Minutes" aria-label="Rewind 10 minutes">
           -10m
         </button>
         
-        <button className="time-btn play-pause" onClick={handleTogglePlay}>
+        <button className="time-btn play-pause" onClick={handleTogglePlay} aria-label={simMode === 'paused' ? 'Resume simulation' : 'Pause simulation'}>
           {simMode === 'paused' ? '▶' : '⏸'}
         </button>
         
-        <button className="time-btn" onClick={() => jumpTime(600000)} title="+10 Minutes">
+        <button className="time-btn" onClick={() => jumpTime(600000)} title="+10 Minutes" aria-label="Fast forward 10 minutes">
           +10m
         </button>
-        <button className="time-btn" onClick={() => jumpTime(3600000)} title="+1 Hour">
+        <button className="time-btn" onClick={() => jumpTime(3600000)} title="+1 Hour" aria-label="Fast forward 1 hour">
           +1h
         </button>
       </div>
@@ -109,6 +104,7 @@ export function TimeControlsPanel() {
                 setSimSpeed(s);
                 if (simMode !== 'paused') setSimMode(s === 1 ? 'live' : 'simulating');
               }}
+              aria-label={`Set simulation speed to ${s}x`}
             >
               {s}x
             </button>
@@ -117,7 +113,7 @@ export function TimeControlsPanel() {
       </div>
 
       {!isLive && (
-        <button className="reset-time-btn" onClick={() => resetTime()}>
+        <button className="reset-time-btn" onClick={() => resetTime()} aria-label={t('reset_to_now') || 'Reset to Now'}>
           {t('reset_to_now') || 'Reset to Now'}
         </button>
       )}

@@ -43,7 +43,7 @@ export async function loadSatellites(): Promise<LoadResult> {
         : json.meta.freshness === 'cached' ? 'cached'
         : 'fallback',
       source: json.meta.source,
-      fetchedAt: json.meta.fetchTimestamp,
+      fetchedAt: json.meta.fetchedAt ?? json.meta.fetchTimestamp,
       meta: json.meta,
     };
   } catch {
@@ -55,11 +55,14 @@ export async function loadSatellites(): Promise<LoadResult> {
       fetchedAt: new Date().toISOString(),
       meta: {
         source: 'fallback — client-side representative catalog',
+        sourceMode: 'fallback',
         fetchTimestamp: new Date().toISOString(),
+        fetchedAt: new Date().toISOString(),
         cacheTimestamp: new Date().toISOString(),
         freshness: 'fallback',
         dataMode: 'fallback',
         count: 0,
+        recordCount: 0,
         sourceHealth: 'unavailable',
         fallbackReason: 'Network or API failure',
       }

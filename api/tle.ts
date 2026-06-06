@@ -40,12 +40,15 @@ interface SatPayload {
 
 interface TleMeta {
   source: string;
+  sourceMode: 'live' | 'cached' | 'fallback' | 'mixed';
   fetchTimestamp: string;
+  fetchedAt: string;
   cacheTimestamp: string;
   tleEpoch?: string;
   freshness: 'live' | 'cached' | 'fallback';
   dataMode: 'live' | 'cached' | 'fallback';
   count: number;
+  recordCount: number;
   sourceHealth?: 'healthy' | 'degraded' | 'unavailable';
   cacheAgeSeconds?: number;
   cacheTtlSeconds?: number;
@@ -65,7 +68,7 @@ const CELESTRAK_URL =
 async function fetchCelesTrak(): Promise<SatPayload[]> {
   const res = await fetch(CELESTRAK_URL, {
     signal: AbortSignal.timeout(8_000), // Strict 8s timeout
-    headers: { 'User-Agent': 'OrbitIQ-CommandCenter/0.8.0' },
+    headers: { 'User-Agent': 'OrbitIQ-CommandCenter/1.0.0' },
   });
   if (!res.ok) throw new Error(`CelesTrak HTTP ${res.status}`);
 
@@ -91,7 +94,7 @@ async function fetchCelesTrak(): Promise<SatPayload[]> {
 /** Derive the most recent TLE epoch from the dataset (ISO string). */
 function latestEpoch(sats: SatPayload[]): string | undefined {
   let latest = 0;
-  for (const s of sats.slice(0, 20)) {
+  for (const s of sats) {
     // TLE epoch: YY + day-of-year in l1 col 19-32
     try {
       const raw = s.l1.slice(18, 32).trim();
@@ -105,6 +108,14 @@ function latestEpoch(sats: SatPayload[]): string | undefined {
     } catch { /* skip */ }
   }
   return latest > 0 ? new Date(latest).toISOString() : undefined;
+}
+
+function safeFallbackReason(err: unknown): string {
+  if (!(err instanceof Error)) return 'Public TLE source unavailable';
+  if (err.message.startsWith('CelesTrak HTTP')) return err.message;
+  if (err.message.startsWith('Too few satellites parsed')) return err.message;
+  if (err.message === 'TLE response too short') return err.message;
+  return 'Public TLE source unavailable or timed out';
 }
 
 // ---------------------------------------------------------------------------
@@ -124,13 +135,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ...cache.data,
       meta: {
         ...cache.data.meta,
+        sourceMode: 'cached',
         freshness: 'cached',
         dataMode: 'cached',
         cacheTimestamp: new Date(cache.fetchedAt).toISOString(),
         fetchTimestamp: new Date(now).toISOString(),
+        fetchedAt: new Date(cache.fetchedAt).toISOString(),
         sourceHealth: 'healthy',
         cacheAgeSeconds: Math.floor((now - cache.fetchedAt) / 1000),
         cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
+        recordCount: cache.data.satellites.length,
       },
     };
     res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=7200');
@@ -144,12 +158,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const payload: TleResponse = {
       meta: {
         source: 'CelesTrak GP (celestrak.org)',
+        sourceMode: 'live',
         fetchTimestamp: new Date(now).toISOString(),
+        fetchedAt: new Date(now).toISOString(),
         cacheTimestamp: new Date(now).toISOString(),
         tleEpoch: latestEpoch(satellites),
         freshness: 'live',
         dataMode: 'live',
         count: satellites.length,
+        recordCount: satellites.length,
         sourceHealth: 'healthy',
         cacheAgeSeconds: 0,
         cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
@@ -162,19 +179,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json(payload);
   } catch (err) {
     // Network/parse failure — return fallback indicator so client uses its catalog
-    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+    const errorMsg = safeFallbackReason(err);
     console.error('[/api/tle] CelesTrak fetch failed:', errorMsg);
+
+    if (cache?.data?.satellites.length) {
+      const cacheAgeSeconds = Math.floor((now - cache.fetchedAt) / 1000);
+      const staleCached: TleResponse = {
+        ...cache.data,
+        meta: {
+          ...cache.data.meta,
+          sourceMode: 'cached',
+          fetchTimestamp: new Date(now).toISOString(),
+          fetchedAt: new Date(cache.fetchedAt).toISOString(),
+          cacheTimestamp: new Date(cache.fetchedAt).toISOString(),
+          freshness: 'cached',
+          dataMode: 'cached',
+          sourceHealth: 'degraded',
+          cacheAgeSeconds,
+          cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
+          recordCount: cache.data.satellites.length,
+          fallbackReason: `Serving stale cache because ${errorMsg.toLowerCase()}`,
+        },
+      };
+      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+      res.status(200).json(staleCached);
+      return;
+    }
 
     const fallback: TleResponse = {
       meta: {
         source: 'fallback — client-side representative catalog',
+        sourceMode: 'fallback',
         fetchTimestamp: new Date(now).toISOString(),
+        fetchedAt: new Date(now).toISOString(),
         cacheTimestamp: new Date(now).toISOString(),
         freshness: 'fallback',
         dataMode: 'fallback',
         count: 0,
+        recordCount: 0,
         sourceHealth: 'unavailable',
         fallbackReason: errorMsg,
+        cacheAgeSeconds: 0,
+        cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
       },
       satellites: [], // empty signals the client to use its own catalog
     };

@@ -230,8 +230,8 @@ export function getMissionScenarios(lang: 'en' | 'es' = 'en'): Record<string, Mi
       ? `${disasterCount} satélites científicos/EO actualmente en órbita terrestre baja capaces de revisión rápida.`
       : `${disasterCount} science/EO satellites currently in low Earth orbit capable of rapid revisit.`,
     operationalRelevance: lang === 'es'
-      ? 'Crítico para mapeo de inundaciones, seguimiento de incendios forestales y evaluación de daños por terremotos.'
-      : 'Critical for flood mapping, wildfire tracking, and earthquake damage assessment.',
+      ? 'Relevante para portafolios de mapeo de inundaciones, seguimiento de incendios forestales y evaluación de daños por terremotos.'
+      : 'Relevant to flood mapping, wildfire tracking, and earthquake damage-assessment portfolios.',
     caveat: lang === 'es'
       ? 'Inteligencia de portafolio determinista basada en TLE públicos.'
       : 'Deterministic portfolio intelligence based on public TLEs.',
@@ -255,8 +255,8 @@ export function getMissionScenarios(lang: 'en' | 'es' = 'en'): Record<string, Mi
       ? `LEO representa el ${leoDensityScore}% del catálogo visible actualmente.`
       : `LEO accounts for ${leoDensityScore}% of the currently visible catalog.`,
     operationalRelevance: lang === 'es'
-      ? 'La alta densidad incrementa las tasas de conjunciones y la interferencia en la astronomía óptica.'
-      : 'High density increases conjunction rates and optical astronomy interference.',
+      ? 'La alta densidad pública en LEO aumenta la presión analítica de portafolio y la interferencia potencial en astronomía óptica.'
+      : 'High public LEO density increases analytical portfolio pressure and potential optical astronomy interference.',
     caveat: lang === 'es'
       ? 'Los indicadores de densidad son señales analíticas de portafolio, no métricas de seguridad de vuelo.'
       : 'Density indicators are analytical portfolio signals, not flight-safety metrics.',
@@ -281,8 +281,8 @@ export function getMissionScenarios(lang: 'en' | 'es' = 'en'): Record<string, Mi
     id: 'Executive_Snapshot',
     title: lang === 'es' ? 'Resumen Ejecutivo de Infraestructura Espacial' : 'Executive Space Infrastructure Snapshot',
     context: lang === 'es'
-      ? 'Descripción general agregada de alto nivel de las operaciones globales actuales de infraestructura espacial.'
-      : 'High-level aggregated overview of current global space infrastructure operations.',
+      ? 'Descripción general agregada de alto nivel de la infraestructura espacial pública observada.'
+      : 'High-level aggregated overview of observed public space infrastructure.',
     relevantGroups: [],
     relevantBands: [],
     relevantRegions: [],
@@ -291,8 +291,8 @@ export function getMissionScenarios(lang: 'en' | 'es' = 'en'): Record<string, Mi
       ? `Rastreando un total de ${CS.N.toLocaleString()} objetos espaciales en todos los regímenes.` + simNote
       : `Tracking ${CS.N.toLocaleString()} total space objects across all regimes.` + simNote,
     operationalRelevance: lang === 'es'
-      ? 'Conciencia situacional de referencia de la infraestructura orbital activa de la humanidad.'
-      : 'Baseline situational awareness of humanity’s active orbital infrastructure.',
+      ? 'Conciencia situacional de portafolio sobre infraestructura orbital pública activa.'
+      : 'Portfolio situational awareness of active public orbital infrastructure.',
     caveat: lang === 'es'
       ? 'Datos orbitales públicos en tiempo casi real donde estén disponibles; el catálogo representativo puede estar activo.'
       : 'Near-real-time public orbital data where available; representative fallback catalog may be active.',

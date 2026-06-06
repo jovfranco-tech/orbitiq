@@ -74,4 +74,4 @@ Watchlists, saved views, and snapshots utilize the browser's `localStorage` via 
 ## v0.8.0 Data Health & Reliability Layer Security
 - **Strict Payload Limits**: `/api/agent` enforces 500-character maximums on queries and 10KB maximums on context objects to mitigate Denial of Wallet / Token stuffing.
 - **Secure Error Masking**: `ZodError` stack traces and OpenAI HTTP error bodies are caught and masked server-side, ensuring no API keys or system metadata leak to the client.
-- **Graceful Degradation**: Vercel lambdas use explicit `AbortSignal.timeout` to ensure fast-failing. The client uses `ErrorBoundary` to guarantee UI availability even during WebGL/API failures.
+- **Graceful Degradation**: Vercel lambdas use explicit `AbortSignal.timeout` to ensure fast-failing. The client uses `ErrorBoundary` and WebGL fallback UI to preserve a safe user-facing state during rendering or API failures.
