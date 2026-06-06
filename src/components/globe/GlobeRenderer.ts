@@ -140,13 +140,15 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   // ---- Sun glow sprite ----
   const sunGlowCanvas = document.createElement('canvas');
   sunGlowCanvas.width = 128; sunGlowCanvas.height = 128;
-  const sctx = sunGlowCanvas.getContext('2d')!;
-  const grad = sctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-  grad.addColorStop(0, 'rgba(255,240,200,0.7)');
-  grad.addColorStop(0.3, 'rgba(255,200,100,0.25)');
-  grad.addColorStop(0.7, 'rgba(255,150,50,0.06)');
-  grad.addColorStop(1, 'rgba(255,100,20,0)');
-  sctx.fillStyle = grad; sctx.fillRect(0, 0, 128, 128);
+  const sctx = sunGlowCanvas.getContext('2d');
+  if (sctx) {
+    const grad = sctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,240,200,0.7)');
+    grad.addColorStop(0.3, 'rgba(255,200,100,0.25)');
+    grad.addColorStop(0.7, 'rgba(255,150,50,0.06)');
+    grad.addColorStop(1, 'rgba(255,100,20,0)');
+    sctx.fillStyle = grad; sctx.fillRect(0, 0, 128, 128);
+  }
   const sunGlowTex = new THREE.CanvasTexture(sunGlowCanvas);
   const sunGlow = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: sunGlowTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })
@@ -304,7 +306,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   scene.add(ring);
 
   const _selPos = new THREE.Vector3();
-  function setSelected(i: number, _name?: string, _alt?: number): void {
+  function setSelected(i: number): void {
     if (i < 0 || i >= count) { ring.visible = false; return; }
     getPos(i, _selPos);
     // Don't show ring if satellite collapsed to origin (failed propagation)
@@ -338,7 +340,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   }
 
   function setSelectedFull(i: number, name?: string, alt?: number): void {
-    setSelected(i, name, alt);
+    setSelected(i);
     if (i < 0 || i >= count || _selPos.lengthSq() < 0.01) {
       label2D.visible = false;
       if (nadirLine) { scene.remove(nadirLine); nadirLine.geometry.dispose(); nadirLine = null; }

@@ -1,6 +1,6 @@
 {
   "name": "orbitiq-command-center",
-  "version": "2.0.0-high-fidelity",
+  "version": "1.0.0-public-portfolio-release",
   "description": "Real-time 3D satellite orbit tracker and AI-native orbital intelligence dashboard.",
   "private": true,
   "type": "module",

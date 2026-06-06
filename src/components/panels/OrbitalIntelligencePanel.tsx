@@ -5,7 +5,6 @@
 // ============================================================
 import { t } from '../../i18n/i18n';
 import { GROUPS } from '../../data/groups';
-import { REGIONS } from '../../regions/regions';
 import { CongestionIndicator } from './CongestionIndicator';
 import type { IntelligenceSummary, GroupKey } from '../../types';
 

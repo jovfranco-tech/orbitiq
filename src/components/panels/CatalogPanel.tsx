@@ -107,7 +107,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
             onChange={(e) => setFilterRegion(e.target.value || null)}
           >
             <option value="">{t('f_all')}</option>
-            {Object.entries(REGIONS).map(([k, r]) => (
+            {Object.entries(REGIONS).map(([k]) => (
               <option key={k} value={k}>{t('region_' + k)}</option>
             ))}
           </select>

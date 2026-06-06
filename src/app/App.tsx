@@ -31,7 +31,6 @@ import type { AgentContext } from '../ai/agent';
 import { getLang, setLang, t } from '../i18n/i18n';
 import { getIntelligence, invalidateIntelligence } from '../intelligence/intelligence';
 import * as THREE from 'three';
-import * as satJs from 'satellite.js';
 import { useLiveTelemetry } from '../hooks/useLiveTelemetry';
 import type { GlobeApi, IntelligenceSummary } from '../types';
 import type { AiAgentResponse, GroupKey, BandKey } from '../types';
