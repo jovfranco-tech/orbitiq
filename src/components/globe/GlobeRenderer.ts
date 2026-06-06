@@ -164,28 +164,51 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   let visAttr: THREE.BufferAttribute;
 
   // ---- Generate glow texture for satellites (DataTexture — Metal safe) ----
-  const TEX_SIZE = 32;
+  const TEX_SIZE = 128;
   const texData = new Uint8Array(TEX_SIZE * TEX_SIZE * 4);
   const center = TEX_SIZE / 2;
   for (let y = 0; y < TEX_SIZE; y++) {
     for (let x = 0; x < TEX_SIZE; x++) {
       const dx = x - center + 0.5, dy = y - center + 0.5;
       const dist = Math.sqrt(dx * dx + dy * dy) / center;
-      const alpha = Math.max(0, 1 - dist * dist);        // soft circle falloff
-      const bright = Math.max(0, 1 - dist * 1.5);        // bright core
+      
+      if (dist > 1.0) {
+        const idx = (y * TEX_SIZE + x) * 4;
+        texData[idx] = texData[idx + 1] = texData[idx + 2] = texData[idx + 3] = 0;
+        continue;
+      }
+
+      // Crisp solid bright core with a soft glowing halo transition
+      let alpha = 0;
+      let bright = 0;
+      if (dist <= 0.28) {
+        alpha = 1.0;
+        bright = 1.0;
+      } else if (dist <= 0.42) {
+        const t = (dist - 0.28) / (0.42 - 0.28);
+        alpha = 1.0 - t * 0.4;
+        bright = 1.0 - t;
+      } else {
+        const t = (dist - 0.42) / (1.0 - 0.42);
+        alpha = 0.6 * Math.pow(1.0 - t, 2.5);
+        bright = 0;
+      }
+
       const idx = (y * TEX_SIZE + x) * 4;
       texData[idx]     = Math.round(200 + 55 * bright);   // R
       texData[idx + 1] = Math.round(220 + 35 * bright);   // G
-      texData[idx + 2] = 255;                              // B
-      texData[idx + 3] = Math.round(alpha * 255);          // A
+      texData[idx + 2] = 255;                             // B
+      texData[idx + 3] = Math.round(alpha * 255);         // A
     }
   }
   const glowTex = new THREE.DataTexture(texData, TEX_SIZE, TEX_SIZE, THREE.RGBAFormat);
+  glowTex.minFilter = THREE.LinearFilter;
+  glowTex.magFilter = THREE.LinearFilter;
   glowTex.needsUpdate = true;
 
   const satMat = new THREE.PointsMaterial({
-    size: 0.028, sizeAttenuation: true, vertexColors: true,
-    transparent: true, opacity: 0.92, depthWrite: false,
+    size: 0.032, sizeAttenuation: true, vertexColors: true,
+    transparent: true, opacity: 0.95, depthWrite: false,
     blending: THREE.AdditiveBlending,
     map: glowTex,
   });

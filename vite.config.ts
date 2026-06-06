@@ -10,7 +10,7 @@ export default defineConfig({
     // PWA disabled — causes infinite reload loops on Apple Silicon
   ],
   worker: {
-    format: 'es',
+    format: 'iife',
   },
   resolve: {
     alias: {

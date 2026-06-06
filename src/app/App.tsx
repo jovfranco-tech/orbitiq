@@ -205,8 +205,7 @@ export function App() {
   // ---- Worker setup & cleanup (StrictMode double-mount safe) ---------------
   useEffect(() => {
     const w = new Worker(
-      new URL('../workers/sgp4.worker.ts', import.meta.url),
-      { type: 'module' }
+      new URL('../workers/sgp4.worker.ts', import.meta.url)
     );
     workerRef.current = w;
     w.onmessage = (e: MessageEvent) => {
