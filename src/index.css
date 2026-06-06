@@ -574,13 +574,16 @@ input,select,button{font-family:inherit}
   padding: 16px;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 12px;
   z-index: 10;
 }
 .time-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  position: relative;
+  min-height: 22px;
 }
 .time-status-badge {
   display: flex;
@@ -614,6 +617,10 @@ input,select,button{font-family:inherit}
   font-size: 0.75rem;
 }
 .time-offset {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
   font-family: monospace;
   color: #f59e0b;
   font-size: 0.85rem;
@@ -624,6 +631,7 @@ input,select,button{font-family:inherit}
   text-align: center;
   font-weight: 300;
   letter-spacing: 1px;
+  width: 100%;
 }
 .time-actions {
   display: flex;
@@ -656,6 +664,7 @@ input,select,button{font-family:inherit}
 .speed-controls {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   font-size: 0.8rem;
 }
