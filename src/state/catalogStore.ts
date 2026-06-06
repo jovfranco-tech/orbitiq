@@ -52,7 +52,7 @@ export function initCatalogStore(n: number): void {
   CS.posBuf    = new Float32Array(n * 3);
   CS.lat       = new Float32Array(n);
   CS.lon       = new Float32Array(n);
-  CS.alt       = new Float32Array(n);
+  CS.alt       = new Float32Array(n).fill(-1);
   CS.band      = new Array<BandKey>(n);
   CS.group     = new Array<GroupKey>(n);
   CS.colorBase = new Float32Array(n * 3);

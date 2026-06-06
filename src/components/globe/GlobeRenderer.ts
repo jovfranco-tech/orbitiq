@@ -163,22 +163,31 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   let colAttr: THREE.BufferAttribute;
   let visAttr: THREE.BufferAttribute;
 
-  // ---- Generate glow texture for satellites ----
-  const glowCanvas = document.createElement('canvas');
-  glowCanvas.width = 64; glowCanvas.height = 64;
-  const gctx = glowCanvas.getContext('2d')!;
-  const g2 = gctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g2.addColorStop(0, 'rgba(255,255,255,1)');
-  g2.addColorStop(0.15, 'rgba(200,230,255,0.8)');
-  g2.addColorStop(0.4, 'rgba(100,180,255,0.3)');
-  g2.addColorStop(1, 'rgba(50,100,200,0)');
-  gctx.fillStyle = g2; gctx.fillRect(0, 0, 64, 64);
-  const glowTex = new THREE.CanvasTexture(glowCanvas);
+  // ---- Generate glow texture for satellites (DataTexture — Metal safe) ----
+  const TEX_SIZE = 32;
+  const texData = new Uint8Array(TEX_SIZE * TEX_SIZE * 4);
+  const center = TEX_SIZE / 2;
+  for (let y = 0; y < TEX_SIZE; y++) {
+    for (let x = 0; x < TEX_SIZE; x++) {
+      const dx = x - center + 0.5, dy = y - center + 0.5;
+      const dist = Math.sqrt(dx * dx + dy * dy) / center;
+      const alpha = Math.max(0, 1 - dist * dist);        // soft circle falloff
+      const bright = Math.max(0, 1 - dist * 1.5);        // bright core
+      const idx = (y * TEX_SIZE + x) * 4;
+      texData[idx]     = Math.round(200 + 55 * bright);   // R
+      texData[idx + 1] = Math.round(220 + 35 * bright);   // G
+      texData[idx + 2] = 255;                              // B
+      texData[idx + 3] = Math.round(alpha * 255);          // A
+    }
+  }
+  const glowTex = new THREE.DataTexture(texData, TEX_SIZE, TEX_SIZE, THREE.RGBAFormat);
+  glowTex.needsUpdate = true;
 
   const satMat = new THREE.PointsMaterial({
-    size: 0.025, sizeAttenuation: true, vertexColors: true,
-    transparent: true, opacity: 0.9, depthWrite: false,
+    size: 0.028, sizeAttenuation: true, vertexColors: true,
+    transparent: true, opacity: 0.92, depthWrite: false,
     blending: THREE.AdditiveBlending,
+    map: glowTex,
   });
 
   const points = new THREE.Points(geom, satMat);
@@ -203,7 +212,18 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
 
   function writePositions(posBuf: Float32Array): void {
     if (!posAttr) return;
-    (posAttr.array as Float32Array).set(posBuf.subarray(0, count * 3));
+    const posArr = posAttr.array as Float32Array;
+    const visArr = visAttr ? (visAttr.array as Float32Array) : null;
+    for (let i = 0; i < count; i++) {
+      const j = i * 3;
+      if (visArr && visArr[i] < 0.5) {
+        posArr[j] = posArr[j + 1] = posArr[j + 2] = 0;
+      } else {
+        posArr[j] = posBuf[j];
+        posArr[j + 1] = posBuf[j + 1];
+        posArr[j + 2] = posBuf[j + 2];
+      }
+    }
     posAttr.needsUpdate = true;
   }
   function setColors(c: Float32Array): void {
@@ -212,7 +232,19 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   }
   function setVisible(v: Float32Array): void {
     if (!visAttr) return;
-    (visAttr.array as Float32Array).set(v.subarray(0, count)); visAttr.needsUpdate = true;
+    const visArr = visAttr.array as Float32Array;
+    visArr.set(v.subarray(0, count));
+    visAttr.needsUpdate = true;
+    if (posAttr) {
+      const posArr = posAttr.array as Float32Array;
+      for (let i = 0; i < count; i++) {
+        if (v[i] < 0.5) {
+          const j = i * 3;
+          posArr[j] = posArr[j + 1] = posArr[j + 2] = 0;
+        }
+      }
+      posAttr.needsUpdate = true;
+    }
   }
 
   function getPos(i: number, out: THREE.Vector3): void {

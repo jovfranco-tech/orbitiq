@@ -9,6 +9,9 @@ export default defineConfig({
     react(),
     // PWA disabled — causes infinite reload loops on Apple Silicon
   ],
+  worker: {
+    format: 'es',
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

@@ -72,12 +72,15 @@ function computeBandIntelligence(): BandIntelligence[] {
   let totalValid = 0;
   for (let i = 0; i < CS.N; i++) {
     if (CS.alt[i] < 0) continue;
-    totalValid++;
     const b = CS.band[i];
+    if (!b) continue;
+    totalValid++;
     counts[b]++;
     altSums[b] += CS.alt[i];
     const g = CS.group[i];
-    groupCountsPerBand[b][g] = (groupCountsPerBand[b][g] ?? 0) + 1;
+    if (g) {
+      groupCountsPerBand[b][g] = (groupCountsPerBand[b][g] ?? 0) + 1;
+    }
   }
 
   return BANDS.map((band) => {
@@ -111,11 +114,15 @@ function computeRegionIntelligence(): RegionIntelligence[] {
 
     for (let i = 0; i < CS.N; i++) {
       if (CS.alt[i] < 0) continue;
+      const b = CS.band[i];
+      if (!b) continue;
       if (!matchRegion(CS.lat[i], CS.lon[i], key)) continue;
       total++;
-      bandCounts[CS.band[i]]++;
+      bandCounts[b]++;
       const g = CS.group[i];
-      groupCounts[g] = (groupCounts[g] ?? 0) + 1;
+      if (g) {
+        groupCounts[g] = (groupCounts[g] ?? 0) + 1;
+      }
     }
 
     const dominantBand = (Object.entries(bandCounts) as [BandKey, number][])
@@ -150,7 +157,8 @@ export function getConstellationIntelligence(group: GroupKey): ConstellationInte
     if (CS.alt[i] < 0 || CS.group[i] !== group) continue;
     count++;
     altSum += CS.alt[i];
-    bandCounts[CS.band[i]]++;
+    const b = CS.band[i];
+    if (b) bandCounts[b]++;
     for (const key of Object.keys(REGIONS)) {
       if (matchRegion(CS.lat[i], CS.lon[i], key)) {
         regionCounts[key] = (regionCounts[key] ?? 0) + 1;
@@ -213,7 +221,10 @@ function computeCongestionScore(
   const groupCounts: Record<string, number> = {};
   for (let i = 0; i < CS.N; i++) {
     if (CS.alt[i] < 0) continue;
-    groupCounts[CS.group[i]] = (groupCounts[CS.group[i]] ?? 0) + 1;
+    const g = CS.group[i];
+    if (g) {
+      groupCounts[g] = (groupCounts[g] ?? 0) + 1;
+    }
   }
   const topGroupCount = Math.max(...Object.values(groupCounts), 0);
   const constellationDominance = totalValid > 0 ? topGroupCount / totalValid : 0;
@@ -241,7 +252,10 @@ function findDominantGroup(): GroupKey {
   const counts: Record<string, number> = {};
   for (let i = 0; i < CS.N; i++) {
     if (CS.alt[i] < 0) continue;
-    counts[CS.group[i]] = (counts[CS.group[i]] ?? 0) + 1;
+    const g = CS.group[i];
+    if (g) {
+      counts[g] = (counts[g] ?? 0) + 1;
+    }
   }
   let best: GroupKey = 'other';
   let bestN = 0;

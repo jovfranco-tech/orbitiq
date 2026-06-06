@@ -30,7 +30,7 @@ import type { AgentContext } from '../ai/agent';
 import { getLang, setLang, t } from '../i18n/i18n';
 import { getIntelligence, invalidateIntelligence } from '../intelligence/intelligence';
 import * as THREE from 'three';
-import Sgp4Worker from '../workers/sgp4.worker.ts?worker';
+import * as satJs from 'satellite.js';
 import { useLiveTelemetry } from '../hooks/useLiveTelemetry';
 import type { GlobeApi, IntelligenceSummary } from '../types';
 import type { AiAgentResponse, GroupKey, BandKey } from '../types';
@@ -204,7 +204,10 @@ export function App() {
 
   // ---- Worker setup & cleanup (StrictMode double-mount safe) ---------------
   useEffect(() => {
-    const w = new Sgp4Worker();
+    const w = new Worker(
+      new URL('../workers/sgp4.worker.ts', import.meta.url),
+      { type: 'module' }
+    );
     workerRef.current = w;
     w.onmessage = (e: MessageEvent) => {
       const globe = globeRef.current;
@@ -220,7 +223,7 @@ export function App() {
         CS.lon = lon;
         CS.alt = alt;
         const BAND_MAP = ['LEO', 'MEO', 'GEO', 'LEO'] as const;
-        for(let i=0; i<CS.N; i++) CS.band[i] = BAND_MAP[band[i]] as BandKey;
+        for (let i = 0; i < CS.N; i++) CS.band[i] = BAND_MAP[band[i]] as BandKey;
 
         globe.setEarthRotation(gmst);
         globe.setSunTime(timestampMs);
@@ -232,6 +235,12 @@ export function App() {
         if (sel >= 0) globe.setSelected(sel);
       }
     };
+
+    // Race-condition guard: if the catalog mounted first (child runs mounting effects before parent), 
+    // we initialize the worker immediately.
+    if (CS.catalog && CS.catalog.length > 0) {
+      w.postMessage({ type: 'INIT', payload: { catalog: CS.catalog } });
+    }
 
     return () => {
       if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
@@ -256,6 +265,20 @@ export function App() {
     useStore(s => s.filterRegion),
     useStore(s => s.activeGroups),
     useStore(s => s.selected)
+  ]);
+
+  // ---- React to filter changes instantly -------------------------------
+  useEffect(() => {
+    applyFilter();
+    globeRef.current?.renderOnce();
+  }, [
+    applyFilter,
+    store.filterBand,
+    store.filterRegion,
+    store.activeGroups,
+    store.altMin,
+    store.altMax,
+    store.selected
   ]);
 
   // ---- Satellite selection ---------------------------------------------
