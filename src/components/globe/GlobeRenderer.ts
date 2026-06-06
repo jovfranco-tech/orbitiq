@@ -9,6 +9,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRe
 import type { GlobeApi } from '../../types';
 
 const RE_SCENE = 1.0;
+const DEFAULT_POINT_SIZE = 16.0;
 
 export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): void } {
   const scene = new THREE.Scene();
@@ -156,7 +157,26 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   sunGlow.scale.set(3, 3, 1);
   scene.add(sunGlow);
 
-  scene.add(buildStars(2600, 40));
+  // ---- Day/night terminator line ----
+  const terminatorGeom = new THREE.BufferGeometry();
+  const terminatorPositions = new Float32Array(181 * 3);
+  terminatorGeom.setAttribute('position', new THREE.BufferAttribute(terminatorPositions, 3));
+  const terminatorLine = new THREE.Line(
+    terminatorGeom,
+    new THREE.LineBasicMaterial({
+      color: 0x8ef0ff,
+      transparent: true,
+      opacity: 0.22,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+  );
+  scene.add(terminatorLine);
+
+  const stars = buildStars(2600, 40);
+  const orbitalBandField = buildOrbitalBandField();
+  scene.add(stars);
+  scene.add(orbitalBandField);
 
   // ---- Satellite point cloud ----
   let count = 0;
@@ -165,54 +185,45 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   let colAttr: THREE.BufferAttribute;
   let visAttr: THREE.BufferAttribute;
 
-  // ---- Generate glow texture for satellites (DataTexture — Metal safe) ----
-  const TEX_SIZE = 128;
-  const texData = new Uint8Array(TEX_SIZE * TEX_SIZE * 4);
-  const center = TEX_SIZE / 2;
-  for (let y = 0; y < TEX_SIZE; y++) {
-    for (let x = 0; x < TEX_SIZE; x++) {
-      const dx = x - center + 0.5, dy = y - center + 0.5;
-      const dist = Math.sqrt(dx * dx + dy * dy) / center;
-      
-      if (dist > 1.0) {
-        const idx = (y * TEX_SIZE + x) * 4;
-        texData[idx] = texData[idx + 1] = texData[idx + 2] = texData[idx + 3] = 0;
-        continue;
-      }
-
-      // Crisp solid bright core with a soft glowing halo transition
-      let alpha = 0;
-      let bright = 0;
-      if (dist <= 0.28) {
-        alpha = 1.0;
-        bright = 1.0;
-      } else if (dist <= 0.42) {
-        const t = (dist - 0.28) / (0.42 - 0.28);
-        alpha = 1.0 - t * 0.4;
-        bright = 1.0 - t;
-      } else {
-        const t = (dist - 0.42) / (1.0 - 0.42);
-        alpha = 0.6 * Math.pow(1.0 - t, 2.5);
-        bright = 0;
-      }
-
-      const idx = (y * TEX_SIZE + x) * 4;
-      texData[idx]     = Math.round(200 + 55 * bright);   // R
-      texData[idx + 1] = Math.round(220 + 35 * bright);   // G
-      texData[idx + 2] = 255;                             // B
-      texData[idx + 3] = Math.round(alpha * 255);         // A
-    }
-  }
-  const glowTex = new THREE.DataTexture(texData, TEX_SIZE, TEX_SIZE, THREE.RGBAFormat);
-  glowTex.minFilter = THREE.LinearFilter;
-  glowTex.magFilter = THREE.LinearFilter;
-  glowTex.needsUpdate = true;
-
-  const satMat = new THREE.PointsMaterial({
-    size: 0.032, sizeAttenuation: true, vertexColors: true,
-    transparent: true, opacity: 0.95, depthWrite: false,
+  const satMat = new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
     blending: THREE.AdditiveBlending,
-    map: glowTex,
+    uniforms: {
+      uPointSize: { value: DEFAULT_POINT_SIZE * Math.min(devicePixelRatio, 2) },
+      uTime: { value: 0 },
+    },
+    vertexShader: `
+      uniform float uPointSize;
+      attribute float vis;
+      varying vec3 vColor;
+      varying float vAlpha;
+      void main() {
+        vColor = color;
+        vAlpha = clamp(vis, 0.0, 1.0);
+        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+        float distanceScale = clamp(3.5 / max(0.75, -mvPosition.z), 0.55, 2.3);
+        gl_PointSize = uPointSize * distanceScale * mix(0.7, 1.18, vAlpha);
+        gl_Position = projectionMatrix * mvPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec3 vColor;
+      varying float vAlpha;
+      void main() {
+        vec2 uv = gl_PointCoord - vec2(0.5);
+        float d = length(uv) * 2.0;
+        if (d > 1.0 || vAlpha <= 0.01) discard;
+        float core = smoothstep(0.34, 0.0, d);
+        float halo = pow(max(0.0, 1.0 - d), 2.7);
+        float shimmer = 0.88 + 0.12 * sin(uTime * 2.8 + gl_FragCoord.x * 0.015 + gl_FragCoord.y * 0.011);
+        float alpha = (core * 0.95 + halo * 0.58) * vAlpha * shimmer;
+        vec3 color = vColor * (0.58 + core * 1.45) + vec3(0.12, 0.22, 0.36) * halo;
+        gl_FragColor = vec4(color, alpha);
+      }
+    `,
+    vertexColors: true,
   });
 
   const points = new THREE.Points(geom, satMat);
@@ -238,16 +249,11 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   function writePositions(posBuf: Float32Array): void {
     if (!posAttr) return;
     const posArr = posAttr.array as Float32Array;
-    const visArr = visAttr ? (visAttr.array as Float32Array) : null;
     for (let i = 0; i < count; i++) {
       const j = i * 3;
-      if (visArr && visArr[i] < 0.5) {
-        posArr[j] = posArr[j + 1] = posArr[j + 2] = 0;
-      } else {
-        posArr[j] = posBuf[j];
-        posArr[j + 1] = posBuf[j + 1];
-        posArr[j + 2] = posBuf[j + 2];
-      }
+      posArr[j] = posBuf[j];
+      posArr[j + 1] = posBuf[j + 1];
+      posArr[j + 2] = posBuf[j + 2];
     }
     posAttr.needsUpdate = true;
   }
@@ -260,16 +266,6 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     const visArr = visAttr.array as Float32Array;
     visArr.set(v.subarray(0, count));
     visAttr.needsUpdate = true;
-    if (posAttr) {
-      const posArr = posAttr.array as Float32Array;
-      for (let i = 0; i < count; i++) {
-        if (v[i] < 0.5) {
-          const j = i * 3;
-          posArr[j] = posArr[j + 1] = posArr[j + 2] = 0;
-        }
-      }
-      posAttr.needsUpdate = true;
-    }
   }
 
   function getPos(i: number, out: THREE.Vector3): void {
@@ -277,21 +273,45 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     out.set(posAttr.array[i * 3], posAttr.array[i * 3 + 1], posAttr.array[i * 3 + 2]);
   }
 
-  // ---- Orbit polyline ----
-  let orbitLine: THREE.Line | null = null;
+  // ---- Orbit polyline + lead trail ----
+  let orbitGroup: THREE.Group | null = null;
+  const orbitMats: THREE.Material[] = [];
+  function clearOrbit(): void {
+    if (!orbitGroup) return;
+    scene.remove(orbitGroup);
+    orbitGroup.traverse((obj) => {
+      const line = obj as THREE.Line;
+      line.geometry?.dispose();
+    });
+    for (const mat of orbitMats.splice(0)) mat.dispose();
+    orbitGroup = null;
+  }
+
   function setOrbit(arr: Float32Array | null): void {
-    if (orbitLine) { scene.remove(orbitLine); orbitLine.geometry.dispose(); orbitLine = null; }
+    clearOrbit();
     if (!arr || arr.length < 6) return;
     const pts: THREE.Vector3[] = [];
     for (let i = 0; i < arr.length; i += 3) pts.push(new THREE.Vector3(arr[i], arr[i + 1], arr[i + 2]));
-    orbitLine = new THREE.Line(
+    orbitGroup = new THREE.Group();
+    const fullMat = new THREE.LineBasicMaterial({
+      color: 0x4cc9f0, transparent: true, opacity: 0.22,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    const leadMat = new THREE.LineBasicMaterial({
+      color: 0x8ef0ff, transparent: true, opacity: 0.92,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    orbitMats.push(fullMat, leadMat);
+    orbitGroup.add(new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({
-        color: 0x4cc9f0, transparent: true, opacity: 0.55,
-        blending: THREE.AdditiveBlending, depthWrite: false,
-      })
-    );
-    scene.add(orbitLine);
+      fullMat
+    ));
+    const leadCount = Math.max(8, Math.floor(pts.length * 0.22));
+    orbitGroup.add(new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts.slice(0, leadCount)),
+      leadMat
+    ));
+    scene.add(orbitGroup);
   }
 
   // ---- Selection ring ----
@@ -305,14 +325,49 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   ring.visible = false;
   scene.add(ring);
 
+  const selectedGlow = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: makeGlowTexture(),
+      color: 0x8ef0ff,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+  );
+  selectedGlow.visible = false;
+  selectedGlow.scale.set(0.22, 0.22, 1);
+  scene.add(selectedGlow);
+
+  let footprintLine: THREE.Line | null = null;
+  function clearFootprint(): void {
+    if (!footprintLine) return;
+    scene.remove(footprintLine);
+    footprintLine.geometry.dispose();
+    (footprintLine.material as THREE.Material).dispose();
+    footprintLine = null;
+  }
+
   const _selPos = new THREE.Vector3();
   function setSelected(i: number): void {
-    if (i < 0 || i >= count) { ring.visible = false; return; }
+    if (i < 0 || i >= count) {
+      ring.visible = false;
+      selectedGlow.visible = false;
+      clearFootprint();
+      return;
+    }
     getPos(i, _selPos);
     // Don't show ring if satellite collapsed to origin (failed propagation)
-    if (_selPos.lengthSq() < 0.01) { ring.visible = false; return; }
+    if (_selPos.lengthSq() < 0.01) {
+      ring.visible = false;
+      selectedGlow.visible = false;
+      clearFootprint();
+      return;
+    }
     ring.position.copy(_selPos);
     ring.visible = true;
+    selectedGlow.position.copy(_selPos);
+    selectedGlow.visible = true;
   }
 
   // ---- CSS2D Label ----
@@ -339,11 +394,51 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     scene.add(nadirLine);
   }
 
+  const _footNormal = new THREE.Vector3();
+  const _footA = new THREE.Vector3();
+  const _footB = new THREE.Vector3();
+  const _footRef = new THREE.Vector3(0, 1, 0);
+  function updateFootprint(satPos: THREE.Vector3, alt?: number): void {
+    clearFootprint();
+    if (satPos.lengthSq() < 0.01) return;
+    const altKm = Math.max(0, alt ?? (satPos.length() - RE_SCENE) * 6378.137);
+    if (altKm < 20) return;
+    const angularRadius = Math.min(1.08, Math.acos(RE_SCENE / (RE_SCENE + altKm / 6378.137)));
+    _footNormal.copy(satPos).normalize();
+    if (Math.abs(_footNormal.dot(_footRef)) > 0.92) _footRef.set(1, 0, 0);
+    else _footRef.set(0, 1, 0);
+    _footA.crossVectors(_footNormal, _footRef).normalize();
+    _footB.crossVectors(_footNormal, _footA).normalize();
+    const pts: THREE.Vector3[] = [];
+    const r = RE_SCENE * 1.004;
+    for (let k = 0; k <= 144; k++) {
+      const a = (k / 144) * Math.PI * 2;
+      const p = _footNormal.clone().multiplyScalar(Math.cos(angularRadius))
+        .add(_footA.clone().multiplyScalar(Math.sin(angularRadius) * Math.cos(a)))
+        .add(_footB.clone().multiplyScalar(Math.sin(angularRadius) * Math.sin(a)))
+        .normalize()
+        .multiplyScalar(r);
+      pts.push(p);
+    }
+    footprintLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({
+        color: 0x06d6a0,
+        transparent: true,
+        opacity: 0.34,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    scene.add(footprintLine);
+  }
+
   function setSelectedFull(i: number, name?: string, alt?: number): void {
     setSelected(i);
     if (i < 0 || i >= count || _selPos.lengthSq() < 0.01) {
       label2D.visible = false;
       if (nadirLine) { scene.remove(nadirLine); nadirLine.geometry.dispose(); nadirLine = null; }
+      clearFootprint();
       return;
     }
     label2D.position.copy(_selPos);
@@ -351,6 +446,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     const altStr = alt != null ? ` ${alt.toFixed(0)} km` : '';
     labelDiv.textContent = `${name || `SAT-${i}`}${altStr}`;
     updateNadir(_selPos);
+    updateFootprint(_selPos, alt);
   }
 
   // ---- Region marker ----
@@ -376,17 +472,23 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   }
 
   // ---- Camera fly ----
-  let flyTarget: THREE.Vector3 | null = null, flyT = 0;
+  let flyTarget: THREE.Vector3 | null = null;
+  let focusTarget: THREE.Vector3 | null = null;
+  let flyT = 0;
   function flyTo(p: THREE.Vector3): void {
     if (!p || !isFinite(p.x)) return;
     const dir = p.clone().normalize();
     const dist = Math.max(p.length() * 1.1 + 1.35, 2.4);
-    flyTarget = dir.multiplyScalar(dist); flyT = 0;
+    flyTarget = dir.multiplyScalar(dist);
+    focusTarget = p.clone().multiplyScalar(0.42);
+    flyT = 0;
   }
   const DEFAULT_CAM = new THREE.Vector3(0, 1.4, 3.4);
   function resetView(): void {
     controls.target.set(0, 0, 0);
-    flyTarget = DEFAULT_CAM.clone(); flyT = 0;
+    flyTarget = DEFAULT_CAM.clone();
+    focusTarget = new THREE.Vector3(0, 0, 0);
+    flyT = 0;
   }
   function setAutoRotate(v: boolean): void { controls.autoRotate = v; }
 
@@ -450,12 +552,37 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     const z = Math.sin(angle) * Math.sin(eclipticObliquity);
     sun.position.set(x, z, -y).multiplyScalar(5);
     sunGlow.position.copy(sun.position);
-    (atmo.material as THREE.ShaderMaterial).uniforms.uSunPos.value.copy(sun.position).normalize();
+    const sunDir = sun.position.clone().normalize();
+    (atmo.material as THREE.ShaderMaterial).uniforms.uSunPos.value.copy(sunDir);
+    updateTerminator(sunDir);
+  }
+
+  const _termA = new THREE.Vector3();
+  const _termB = new THREE.Vector3();
+  const _termRef = new THREE.Vector3(0, 1, 0);
+  function updateTerminator(sunDir: THREE.Vector3): void {
+    if (Math.abs(sunDir.dot(_termRef)) > 0.92) _termRef.set(1, 0, 0);
+    else _termRef.set(0, 1, 0);
+    _termA.crossVectors(sunDir, _termRef).normalize();
+    _termB.crossVectors(sunDir, _termA).normalize();
+    const arr = terminatorPositions;
+    const r = RE_SCENE * 1.006;
+    for (let i = 0; i <= 180; i++) {
+      const a = (i / 180) * Math.PI * 2;
+      const p = _termA.clone().multiplyScalar(Math.cos(a)).add(_termB.clone().multiplyScalar(Math.sin(a))).multiplyScalar(r);
+      const j = i * 3;
+      arr[j] = p.x;
+      arr[j + 1] = p.y;
+      arr[j + 2] = p.z;
+    }
+    (terminatorGeom.attributes.position as THREE.BufferAttribute).needsUpdate = true;
   }
 
   let rafId = 0;
   let cloudRot = 0;
   function renderOnce(): void {
+    const now = performance.now();
+    satMat.uniforms.uTime.value = now * 0.001;
     earthGroup.rotation.y = gmstRot + Math.PI;
     cloudRot += 0.0002;
     clouds.rotation.y = cloudRot;
@@ -464,12 +591,17 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       flyT = Math.min(1, flyT + 0.035);
       const e = 1 - Math.pow(1 - flyT, 3);
       camera.position.lerp(flyTarget, e * 0.25);
+      if (focusTarget) controls.target.lerp(focusTarget, e * 0.18);
       if (flyT >= 1) flyTarget = null;
     }
     if (ring.visible) {
       ring.lookAt(camera.position);
-      ring.scale.setScalar(1 + 0.15 * Math.sin(performance.now() * 0.006));
-      (ring.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.5 * Math.abs(Math.sin(performance.now() * 0.003));
+      ring.scale.setScalar(1 + 0.15 * Math.sin(now * 0.006));
+      (ring.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.5 * Math.abs(Math.sin(now * 0.003));
+    }
+    if (selectedGlow.visible) {
+      selectedGlow.scale.setScalar(0.2 + 0.04 * Math.sin(now * 0.004));
+      (selectedGlow.material as THREE.SpriteMaterial).opacity = 0.5 + 0.18 * Math.sin(now * 0.0037);
     }
     controls.update();
     renderer.render(scene, camera);
@@ -511,8 +643,33 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     container.removeEventListener('pointerdown', onPointerDown);
     container.removeEventListener('pointerup', onPointerUp);
     controls.dispose();
+    clearOrbit();
+    clearFootprint();
     geom.dispose();
+    terminatorGeom.dispose();
+    (terminatorLine.material as THREE.Material).dispose();
+    stars.geometry.dispose();
+    (stars.material as THREE.Material).dispose();
+    orbitalBandField.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      mesh.geometry?.dispose();
+      if (Array.isArray(mesh.material)) mesh.material.forEach((m) => m.dispose());
+      else mesh.material?.dispose();
+    });
+    ring.geometry.dispose();
+    (ring.material as THREE.Material).dispose();
+    selectedGlow.material.map?.dispose();
+    selectedGlow.material.dispose();
+    earth.geometry.dispose();
     earthMat.dispose();
+    clouds.geometry.dispose();
+    cloudsMat.dispose();
+    outerAtmo.geometry.dispose();
+    (outerAtmo.material as THREE.Material).dispose();
+    atmo.geometry.dispose();
+    (atmo.material as THREE.Material).dispose();
+    sunGlow.material.map?.dispose();
+    sunGlow.material.dispose();
     satMat.dispose();
     renderer.dispose();
     if (container.contains(renderer.domElement)) container.removeChild(renderer.domElement);
@@ -531,6 +688,54 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
 }
 
 // ---- Helpers ----
+
+function makeGlowTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255,255,255,0.95)');
+    g.addColorStop(0.22, 'rgba(142,240,255,0.72)');
+    g.addColorStop(0.58, 'rgba(76,201,240,0.22)');
+    g.addColorStop(1, 'rgba(76,201,240,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  return tex;
+}
+
+function buildOrbitalBandField(): THREE.Group {
+  const group = new THREE.Group();
+  const configs: Array<{ r: number; tube: number; color: number; opacity: number; incl: number; raan: number }> = [
+    { r: 1.085, tube: 0.004, color: 0x4cc9f0, opacity: 0.16, incl: 53, raan: 0 },
+    { r: 1.12, tube: 0.003, color: 0x7aa2ff, opacity: 0.10, incl: 97, raan: 35 },
+    { r: 3.24, tube: 0.006, color: 0xb388ff, opacity: 0.10, incl: 56, raan: 18 },
+    { r: 6.61, tube: 0.008, color: 0xffd166, opacity: 0.13, incl: 0, raan: 0 },
+  ];
+
+  for (const c of configs) {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(c.r, c.tube, 8, 240),
+      new THREE.MeshBasicMaterial({
+        color: c.color,
+        transparent: true,
+        opacity: c.opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.rotation.z = THREE.MathUtils.degToRad(c.raan);
+    ring.rotation.y = THREE.MathUtils.degToRad(c.incl);
+    group.add(ring);
+  }
+
+  return group;
+}
 
 function buildGraticule(r: number, color: number, opacity: number): THREE.Group {
   const g = new THREE.Group();

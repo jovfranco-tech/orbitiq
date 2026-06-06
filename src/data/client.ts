@@ -47,6 +47,8 @@ export async function loadSatellites(): Promise<LoadResult> {
   try {
     const res = await fetch('/api/tle', { signal: AbortSignal.timeout(12_000) });
     if (!res.ok) throw new Error(`/api/tle HTTP ${res.status}`);
+    const contentType = res.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) throw new Error(`/api/tle returned ${contentType || 'unknown content type'}`);
 
     const json: TleApiResponse = await res.json();
     if (!json.satellites || json.satellites.length < 100) {

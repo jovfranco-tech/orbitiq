@@ -271,6 +271,24 @@ input,select,button{font-family:inherit}
 .loading-status{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;color:var(--cyan);text-transform:uppercase;display:flex;align-items:center;gap:7px;margin-top:4px}
 .loading-status i{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 9px var(--cyan);animation:pulse 1.4s infinite}
 
+.boot-sequence{position:fixed;inset:0;z-index:18;pointer-events:none;display:grid;place-items:center;
+  background:radial-gradient(circle at 50% 52%,rgba(95,208,245,.08),transparent 34%);
+  animation:bootOut 2.6s ease forwards}
+.boot-reticle{width:min(52vw,560px);aspect-ratio:1;border-radius:50%;
+  border:1px solid rgba(142,240,255,.18);position:absolute;
+  box-shadow:inset 0 0 40px rgba(95,208,245,.06),0 0 60px rgba(95,208,245,.08);
+  animation:reticleScan 2.4s cubic-bezier(.16,1,.3,1) forwards}
+.boot-reticle::before,.boot-reticle::after{content:"";position:absolute;inset:14%;border-radius:50%;
+  border:1px solid rgba(122,170,255,.1)}
+.boot-reticle::after{inset:32%;border-color:rgba(6,214,160,.13)}
+.boot-copy{display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;
+  font-family:var(--mono);letter-spacing:.22em;text-shadow:0 0 20px rgba(95,208,245,.32)}
+.boot-copy span{font-family:var(--disp);font-size:clamp(24px,4vw,46px);font-weight:700;color:var(--text)}
+.boot-copy b{font-size:11px;color:var(--cyan-bright);font-weight:600}
+.boot-copy i{font-style:normal;font-size:10px;color:var(--muted);letter-spacing:.16em;margin-top:8px}
+@keyframes bootOut{0%,68%{opacity:1}100%{opacity:0;visibility:hidden}}
+@keyframes reticleScan{0%{transform:scale(.76) rotate(-12deg);opacity:0}28%{opacity:1}100%{transform:scale(1.08) rotate(10deg);opacity:.15}}
+
 /* --------------------- Provenance chip (data honesty) -------------------- */
 .prov{display:flex;align-items:center;gap:8px;position:relative;flex-shrink:0;white-space:nowrap;
   padding:8px 12px;border-radius:10px;border:1px solid var(--border-soft);

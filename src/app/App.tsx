@@ -78,17 +78,19 @@ export function App() {
     if (!globeRef.current) return;
     const globe = globeRef.current;
     const { activeGroups, filterBand, filterRegion, altMin, altMax, selected } = useStore.getState();
+    const hasLayerFilter = !!activeGroups.size || !!filterBand || !!filterRegion || altMin != null || altMax != null;
     let rendered = 0, regionCount = 0;
     for (let i = 0; i < CS.N; i++) {
-      let v = 1;
-      if (CS.alt[i] < 0) v = 0;
-      else if (activeGroups.size && !activeGroups.has(CS.group[i])) v = 0;
-      else if (filterBand && CS.band[i] !== filterBand) v = 0;
-      else if (altMax != null && CS.alt[i] > altMax) v = 0;
-      else if (altMin != null && CS.alt[i] < altMin) v = 0;
-      else if (filterRegion && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) v = 0;
-      CS.vis[i] = v; rendered += v;
-      if (filterRegion && v) regionCount++;
+      let matches = true;
+      if (CS.alt[i] < 0) matches = false;
+      else if (activeGroups.size && !activeGroups.has(CS.group[i])) matches = false;
+      else if (filterBand && CS.band[i] !== filterBand) matches = false;
+      else if (altMax != null && CS.alt[i] > altMax) matches = false;
+      else if (altMin != null && CS.alt[i] < altMin) matches = false;
+      else if (filterRegion && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) matches = false;
+      CS.vis[i] = matches ? 1 : hasLayerFilter && CS.alt[i] >= 0 ? 0.16 : 0;
+      if (matches) rendered++;
+      if (filterRegion && matches) regionCount++;
     }
     if (selected >= 0 && selected < CS.N) CS.vis[selected] = 1;
     globe.setVisible(CS.vis);
@@ -181,13 +183,15 @@ export function App() {
   // ---- Worker setup & cleanup (StrictMode double-mount safe) ---------------
   useEffect(() => {
     const w = new Worker(
-      new URL('../workers/sgp4.worker.ts', import.meta.url)
+      new URL('../workers/sgp4.worker.ts', import.meta.url),
+      { type: 'module' }
     );
     workerRef.current = w;
     w.onmessage = (e: MessageEvent) => {
       const globe = globeRef.current;
       if (e.data.type === 'READY') {
         workerReadyRef.current = true;
+        tick();
       } else if (e.data.type === 'TICK_RESULT') {
         isWorkerBusyRef.current = false;
         if (!globe) return;
@@ -207,7 +211,7 @@ export function App() {
         globe.renderOnce();
 
         const sel = useStore.getState().selected;
-        if (sel >= 0) globe.setSelected(sel);
+        if (sel >= 0) globe.setSelected(sel, CS.catalog[sel]?.name, CS.alt[sel]);
       }
     };
 
@@ -261,7 +265,7 @@ export function App() {
     if (i < 0 || i >= CS.N) return;
     useStore.getState().setSelected(i);
     useStore.getState().setTracking(true); // Auto-track on select
-    globe.setSelected(i);
+    globe.setSelected(i, CS.catalog[i]?.name, CS.alt[i]);
     
     // Auto-draw orbit path
     const rec = CS.recs[i];

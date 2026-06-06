@@ -396,7 +396,7 @@ export interface GlobeApi {
   setVisible(v: Float32Array): void;
   getPos(i: number, out: { set(x: number, y: number, z: number): void }): void;
   setOrbit(arr: Float32Array | null): void;
-  setSelected(i: number): void;
+  setSelected(i: number, name?: string, alt?: number): void;
   setRegionMarker(lat: number | null, lon?: number): void;
   flyTo(p: { clone(): { x: number; y: number; z: number } }): void;
   setAutoRotate(v: boolean): void;
