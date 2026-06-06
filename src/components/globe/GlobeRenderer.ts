@@ -24,7 +24,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
 
-  const controls = new OrbitControls(camera, renderer.domElement);
+  const controls = new OrbitControls(camera, container);
   controls.enableDamping = true;
   controls.dampingFactor = 0.07;
   controls.minDistance = 1.25;
@@ -415,8 +415,8 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     }
     pickCb(best);
   };
-  renderer.domElement.addEventListener('pointerdown', onPointerDown);
-  renderer.domElement.addEventListener('pointerup', onPointerUp);
+  container.addEventListener('pointerdown', onPointerDown);
+  container.addEventListener('pointerup', onPointerUp);
 
   const _oc = new THREE.Vector3();
   function occludedByEarth(camPos: THREE.Vector3, p: THREE.Vector3): boolean {
@@ -498,8 +498,8 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     cancelAnimationFrame(rafId);
     clearTimeout(textureTimeout);
     window.removeEventListener('resize', onResize);
-    renderer.domElement.removeEventListener('pointerdown', onPointerDown);
-    renderer.domElement.removeEventListener('pointerup', onPointerUp);
+    container.removeEventListener('pointerdown', onPointerDown);
+    container.removeEventListener('pointerup', onPointerUp);
     controls.dispose();
     geom.dispose();
     earthMat.dispose();
