@@ -17,15 +17,17 @@ export function eciToScene(p: { x: number; y: number; z: number }, out: THREE.Ve
 }
 
 export function buildRecords(catalog: SatelliteRecord[]): SatRec[] {
-  return catalog.map((c) => {
-    try {
-      const r = sat.twoline2satrec(c.l1, c.l2) as unknown as SatRec;
-      r.error = r.error ?? 0;
-      return r;
-    } catch {
-      return { error: 99, no: 0, jdsatepoch: 0 } as SatRec;
-    }
-  });
+  return (catalog || [])
+    .filter(Boolean)
+    .map((c) => {
+      try {
+        const r = sat.twoline2satrec(c.l1, c.l2) as unknown as SatRec;
+        r.error = r.error ?? 0;
+        return r;
+      } catch {
+        return { error: 99, no: 0, jdsatepoch: 0 } as SatRec;
+      }
+    });
 }
 
 const _tmp = new THREE.Vector3();

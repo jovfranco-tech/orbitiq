@@ -29,10 +29,13 @@ export async function loadSatellites(): Promise<LoadResult> {
       throw new Error('Insufficient satellite count from API');
     }
 
-    const catalog: SatelliteRecord[] = json.satellites.map((s) => ({
-      ...s,
-      group: classifyGroup(s.name, 600),
-    }));
+    const catalog: SatelliteRecord[] = (json.satellites || [])
+      .filter(Boolean)
+      .filter((s) => s.name && s.satnum && s.l1 && s.l2)
+      .map((s) => ({
+        ...s,
+        group: classifyGroup(s.name, 600),
+      }));
 
     return {
       catalog,

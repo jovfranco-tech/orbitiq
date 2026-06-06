@@ -23,10 +23,11 @@ self.onmessage = (e: MessageEvent) => {
   const { type, payload } = e.data;
 
   if (type === 'INIT') {
-    const catalog = payload.catalog;
-    N = catalog.length;
+    const catalog = payload.catalog || [];
+    const cleanCatalog = catalog.filter(Boolean);
+    N = cleanCatalog.length;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recs = catalog.map((c: any) => {
+    recs = cleanCatalog.map((c: any) => {
       try {
         const r = satJs.twoline2satrec(c.l1, c.l2);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

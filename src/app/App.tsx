@@ -142,13 +142,14 @@ export function App() {
 
   // ---- Load catalog into GPU buffers -----------------------------------
   const loadCatalog = useCallback((globe: GlobeApi, catalog: typeof CS.catalog) => {
-    CS.catalog = catalog;
-    CS.recs    = buildRecords(catalog);
-    initCatalogStore(catalog.length);
+    const cleanCatalog = (catalog || []).filter(Boolean);
+    CS.catalog = cleanCatalog;
+    CS.recs    = buildRecords(cleanCatalog);
+    initCatalogStore(cleanCatalog.length);
 
     const colorCache: Record<string, [number, number, number]> = {};
     for (let i = 0; i < CS.N; i++) {
-      const g = catalog[i].group ?? classifyGroup(catalog[i].name, catalog[i].altNominal ?? 600);
+      const g = cleanCatalog[i].group ?? classifyGroup(cleanCatalog[i].name, cleanCatalog[i].altNominal ?? 600);
       CS.group[i] = g;
       if (!colorCache[g]) colorCache[g] = hexToRGB((GROUPS[g] ?? GROUPS['other']).color);
       const c = colorCache[g];
