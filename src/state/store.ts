@@ -143,9 +143,14 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
 
   toggleGroup(g) {
     const cur = get().activeGroups;
-    const next = new Set(cur.size ? cur : ALL_GROUPS); // materialise "all"
+    if (!cur.size) {
+      set({ activeGroups: new Set<GroupKey>([g]) });
+      return;
+    }
+
+    const next = new Set(cur);
     if (next.has(g)) next.delete(g); else next.add(g);
-    if (next.size === ALL_GROUPS.length) next.clear(); // back to "all = unrestricted"
+    if (next.size === 0 || next.size === ALL_GROUPS.length) next.clear(); // back to "all = unrestricted"
     set({ activeGroups: next });
   },
   setActiveGroups: (groups) => set({ activeGroups: groups }),
