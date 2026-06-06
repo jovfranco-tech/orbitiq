@@ -44,6 +44,7 @@ export function BriefModal({ onClose }: Props) {
 
   const provKey = dataMode === 'live' ? 'prov_live_note'
     : dataMode === 'cached' ? 'prov_cached_note'
+    : dataMode === 'mixed' ? 'prov_mixed_note'
     : 'prov_demo_note';
 
   return (

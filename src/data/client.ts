@@ -37,11 +37,16 @@ export async function loadSatellites(): Promise<LoadResult> {
         group: classifyGroup(s.name, 600),
       }));
 
+    const dataMode: DataMode =
+      json.meta.dataMode && json.meta.dataMode !== 'loading'
+        ? json.meta.dataMode
+        : json.meta.freshness === 'live' ? 'live'
+        : json.meta.freshness === 'cached' ? 'cached'
+        : 'fallback';
+
     return {
       catalog,
-      dataMode: json.meta.freshness === 'live' ? 'live'
-        : json.meta.freshness === 'cached' ? 'cached'
-        : 'fallback',
+      dataMode,
       source: json.meta.source,
       fetchedAt: json.meta.fetchedAt ?? json.meta.fetchTimestamp,
       meta: json.meta,

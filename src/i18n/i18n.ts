@@ -15,10 +15,13 @@ const DICT: Record<LangKey, Dict> = {
     status_loading: 'ACQUIRING ELEMENTS',
     prov_live: 'LIVE PUBLIC TLE',
     prov_cached: 'CACHED PUBLIC TLE',
+    prov_mixed: 'PARTIAL PUBLIC TLE',
     prov_demo: 'DEMO · REPRESENTATIVE',
     prov_live_note:
       'Live public two-line elements from CelesTrak, propagated with SGP4.',
     prov_cached_note: 'Cached public TLE snapshot (≤6 h old), propagated with SGP4.',
+    prov_mixed_note:
+      'Public CelesTrak subset is active because the full active catalog is temporarily unavailable.',
     prov_demo_note:
       'Representative orbital shells + real anchor objects. Valid TLEs, real SGP4 physics — not a live snapshot of every object.',
     provenance: 'Data provenance',
@@ -249,11 +252,14 @@ const DICT: Record<LangKey, Dict> = {
     status_loading: 'ADQUIRIENDO ELEMENTOS',
     prov_live: 'TLE PÚBLICO EN VIVO',
     prov_cached: 'TLE PÚBLICO EN CACHÉ',
+    prov_mixed: 'TLE PÚBLICO PARCIAL',
     prov_demo: 'DEMO · REPRESENTATIVO',
     prov_live_note:
       'Elementos de dos líneas públicos en vivo de CelesTrak, propagados con SGP4.',
     prov_cached_note:
       'Instantánea TLE pública en caché (≤6 h), propagada con SGP4.',
+    prov_mixed_note:
+      'Subconjunto público de CelesTrak activo porque el catálogo completo de satélites activos no está disponible temporalmente.',
     prov_demo_note:
       'Capas orbitales representativas + objetos ancla reales. TLE válidos, física SGP4 real — no es una instantánea en vivo de cada objeto.',
     provenance: 'Procedencia de datos',

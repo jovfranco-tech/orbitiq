@@ -27,6 +27,8 @@ interface CacheEntry {
 
 let cache: CacheEntry | null = null;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const EDGE_CACHE_SECONDS = 3 * 60 * 60; // CelesTrak updates Starlink/Active about every 2 hours
+const EDGE_STALE_SECONDS = 24 * 60 * 60;
 
 // ---------------------------------------------------------------------------
 
@@ -46,7 +48,7 @@ interface TleMeta {
   cacheTimestamp: string;
   tleEpoch?: string;
   freshness: 'live' | 'cached' | 'fallback';
-  dataMode: 'live' | 'cached' | 'fallback';
+  dataMode: 'live' | 'cached' | 'fallback' | 'mixed';
   count: number;
   recordCount: number;
   sourceHealth?: 'healthy' | 'degraded' | 'unavailable';
@@ -62,17 +64,33 @@ interface TleResponse {
 
 // ---------------------------------------------------------------------------
 
-const CELESTRAK_URL =
+const CELESTRAK_ACTIVE_URL =
   'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle';
+const CELESTRAK_STARLINK_SUPGP_URL =
+  'https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=tle';
 
-async function fetchCelesTrak(): Promise<SatPayload[]> {
-  const res = await fetch(CELESTRAK_URL, {
-    signal: AbortSignal.timeout(8_000), // Strict 8s timeout
-    headers: { 'User-Agent': 'OrbitIQ-CommandCenter/1.0.0' },
-  });
-  if (!res.ok) throw new Error(`CelesTrak HTTP ${res.status}`);
+interface TleSource {
+  label: string;
+  url: string;
+  minRecords: number;
+  timeoutMs: number;
+}
 
-  const text = await res.text();
+const ACTIVE_SOURCE: TleSource = {
+  label: 'CelesTrak GP active',
+  url: CELESTRAK_ACTIVE_URL,
+  minRecords: 1000,
+  timeoutMs: 3000,
+};
+
+const STARLINK_SUPGP_SOURCE: TleSource = {
+  label: 'CelesTrak SupGP Starlink',
+  url: CELESTRAK_STARLINK_SUPGP_URL,
+  minRecords: 1000,
+  timeoutMs: 6000,
+};
+
+function parseTleText(text: string, minRecords: number): SatPayload[] {
   const lines = text.split(/\r?\n/).filter(Boolean);
   if (lines.length < 6) throw new Error('TLE response too short');
 
@@ -87,8 +105,26 @@ async function fetchCelesTrak(): Promise<SatPayload[]> {
     sats.push({ name, satnum, l1, l2, isReal: true });
   }
 
-  if (sats.length < 100) throw new Error(`Too few satellites parsed: ${sats.length}`);
+  if (sats.length < minRecords) throw new Error(`Too few satellites parsed: ${sats.length}`);
   return sats;
+}
+
+async function fetchTleSource(source: TleSource): Promise<SatPayload[]> {
+  const res = await fetch(source.url, {
+    signal: AbortSignal.timeout(source.timeoutMs),
+    headers: {
+      'Accept': 'text/plain,text/*,*/*',
+      'User-Agent': 'OrbitIQ-CommandCenter/1.0.0 contact: https://github.com/jovfranco-tech/orbitiq',
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    const hint = body.replace(/\s+/g, ' ').trim().slice(0, 180);
+    throw new Error(`${source.label} HTTP ${res.status}${hint ? `: ${hint}` : ''}`);
+  }
+
+  const text = await res.text();
+  return parseTleText(text, source.minRecords);
 }
 
 /** Derive the most recent TLE epoch from the dataset (ISO string). */
@@ -112,10 +148,17 @@ function latestEpoch(sats: SatPayload[]): string | undefined {
 
 function safeFallbackReason(err: unknown): string {
   if (!(err instanceof Error)) return 'Public TLE source unavailable';
-  if (err.message.startsWith('CelesTrak HTTP')) return err.message;
+  if (err.message.includes('HTTP 403')) return err.message.includes('not updated since')
+    ? 'CelesTrak source not updated since last successful download'
+    : err.message;
+  if (err.message.includes('HTTP')) return err.message;
   if (err.message.startsWith('Too few satellites parsed')) return err.message;
   if (err.message === 'TLE response too short') return err.message;
   return 'Public TLE source unavailable or timed out';
+}
+
+function successCacheControl(): string {
+  return `public, s-maxage=${EDGE_CACHE_SECONDS}, stale-while-revalidate=${EDGE_STALE_SECONDS}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -131,30 +174,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Serve from cache if fresh
   if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
+    const cachedDataMode = cache.data.meta.dataMode === 'mixed' ? 'mixed' : 'cached';
     const cached: TleResponse = {
       ...cache.data,
       meta: {
         ...cache.data.meta,
-        sourceMode: 'cached',
+        sourceMode: cachedDataMode,
         freshness: 'cached',
-        dataMode: 'cached',
+        dataMode: cachedDataMode,
         cacheTimestamp: new Date(cache.fetchedAt).toISOString(),
         fetchTimestamp: new Date(now).toISOString(),
         fetchedAt: new Date(cache.fetchedAt).toISOString(),
-        sourceHealth: 'healthy',
+        sourceHealth: cache.data.meta.sourceHealth === 'degraded' ? 'degraded' : 'healthy',
         cacheAgeSeconds: Math.floor((now - cache.fetchedAt) / 1000),
         cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
         recordCount: cache.data.satellites.length,
       },
     };
-    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=7200');
+    res.setHeader('Cache-Control', successCacheControl());
     res.status(200).json(cached);
     return;
   }
 
   // Attempt live fetch
   try {
-    const satellites = await fetchCelesTrak();
+    const satellites = await fetchTleSource(ACTIVE_SOURCE);
     const payload: TleResponse = {
       meta: {
         source: 'CelesTrak GP (celestrak.org)',
@@ -175,25 +219,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     cache = { data: payload, fetchedAt: now };
 
-    res.setHeader('Cache-Control', 'public, s-maxage=3600, stale-while-revalidate=7200');
+    res.setHeader('Cache-Control', successCacheControl());
     res.status(200).json(payload);
   } catch (err) {
-    // Network/parse failure — return fallback indicator so client uses its catalog
+    // Network/parse/rate-limit failure — serve stale cache, then try a smaller
+    // public Starlink source before falling back to the representative catalog.
     const errorMsg = safeFallbackReason(err);
     console.error('[/api/tle] CelesTrak fetch failed:', errorMsg);
 
     if (cache?.data?.satellites.length) {
       const cacheAgeSeconds = Math.floor((now - cache.fetchedAt) / 1000);
+      const cachedDataMode = cache.data.meta.dataMode === 'mixed' ? 'mixed' : 'cached';
       const staleCached: TleResponse = {
         ...cache.data,
         meta: {
           ...cache.data.meta,
-          sourceMode: 'cached',
+          sourceMode: cachedDataMode,
           fetchTimestamp: new Date(now).toISOString(),
           fetchedAt: new Date(cache.fetchedAt).toISOString(),
           cacheTimestamp: new Date(cache.fetchedAt).toISOString(),
           freshness: 'cached',
-          dataMode: 'cached',
+          dataMode: cachedDataMode,
           sourceHealth: 'degraded',
           cacheAgeSeconds,
           cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
@@ -201,9 +247,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           fallbackReason: `Serving stale cache because ${errorMsg.toLowerCase()}`,
         },
       };
-      res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+      res.setHeader('Cache-Control', successCacheControl());
       res.status(200).json(staleCached);
       return;
+    }
+
+    try {
+      const satellites = await fetchTleSource(STARLINK_SUPGP_SOURCE);
+      const payload: TleResponse = {
+        meta: {
+          source: 'CelesTrak SupGP Starlink (celestrak.org)',
+          sourceMode: 'mixed',
+          fetchTimestamp: new Date(now).toISOString(),
+          fetchedAt: new Date(now).toISOString(),
+          cacheTimestamp: new Date(now).toISOString(),
+          tleEpoch: latestEpoch(satellites),
+          freshness: 'live',
+          dataMode: 'mixed',
+          count: satellites.length,
+          recordCount: satellites.length,
+          sourceHealth: 'degraded',
+          cacheAgeSeconds: 0,
+          cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
+          fallbackReason: `Active catalog unavailable (${errorMsg}); serving live Starlink SupGP subset`,
+        },
+        satellites,
+      };
+      cache = { data: payload, fetchedAt: now };
+
+      res.setHeader('Cache-Control', successCacheControl());
+      res.status(200).json(payload);
+      return;
+    } catch (starlinkErr) {
+      console.error('[/api/tle] Starlink SupGP fetch failed:', safeFallbackReason(starlinkErr));
     }
 
     const fallback: TleResponse = {

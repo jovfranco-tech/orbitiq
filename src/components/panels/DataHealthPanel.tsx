@@ -88,7 +88,7 @@ export function DataHealthPanel() {
         </div>
       </div>
 
-      {(tleHealth === 'unavailable' || agentHealth === 'fallback') && (
+      {(tleHealth === 'unavailable' || tleHealth === 'degraded' || agentHealth === 'fallback') && (
         <div style={{
           marginTop: '16px',
           padding: '12px',
@@ -100,7 +100,7 @@ export function DataHealthPanel() {
           color: '#ffb74d'
         }}>
           {t('safe_mode_active')}
-          {tleHealth === 'unavailable' && tleMeta?.fallbackReason && (
+          {(tleHealth === 'unavailable' || tleHealth === 'degraded') && tleMeta?.fallbackReason && (
             <div style={{ marginTop: '8px', fontFamily: 'monospace', opacity: 0.8 }}>
               {t('fallback_reason')}: {tleMeta.fallbackReason}
             </div>

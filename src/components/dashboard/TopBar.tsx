@@ -13,7 +13,7 @@ const PROV_MAP: Record<DataMode, [string, string, string]> = {
   live:    ['prov_live',    'prov_live_note',   'm-live'],
   cached:  ['prov_cached',  'prov_cached_note',  'm-cached'],
   fallback:['prov_demo',    'prov_demo_note',    'm-demo'],
-  mixed:   ['prov_cached',  'prov_cached_note',  'm-cached'],
+  mixed:   ['prov_mixed',   'prov_mixed_note',   'm-cached'],
   loading: ['status_loading','prov_demo_note',   'm-loading'],
 };
 

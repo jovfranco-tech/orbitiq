@@ -82,6 +82,7 @@ export function DetailPanel({ onClose, onToggleTrack }: Props) {
     : `${age.toFixed(2)} ${t('days')}`;
 
   const srcLabel = dataMode === 'live' ? t('prov_live')
+    : dataMode === 'mixed' ? t('prov_mixed')
     : c.isReal ? t('d_real') : t('d_synth');
 
   return (

@@ -738,6 +738,8 @@ export function generateBrief(ctx: {
     ? (lang === 'es' ? 'Datos TLE públicos de CelesTrak en vivo' : 'Live CelesTrak public TLE data')
     : dataMode === 'cached'
     ? (lang === 'es' ? 'Datos TLE públicos de CelesTrak en caché' : 'Cached CelesTrak public TLE data')
+    : dataMode === 'mixed'
+    ? (lang === 'es' ? 'Datos públicos parciales de CelesTrak' : 'Partial CelesTrak public data')
     : (lang === 'es' ? 'Catálogo demo representativo' : 'Representative demo catalog');
 
   const isSimulated = CS.liveSnapshot != null;
