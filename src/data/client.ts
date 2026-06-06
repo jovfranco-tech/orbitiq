@@ -15,6 +15,21 @@ export interface LoadResult {
   meta?: TleApiMeta;
 }
 
+const MU = 398600.4418; // km^3/s^2
+const RE = 6378.137; // km
+
+function nominalAltitudeFromTle(l2: string): number | undefined {
+  const meanMotion = Number.parseFloat(l2.slice(52, 63));
+  if (!Number.isFinite(meanMotion) || meanMotion <= 0) return undefined;
+
+  const meanMotionRadPerSecond = meanMotion * 2 * Math.PI / 86400;
+  const semiMajorAxisKm = Math.cbrt(MU / (meanMotionRadPerSecond * meanMotionRadPerSecond));
+  const altitudeKm = semiMajorAxisKm - RE;
+  return Number.isFinite(altitudeKm) && altitudeKm > -500 && altitudeKm < 100000
+    ? altitudeKm
+    : undefined;
+}
+
 function supplementPartialCatalog(catalog: SatelliteRecord[]): SatelliteRecord[] {
   const seenSatnums = new Set(catalog.map((s) => s.satnum));
   const nonStarlinkFallback = buildCatalog()
@@ -41,10 +56,14 @@ export async function loadSatellites(): Promise<LoadResult> {
     const apiCatalog: SatelliteRecord[] = (json.satellites || [])
       .filter(Boolean)
       .filter((s) => s.name && s.satnum && s.l1 && s.l2)
-      .map((s) => ({
-        ...s,
-        group: classifyGroup(s.name, 600),
-      }));
+      .map((s) => {
+        const altNominal = nominalAltitudeFromTle(s.l2);
+        return {
+          ...s,
+          altNominal,
+          group: classifyGroup(s.name, altNominal ?? 600),
+        };
+      });
 
     const dataMode: DataMode =
       json.meta.dataMode && json.meta.dataMode !== 'loading'
