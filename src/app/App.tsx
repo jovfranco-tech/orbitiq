@@ -11,7 +11,6 @@ import { MissionPanel } from '../components/panels/MissionPanel';
 import { DetailPanel } from '../components/panels/DetailPanel';
 import { BriefModal } from '../components/panels/BriefModal';
 import { TourModal } from '../components/panels/TourModal';
-import { playAgentSuccess } from '../utils/audio';
 import { OrbitalIntelligencePanel } from '../components/panels/OrbitalIntelligencePanel';
 import { TimeControlsPanel } from '../components/panels/TimeControlsPanel';
 import { WatchlistPanel } from '../components/panels/WatchlistPanel';
@@ -66,36 +65,7 @@ export function App() {
 
   const store = useStore();
   const userStore = useUserStore();
-  const hasWarnedRef = useRef(false);
 
-  // ---- Proactive Agent Monitoring ---------------------------------------
-  useEffect(() => {
-    if (intelligence && intelligence.congestionScore > 80 && !hasWarnedRef.current) {
-      hasWarnedRef.current = true;
-      const band = intelligence.mostCrowdedBand || 'LEO';
-      const currentMode = useStore.getState().dataMode;
-      setAgentResult({
-        answer: `Analytical density threshold reached. Orbital congestion score is ${Math.round(intelligence.congestionScore)}/100, so OrbitIQ filtered the view to the ${band} band for review.`,
-        intent: 'congestion_summary',
-        confidence: 0.99,
-        assumptions: ['Triggered by deterministic portfolio-density threshold, not collision prediction.'],
-        actions: { 
-          band, groups: null, region: null, altMax: null, altMin: null, 
-          focusSatnum: null, brief: false, missionScenario: null, showRiskLayer: false, timeAction: null 
-        },
-        filtersApplied: { band },
-        visibleCount: CS.N,
-        sourceMode: currentMode === 'loading' ? 'fallback' : currentMode,
-        responseMode: 'deterministic',
-        safetyCaveat: 'Analytical portfolio signal only. Not for flight safety, collision warning or conjunction assessment.',
-        intelligence
-      });
-      useStore.getState().setFilterBand(band);
-      // Auto-open agent panel (mission panel)
-      useStore.getState().setShowMissionPanel(true);
-      playAgentSuccess();
-    }
-  }, [intelligence]);
   // ---- Intelligence refresh (decoupled from tick) -----------------------
   const refreshIntel = useCallback(() => {
     if (CS.N === 0) return;
@@ -402,7 +372,7 @@ export function App() {
     const res = await executeAgentCommand(query, ctx, getLang());
     // Use the latest state since the await could take a few seconds
     const latestState = useStore.getState();
-    res.sourceMode = latestState.dataMode === 'live' ? 'live' : latestState.dataMode === 'cached' ? 'cached' : 'fallback';
+    res.sourceMode = latestState.dataMode === 'loading' ? 'fallback' : latestState.dataMode;
     res.visibleCount = latestState.renderedCount;
     setAgentResult(res);
 
