@@ -49,7 +49,7 @@ input,select,button{font-family:inherit}
 
 /* ----------------------------- Top bar ----------------------------------- */
 .topbar{grid-area:top;display:flex;align-items:center;gap:13px;
-  padding:11px 16px;border-radius:14px}
+  padding:11px 16px;border-radius:14px;position:relative;z-index:20}
 .brand{display:flex;align-items:center;gap:12px;flex-shrink:0}
 .brand-mark{width:34px;height:34px;border-radius:9px;position:relative;
   background:radial-gradient(120% 120% at 30% 20%,#13243f,#0a1322);
@@ -288,7 +288,7 @@ input,select,button{font-family:inherit}
 .prov-pop{position:absolute;top:calc(100% + 10px);left:0;width:286px;padding:13px 15px;
   background:var(--panel-solid);border:1px solid var(--border);border-radius:11px;
   box-shadow:0 22px 60px -14px #000;font-family:var(--sans);font-size:11.5px;line-height:1.55;
-  color:var(--muted);letter-spacing:0;text-transform:none;opacity:0;visibility:hidden;
+  color:var(--muted);letter-spacing:0;text-transform:none;white-space:normal;opacity:0;visibility:hidden;
   transform:translateY(-5px);transition:.2s;z-index:40;text-align:left}
 .prov:hover .prov-pop,.prov:focus-visible .prov-pop{opacity:1;visibility:visible;transform:none}
 .prov-pop b{display:block;color:var(--text);font-weight:700;font-size:9.5px;letter-spacing:.14em;
