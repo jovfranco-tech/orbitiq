@@ -1,7 +1,7 @@
 // ============================================================
 // OrbitIQ v0.3.0 — AI Command Agent panel
 // ============================================================
-import { lazy, Suspense, useState, useCallback, useEffect } from 'react';
+import { lazy, Suspense, useState, useCallback, useEffect, useId } from 'react';
 import { t } from '../../i18n/i18n';
 import type { AiAgentResponse } from '../../types';
 import { playClick, playAgentSuccess } from '../../utils/audio';
@@ -50,6 +50,9 @@ export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
   const [isListening, setIsListening] = useState(false);
   const lang = useStore((s) => s.lang);
   const chips = lang === 'es' ? EXAMPLES_ES : EXAMPLES_EN;
+  const inputId = useId();
+  const statusId = useId();
+  const outputId = useId();
 
   const run = useCallback((q: string) => {
     if (!q.trim()) return;
@@ -69,7 +72,7 @@ export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
     if (!SpeechRecognition) return alert('Speech recognition not supported in this browser.');
     playClick();
     const rec = new SpeechRecognition();
-    rec.lang = 'en-US';
+    rec.lang = lang === 'es' ? 'es-ES' : 'en-US';
     rec.interimResults = false;
     rec.onstart = () => setIsListening(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -83,50 +86,93 @@ export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
     rec.start();
   };
 
+  const micLabel = lang === 'es'
+    ? (isListening ? 'Escuchando...' : 'Comando de voz')
+    : (isListening ? 'Listening...' : 'Voice command');
+
+  const runLabel = lang === 'es' ? 'Ejecutar consulta' : 'Run query';
+
   return (
-    <section className="card glass" id="agentCard">
+    <section
+      className="card glass"
+      id="agentCard"
+      aria-busy={isThinking}
+      aria-label={t('agent_title')}
+    >
       <div className="card-head">
         <div className="card-title">
-          <span className="ai-orb" />
+          <span className="ai-orb" aria-hidden="true" />
           <div>
             <div>{t('agent_title')}</div>
             <div className="card-sub">{t('agent_sub')}</div>
           </div>
         </div>
-        <span className={`agent-status${isThinking ? ' busy' : ''}`}>
+        <span
+          id={statusId}
+          className={`agent-status${isThinking ? ' busy' : ''}`}
+          aria-live="polite"
+          aria-atomic="true"
+          role="status"
+        >
           {isThinking ? t('ai_thinking') : t('ai_ready')}
         </span>
       </div>
 
       <div className="agent-input">
+        <label htmlFor={inputId} className="sr-only">
+          {t('agent_placeholder')}
+        </label>
         <input
-          id="agentInput"
+          id={inputId}
           type="text"
           autoComplete="off"
           placeholder={t('agent_placeholder')}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
+          aria-describedby={statusId}
+          aria-label={lang === 'es' ? 'Consulta al agente orbital' : 'Orbital agent query'}
         />
-        <button 
-          onClick={toggleListen} 
-        className={`mic-btn ${isListening ? 'listening' : ''}`}
-        title={lang === 'es' ? 'Comando de voz' : 'Voice Command'}
-        style={{ background: isListening ? 'var(--danger)' : 'transparent', color: isListening ? '#fff' : 'var(--muted)', padding: '0 8px', border: 0, borderRight: '1px solid var(--border)' }}
-      >
-        🎤
-      </button>
-      <button onClick={() => run(input)}>{t('agent_run')}</button>
-    </div>
+        <button
+          onClick={toggleListen}
+          className={`mic-btn ${isListening ? 'listening' : ''}`}
+          title={micLabel}
+          aria-label={micLabel}
+          aria-pressed={isListening}
+          style={{ background: isListening ? 'var(--danger)' : 'transparent', color: isListening ? '#fff' : 'var(--muted)', padding: '0 8px', border: 0, borderRight: '1px solid var(--border)' }}
+        >
+          <span aria-hidden="true">🎤</span>
+        </button>
+        <button
+          onClick={() => run(input)}
+          aria-label={runLabel}
+          disabled={isThinking}
+        >
+          {t('agent_run')}
+        </button>
+      </div>
 
-    <div className="agent-chips">
-      {chips.map((q) => (
-        <button key={q} onClick={() => { setInput(q); run(q); }}>{q}</button>
-      ))}
-    </div>
+      <div className="agent-chips" role="group" aria-label={lang === 'es' ? 'Consultas de ejemplo' : 'Example queries'}>
+        {chips.map((q) => (
+          <button
+            key={q}
+            onClick={() => { setInput(q); run(q); }}
+            aria-label={lang === 'es' ? `Ejecutar: ${q}` : `Run: ${q}`}
+          >
+            {q}
+          </button>
+        ))}
+      </div>
 
       {lastResult && !isThinking && (
-        <AgentOutput result={lastResult} />
+        <div
+          id={outputId}
+          aria-live="assertive"
+          aria-atomic="false"
+          aria-label={lang === 'es' ? 'Respuesta del agente' : 'Agent response'}
+        >
+          <AgentOutput result={lastResult} />
+        </div>
       )}
     </section>
   );
@@ -136,16 +182,14 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
   const [displayedText, setDisplayedText] = useState('');
 
   useEffect(() => {
-    // Speak
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // stop previous
+      window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(result.answer);
       utterance.rate = 1.1;
       utterance.pitch = 1.0;
       window.speechSynthesis.speak(utterance);
     }
 
-    // Typing effect
     let i = 0;
     setDisplayedText('');
     const timer = setInterval(() => {
@@ -179,17 +223,27 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
     <div className="agent-output">
       <div className="agent-mode">
         <span className={`mode-badge ${result.responseMode === 'llm' ? 'llm' : 'deterministic'}`}>
-          <i />{result.responseMode === 'llm' ? t('agent_mode_llm') : t('agent_mode_fallback')}
+          <i aria-hidden="true" />{result.responseMode === 'llm' ? t('agent_mode_llm') : t('agent_mode_fallback')}
         </span>
       </div>
-      <p className="agent-answer">{displayedText}<span style={{ animation: 'blink 1s step-start infinite', borderRight: '2px solid var(--cyan)' }} /></p>
+      <p className="agent-answer">
+        {displayedText}
+        <span aria-hidden="true" style={{ animation: 'blink 1s step-start infinite', borderRight: '2px solid var(--cyan)' }} />
+      </p>
       <div className="agent-stats">
         <div className="astat">
           <span className="astat-k">{t('agent_confidence')}</span>
-          <div className="conf">
+          <div
+            className="conf"
+            role="meter"
+            aria-valuenow={Math.round(conf * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${Math.round(conf * 100)}%`}
+          >
             <div className={`conf-bar${conf < 0.5 ? ' low' : ''}`} style={{ width: Math.round(conf * 100) + '%' }} />
           </div>
-          <span className="astat-v">{Math.round(conf * 100)}%</span>
+          <span className="astat-v" aria-hidden="true">{Math.round(conf * 100)}%</span>
         </div>
         {result.visibleCount > 0 && (
           <div className="astat astat-scope">
@@ -204,21 +258,20 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
           <span>{t('agent_trace_intent')}</span>
           <b>{result.intent}</b>
         </div>
-        <div className="trace-line" />
+        <div className="trace-line" aria-hidden="true" />
         <div className="trace-step done">
           <span>{t('agent_trace_validate')}</span>
           <b>{primaryAction}</b>
         </div>
-        <div className="trace-line active" />
+        <div className="trace-line active" aria-hidden="true" />
         <div className="trace-step active">
           <span>{t('agent_trace_apply')}</span>
           <b>{t('agent_trace_done')}</b>
         </div>
       </div>
 
-      {/* Intelligence attachment */}
       {intel && (
-        <div className="agent-intel">
+        <div className="agent-intel" aria-label="Intelligence summary">
           {intel.mostCrowdedBand && (
             <div className="agent-intel-row">
               <span className="meta-k">{t('intel_most_crowded')}</span>
@@ -231,9 +284,11 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
               <span className="astat-v">
                 {intel.congestionScore}/100
                 {intel.congestionLevel && (
-                  <span className={`cong-level ${intel.congestionLevel}`}
-                    style={{ marginLeft: '6px', fontSize: '8px', padding: '1px 5px' }}>
-                    <i />{intel.congestionLevel}
+                  <span
+                    className={`cong-level ${intel.congestionLevel}`}
+                    style={{ marginLeft: '6px', fontSize: '8px', padding: '1px 5px' }}
+                  >
+                    <i aria-hidden="true" />{intel.congestionLevel}
                   </span>
                 )}
               </span>
@@ -254,7 +309,6 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
         </div>
       )}
 
-      {/* Chart attachment */}
       {result.actions.chartAction && result.actions.chartAction.type === 'bar' && (
         <Suspense fallback={<div className="agent-chart chart-loading" />}>
           <AgentChart

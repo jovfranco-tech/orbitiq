@@ -10,7 +10,41 @@
 // ============================================================
 
 // Inline types matching @vercel/node — no package install required at typecheck time
-interface VercelRequest { method?: string; }
+interface VercelRequest {
+  method?: string;
+  headers?: Record<string, string | string[] | undefined>;
+}
+
+// ---- Rate limiting — 30 GET requests per minute per IP ---------------------
+
+const _rlMap = new Map<string, number[]>();
+const RL_WINDOW_MS = 60_000;
+const RL_MAX = 30;
+
+function getClientIp(req: VercelRequest): string {
+  const fwd = req.headers?.['x-forwarded-for'];
+  const raw = Array.isArray(fwd) ? fwd[0] : (fwd ?? 'unknown');
+  return raw.split(',')[0].trim();
+}
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfterMs: number } {
+  const now = Date.now();
+  const cutoff = now - RL_WINDOW_MS;
+  let ts = (_rlMap.get(ip) ?? []).filter((t) => t > cutoff);
+  if (ts.length >= RL_MAX) {
+    const retryAfterMs = ts[0] + RL_WINDOW_MS - now;
+    _rlMap.set(ip, ts);
+    return { allowed: false, retryAfterMs };
+  }
+  ts = [...ts, now];
+  _rlMap.set(ip, ts);
+  if (_rlMap.size > 5000) {
+    for (const [k, v] of _rlMap) {
+      if (v.every((t) => t <= cutoff)) _rlMap.delete(k);
+    }
+  }
+  return { allowed: true, retryAfterMs: 0 };
+}
 interface VercelResponse {
   setHeader(k: string, v: string): this;
   status(code: number): this;
@@ -169,6 +203,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
   if (req.method !== 'GET')    { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(ip);
+  if (!rl.allowed) {
+    const retryAfterSec = Math.ceil(rl.retryAfterMs / 1000);
+    res.setHeader('Retry-After', String(retryAfterSec));
+    res.status(429).json({ error: 'rate_limit_exceeded', retryAfterSec });
+    return;
+  }
 
   const now = Date.now();
 

@@ -25,6 +25,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
 
   const controls = new OrbitControls(camera, container);
@@ -549,7 +550,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       coneSegments.push(satPos.x, satPos.y, satPos.z, p.x, p.y, p.z);
     }
     coverageCone = new THREE.LineSegments(
-      new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(coneSegments, 3)),
+      new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array(coneSegments), 3)),
       new THREE.LineBasicMaterial({
         color: 0x8ef0ff,
         transparent: true,

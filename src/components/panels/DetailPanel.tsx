@@ -86,8 +86,8 @@ export function DetailPanel({ onClose, onToggleTrack }: Props) {
     : c.isReal ? t('d_real') : t('d_synth');
 
   return (
-    <aside className="detail glass" id="detail">
-      <button className="detail-close" onClick={onClose} aria-label="Close">×</button>
+    <aside className="detail glass" id="detail" aria-label={c.name}>
+      <button className="detail-close" onClick={onClose} aria-label={t('close') || 'Close'}>×</button>
 
       <div
         className="detail-cat"
@@ -134,14 +134,20 @@ export function DetailPanel({ onClose, onToggleTrack }: Props) {
       </div>
 
       <div className="detail-track" style={{ display: 'flex', gap: '8px' }}>
-        <button className={tracking ? 'on' : ''} onClick={onToggleTrack} style={{ flex: 1 }}>
+        <button
+          className={tracking ? 'on' : ''}
+          onClick={onToggleTrack}
+          style={{ flex: 1 }}
+          aria-pressed={tracking}
+          aria-label={tracking ? t('untrack') : t('track')}
+        >
           {tracking ? t('untrack') : t('track')}
         </button>
         {(() => {
           const inWatchlist = watchlists.some(w => w.satnum === c.satnum);
           return (
-            <button 
-              className={inWatchlist ? 'on' : ''} 
+            <button
+              className={inWatchlist ? 'on' : ''}
               onClick={() => {
                 if (inWatchlist) {
                   removeFromWatchlist(c.satnum);
@@ -158,6 +164,8 @@ export function DetailPanel({ onClose, onToggleTrack }: Props) {
                 }
               }}
               style={{ flex: 1 }}
+              aria-pressed={inWatchlist}
+              aria-label={inWatchlist ? t('watchlist_in') : t('watchlist_add')}
             >
               {inWatchlist ? `🔖 ${t('watchlist_in')}` : `🔖 ${t('watchlist_add')}`}
             </button>

@@ -52,7 +52,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
       </div>
 
       <div className="search">
-        <svg viewBox="0 0 24 24" width="15" height="15">
+        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
           <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.6" fill="none"/>
           <path d="m20 20-3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
         </svg>
@@ -62,12 +62,13 @@ export function CatalogPanel({ onSelectSat }: Props) {
           autoComplete="off"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          aria-label={t('search_placeholder')}
         />
       </div>
 
       <div className="filter-block">
         <div className="filter-label">{t('f_groups')}</div>
-        <div className="chip-row">
+        <div className="chip-row" role="group" aria-label={t('f_groups')}>
           {GROUP_ORDER.map((g) => {
             const m = GROUPS[g];
             const on = !activeGroups.size || activeGroups.has(g);
@@ -77,8 +78,10 @@ export function CatalogPanel({ onSelectSat }: Props) {
                 className={`chip ${on ? 'on' : 'off'}`}
                 style={{ '--c': m.color } as React.CSSProperties}
                 onClick={() => toggleGroup(g as GroupKey)}
+                aria-pressed={on}
+                aria-label={m.label}
               >
-                <i />{m.label}
+                <i aria-hidden="true" />{m.label}
               </button>
             );
           })}
@@ -88,13 +91,14 @@ export function CatalogPanel({ onSelectSat }: Props) {
       <div className="filter-grid">
         <div className="filter-block">
           <div className="filter-label">{t('f_band')}</div>
-          <div className="seg">
+          <div className="seg" role="group" aria-label={t('f_band')}>
             {BAND_OPTIONS.map(([v, k]) => (
               <button
                 key={v}
                 data-band={v}
                 className={(filterBand ?? '') === v ? 'on' : ''}
                 onClick={() => setFilterBand((v as BandKey) || null)}
+                aria-pressed={(filterBand ?? '') === v}
               >{t(k)}</button>
             ))}
           </div>
@@ -105,6 +109,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
             className="sel"
             value={filterRegion ?? ''}
             onChange={(e) => setFilterRegion(e.target.value || null)}
+            aria-label={t('f_region')}
           >
             <option value="">{t('f_all')}</option>
             {Object.entries(REGIONS).map(([k]) => (
@@ -133,13 +138,18 @@ export function CatalogPanel({ onSelectSat }: Props) {
                   className={`res${i === selected ? ' sel' : ''}`}
                   style={{ '--c': m.color } as React.CSSProperties}
                   onClick={() => onSelectSat(i)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectSat(i); } }}
+                  aria-label={`${c.name}, NORAD ${c.satnum}, ${m.label}, ${altTxt}`}
+                  aria-pressed={i === selected}
                 >
-                  <i />
+                  <i aria-hidden="true" />
                   <div className="res-main">
                     <div className="res-name">{c.name}</div>
                     <div className="res-meta">{c.satnum} · {m.label}</div>
                   </div>
-                  <div className="res-alt">{altTxt}</div>
+                  <div className="res-alt" aria-hidden="true">{altTxt}</div>
                 </div>
               );
             })
