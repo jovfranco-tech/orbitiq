@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import type { GlobeApi } from '../../types';
+import type { BandKey, GlobeApi, GroupKey, VisualQuality } from '../../types';
 
 const RE_SCENE = 1.0;
 const DEFAULT_POINT_SIZE = 16.0;
@@ -177,8 +177,73 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
 
   const stars = buildStars(2600, 40);
   const orbitalBandField = buildOrbitalBandField();
+  const altitudeShells = buildAltitudeShells();
+  const constellationTrails = buildConstellationTrails();
   scene.add(stars);
   scene.add(orbitalBandField);
+  scene.add(altitudeShells);
+  scene.add(constellationTrails);
+
+  let visualQuality: VisualQuality = 'cinematic';
+  let visualContext = {
+    activeBand: null as BandKey | null,
+    activeGroups: [] as GroupKey[],
+    regionActive: false,
+    missionActive: false,
+  };
+
+  function activeBandsFromContext(): Set<BandKey> {
+    const bands = new Set<BandKey>();
+    if (visualContext.activeBand) bands.add(visualContext.activeBand);
+    for (const group of visualContext.activeGroups) {
+      if (group === 'geo') bands.add('GEO');
+      else if (group === 'meo' || group === 'gnss') bands.add('MEO');
+      else bands.add('LEO');
+    }
+    return bands;
+  }
+
+  function applyVisualStyling(): void {
+    const pixelRatio = visualQuality === 'performance'
+      ? 1
+      : visualQuality === 'presentation'
+        ? Math.min(devicePixelRatio, 2)
+        : Math.min(devicePixelRatio, 1.7);
+    renderer.setPixelRatio(pixelRatio);
+    renderer.toneMappingExposure = visualQuality === 'presentation' ? 1.18 : visualQuality === 'performance' ? 0.96 : 1.05;
+    satMat.uniforms.uPointSize.value = DEFAULT_POINT_SIZE * pixelRatio * (visualQuality === 'presentation' ? 1.14 : visualQuality === 'performance' ? 0.82 : 1);
+
+    const focusedBands = activeBandsFromContext();
+    const hasBandFocus = focusedBands.size > 0;
+    const qualityMult = visualQuality === 'performance' ? 0.42 : visualQuality === 'presentation' ? 1.35 : 1;
+    const missionBoost = visualContext.missionActive ? 1.18 : 1;
+    const regionBoost = visualContext.regionActive ? 1.12 : 1;
+    const optionalVisible = visualQuality !== 'performance' || hasBandFocus || visualContext.missionActive || visualContext.regionActive;
+
+    const setOpacityFor = (group: THREE.Object3D, layerMult: number) => {
+      group.visible = optionalVisible;
+      group.traverse((obj) => {
+        const material = (obj as THREE.Mesh | THREE.Line).material as THREE.Material | undefined;
+        if (!material || !('opacity' in material)) return;
+        const mat = material as THREE.Material & { opacity: number };
+        const band = mat.userData.band as BandKey | undefined;
+        const base = (mat.userData.baseOpacity as number | undefined) ?? mat.opacity;
+        const max = (mat.userData.maxOpacity as number | undefined) ?? 0.72;
+        const focusDim = hasBandFocus && band && !focusedBands.has(band) ? 0.22 : 1;
+        const focusBoost = hasBandFocus && band && focusedBands.has(band) ? 1.95 : 1;
+        mat.opacity = Math.min(max, base * qualityMult * layerMult * missionBoost * regionBoost * focusDim * focusBoost);
+      });
+    };
+
+    setOpacityFor(orbitalBandField, 1);
+    setOpacityFor(altitudeShells, visualQuality === 'presentation' ? 1.1 : 0.82);
+    setOpacityFor(constellationTrails, visualQuality === 'presentation' ? 1.22 : 0.78);
+    (stars.material as THREE.PointsMaterial).opacity = visualQuality === 'presentation' ? 0.95 : visualQuality === 'performance' ? 0.55 : 0.78;
+    cloudsMat.opacity = visualQuality === 'presentation' ? 0.32 : visualQuality === 'performance' ? 0.18 : 0.26;
+    (outerAtmo.material as THREE.MeshBasicMaterial).opacity = visualQuality === 'presentation' ? 0.09 : visualQuality === 'performance' ? 0.035 : 0.06;
+    (terminatorLine.material as THREE.LineBasicMaterial).opacity = visualQuality === 'presentation' ? 0.36 : visualQuality === 'performance' ? 0.14 : 0.24;
+    resize();
+  }
 
   // ---- Satellite point cloud ----
   let count = 0;
@@ -342,12 +407,27 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   scene.add(selectedGlow);
 
   let footprintLine: THREE.Line | null = null;
+  let footprintFill: THREE.Mesh | null = null;
+  let coverageCone: THREE.LineSegments | null = null;
   function clearFootprint(): void {
-    if (!footprintLine) return;
-    scene.remove(footprintLine);
-    footprintLine.geometry.dispose();
-    (footprintLine.material as THREE.Material).dispose();
-    footprintLine = null;
+    if (footprintLine) {
+      scene.remove(footprintLine);
+      footprintLine.geometry.dispose();
+      (footprintLine.material as THREE.Material).dispose();
+      footprintLine = null;
+    }
+    if (footprintFill) {
+      scene.remove(footprintFill);
+      footprintFill.geometry.dispose();
+      (footprintFill.material as THREE.Material).dispose();
+      footprintFill = null;
+    }
+    if (coverageCone) {
+      scene.remove(coverageCone);
+      coverageCone.geometry.dispose();
+      (coverageCone.material as THREE.Material).dispose();
+      coverageCone = null;
+    }
   }
 
   const _selPos = new THREE.Vector3();
@@ -422,17 +502,63 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
         .multiplyScalar(r);
       pts.push(p);
     }
+    const fillGeom = new THREE.BufferGeometry();
+    const fillPositions = new Float32Array((pts.length + 1) * 3);
+    const center = _footNormal.clone().multiplyScalar(r);
+    fillPositions[0] = center.x;
+    fillPositions[1] = center.y;
+    fillPositions[2] = center.z;
+    pts.forEach((p, idx) => {
+      const j = (idx + 1) * 3;
+      fillPositions[j] = p.x;
+      fillPositions[j + 1] = p.y;
+      fillPositions[j + 2] = p.z;
+    });
+    const indices: number[] = [];
+    for (let k = 1; k < pts.length; k++) indices.push(0, k, k + 1);
+    fillGeom.setAttribute('position', new THREE.BufferAttribute(fillPositions, 3));
+    fillGeom.setIndex(indices);
+    footprintFill = new THREE.Mesh(
+      fillGeom,
+      new THREE.MeshBasicMaterial({
+        color: 0x06d6a0,
+        transparent: true,
+        opacity: visualQuality === 'presentation' ? 0.16 : 0.1,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    scene.add(footprintFill);
+
     footprintLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints(pts),
       new THREE.LineBasicMaterial({
         color: 0x06d6a0,
         transparent: true,
-        opacity: 0.48,
+        opacity: visualQuality === 'presentation' ? 0.62 : 0.48,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       })
     );
     scene.add(footprintLine);
+
+    const coneSegments: number[] = [];
+    for (let k = 0; k < pts.length; k += 12) {
+      const p = pts[k];
+      coneSegments.push(satPos.x, satPos.y, satPos.z, p.x, p.y, p.z);
+    }
+    coverageCone = new THREE.LineSegments(
+      new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(coneSegments, 3)),
+      new THREE.LineBasicMaterial({
+        color: 0x8ef0ff,
+        transparent: true,
+        opacity: visualQuality === 'presentation' ? 0.18 : 0.1,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    scene.add(coverageCone);
   }
 
   function setSelectedFull(i: number, name?: string, alt?: number): void {
@@ -452,9 +578,13 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   }
 
   // ---- Region marker ----
-  let regionMarker: THREE.Mesh | null = null;
+  let regionMarker: THREE.Group | null = null;
   function setRegionMarker(lat: number | null, lon?: number): void {
-    if (regionMarker) { earthGroup.remove(regionMarker); regionMarker.geometry.dispose(); regionMarker = null; }
+    if (regionMarker) {
+      earthGroup.remove(regionMarker);
+      disposeGroup(regionMarker);
+      regionMarker = null;
+    }
     if (lat == null || lon == null) return;
     const phi   = (90 - lat) * Math.PI / 180;
     const theta = (lon + 180) * Math.PI / 180;
@@ -462,15 +592,35 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     const p = new THREE.Vector3(
       -r * Math.sin(phi) * Math.cos(theta), r * Math.cos(phi), r * Math.sin(phi) * Math.sin(theta)
     );
-    const m = new THREE.Mesh(
-      new THREE.RingGeometry(0.06, 0.075, 40),
+    const group = new THREE.Group();
+    group.position.copy(p);
+    group.lookAt(p.clone().multiplyScalar(2));
+
+    const fill = new THREE.Mesh(
+      new THREE.CircleGeometry(0.16, 72),
       new THREE.MeshBasicMaterial({
         color: 0x06d6a0, side: THREE.DoubleSide, transparent: true,
-        opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false,
+        opacity: 0.13, blending: THREE.AdditiveBlending, depthWrite: false,
       })
     );
-    m.position.copy(p); m.lookAt(p.clone().multiplyScalar(2));
-    regionMarker = m; earthGroup.add(m);
+    group.add(fill);
+
+    for (let k = 0; k < 3; k++) {
+      const ringMesh = new THREE.Mesh(
+        new THREE.RingGeometry(0.08 + k * 0.055, 0.093 + k * 0.055, 64),
+        new THREE.MeshBasicMaterial({
+          color: k === 2 ? 0x8ef0ff : 0x06d6a0,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.78 - k * 0.16,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      group.add(ringMesh);
+    }
+    regionMarker = group;
+    earthGroup.add(group);
   }
 
   // ---- Camera fly ----
@@ -493,6 +643,19 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     flyT = 0;
   }
   function setAutoRotate(v: boolean): void { controls.autoRotate = v; }
+  function setVisualQuality(q: VisualQuality): void {
+    visualQuality = q;
+    applyVisualStyling();
+  }
+  function setVisualContext(context: {
+    activeBand: BandKey | null;
+    activeGroups: GroupKey[];
+    regionActive: boolean;
+    missionActive: boolean;
+  }): void {
+    visualContext = context;
+    applyVisualStyling();
+  }
 
   // ---- Picking ----
   let pickCb: ((i: number) => void) | null = null;
@@ -605,6 +768,23 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       selectedGlow.scale.setScalar(0.31 + 0.07 * Math.sin(now * 0.004));
       (selectedGlow.material as THREE.SpriteMaterial).opacity = 0.58 + 0.22 * Math.sin(now * 0.0037);
     }
+    if (footprintLine) {
+      (footprintLine.material as THREE.LineBasicMaterial).opacity = (visualQuality === 'presentation' ? 0.56 : 0.42) + 0.08 * Math.sin(now * 0.0028);
+    }
+    if (footprintFill) {
+      (footprintFill.material as THREE.MeshBasicMaterial).opacity = (visualQuality === 'presentation' ? 0.14 : 0.08) + 0.025 * Math.sin(now * 0.0022);
+    }
+    if (coverageCone) {
+      (coverageCone.material as THREE.LineBasicMaterial).opacity = (visualQuality === 'presentation' ? 0.18 : 0.09) + 0.035 * Math.sin(now * 0.0024);
+    }
+    if (regionMarker) {
+      const pulse = 1 + 0.08 * Math.sin(now * 0.0036);
+      regionMarker.children.forEach((child, idx) => {
+        child.scale.setScalar(idx === 0 ? 1 : pulse + idx * 0.02);
+        const material = (child as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined;
+        if (material) material.opacity = Math.max(0.1, (idx === 0 ? 0.12 : 0.82 - idx * 0.15) + 0.08 * Math.sin(now * 0.003 + idx));
+      });
+    }
     controls.update();
     renderer.render(scene, camera);
     labelRenderer.render(scene, camera);
@@ -634,6 +814,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   };
   window.addEventListener('resize', onResize);
   resize();
+  applyVisualStyling();
   loop();
 
   // ---- Cleanup ----
@@ -652,12 +833,9 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     (terminatorLine.material as THREE.Material).dispose();
     stars.geometry.dispose();
     (stars.material as THREE.Material).dispose();
-    orbitalBandField.traverse((obj) => {
-      const mesh = obj as THREE.Mesh;
-      mesh.geometry?.dispose();
-      if (Array.isArray(mesh.material)) mesh.material.forEach((m) => m.dispose());
-      else mesh.material?.dispose();
-    });
+    disposeGroup(orbitalBandField);
+    disposeGroup(altitudeShells);
+    disposeGroup(constellationTrails);
     ring.geometry.dispose();
     (ring.material as THREE.Material).dispose();
     selectedGlow.material.map?.dispose();
@@ -683,6 +861,8 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     getPos: (i, out) => getPos(i, out as THREE.Vector3),
     setOrbit, setSelected: setSelectedFull, setRegionMarker,
     flyTo: (p) => flyTo(p as THREE.Vector3),
+    setVisualQuality,
+    setVisualContext,
     setAutoRotate, setEarthRotation, setSunTime, onPick, resize, renderOnce, resetView,
     ready: readyPromise,
     destroy,
@@ -710,6 +890,102 @@ function makeGlowTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+function disposeGroup(group: THREE.Object3D): void {
+  group.traverse((obj) => {
+    const mesh = obj as THREE.Mesh | THREE.Line;
+    mesh.geometry?.dispose();
+    const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
+    if (Array.isArray(material)) material.forEach((m) => m.dispose());
+    else material?.dispose();
+  });
+}
+
+function tagVisualMaterial<T extends THREE.Material & { opacity: number }>(
+  mat: T,
+  band: BandKey,
+  baseOpacity: number,
+  maxOpacity: number,
+): T {
+  mat.userData.band = band;
+  mat.userData.baseOpacity = baseOpacity;
+  mat.userData.maxOpacity = maxOpacity;
+  return mat;
+}
+
+function buildAltitudeShells(): THREE.Group {
+  const group = new THREE.Group();
+  const configs: Array<{ band: BandKey; r: number; color: number; opacity: number; max: number }> = [
+    { band: 'LEO', r: 1.12, color: 0x5fd0f5, opacity: 0.035, max: 0.15 },
+    { band: 'MEO', r: 3.24, color: 0xb58cff, opacity: 0.022, max: 0.09 },
+    { band: 'GEO', r: 6.61, color: 0xffd166, opacity: 0.018, max: 0.08 },
+  ];
+
+  for (const c of configs) {
+    const shell = new THREE.Mesh(
+      new THREE.SphereGeometry(c.r, 96, 48),
+      tagVisualMaterial(new THREE.MeshBasicMaterial({
+        color: c.color,
+        transparent: true,
+        opacity: c.opacity,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }), c.band, c.opacity, c.max)
+    );
+    group.add(shell);
+
+    const equator = new THREE.Mesh(
+      new THREE.TorusGeometry(c.r, c.band === 'LEO' ? 0.0025 : 0.004, 8, 256),
+      tagVisualMaterial(new THREE.MeshBasicMaterial({
+        color: c.color,
+        transparent: true,
+        opacity: c.opacity * 4,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      }), c.band, c.opacity * 4, c.max * 2.4)
+    );
+    equator.rotation.x = Math.PI / 2;
+    group.add(equator);
+  }
+
+  return group;
+}
+
+function buildConstellationTrails(): THREE.Group {
+  const group = new THREE.Group();
+  const configs: Array<{ band: BandKey; r: number; color: number; opacity: number; inclinations: number[] }> = [
+    { band: 'LEO', r: 1.09, color: 0x4cc9f0, opacity: 0.16, inclinations: [43, 53, 70, 97] },
+    { band: 'MEO', r: 3.22, color: 0xb388ff, opacity: 0.1, inclinations: [54, 56, 64] },
+    { band: 'GEO', r: 6.61, color: 0xffd166, opacity: 0.13, inclinations: [0, 2] },
+  ];
+
+  for (const config of configs) {
+    config.inclinations.forEach((incl, idx) => {
+      const pts: THREE.Vector3[] = [];
+      for (let a = 0; a <= 360; a += 3) {
+        const rad = THREE.MathUtils.degToRad(a);
+        pts.push(new THREE.Vector3(config.r * Math.cos(rad), 0, config.r * Math.sin(rad)));
+      }
+      const line = new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        tagVisualMaterial(new THREE.LineBasicMaterial({
+          color: config.color,
+          transparent: true,
+          opacity: config.opacity,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }), config.band, config.opacity, 0.48)
+      );
+      line.rotation.x = THREE.MathUtils.degToRad(incl);
+      line.rotation.y = THREE.MathUtils.degToRad(idx * 23);
+      line.rotation.z = THREE.MathUtils.degToRad(idx * 37);
+      group.add(line);
+    });
+  }
+
+  return group;
+}
+
 function buildOrbitalBandField(): THREE.Group {
   const group = new THREE.Group();
   const configs: Array<{ r: number; tube: number; color: number; opacity: number; incl: number; raan: number }> = [
@@ -720,15 +996,16 @@ function buildOrbitalBandField(): THREE.Group {
   ];
 
   for (const c of configs) {
+    const band: BandKey = c.r > 6 ? 'GEO' : c.r > 2 ? 'MEO' : 'LEO';
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(c.r, c.tube, 8, 240),
-      new THREE.MeshBasicMaterial({
+      tagVisualMaterial(new THREE.MeshBasicMaterial({
         color: c.color,
         transparent: true,
         opacity: c.opacity,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
-      })
+      }), band, c.opacity, 0.42)
     );
     ring.rotation.x = Math.PI / 2;
     ring.rotation.z = THREE.MathUtils.degToRad(c.raan);

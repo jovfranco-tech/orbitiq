@@ -34,6 +34,7 @@ agent, click-to-inspect, constellation/region/altitude filters, and an executive
 | Filters | Constellation, orbital band, region, altitude range, name/NORAD search |
 | Executive brief | Auto-generated situational summary from the live propagated snapshot |
 | Executive view | Cinematic command-center mode for portfolio screenshots and focused demos |
+| Presentation visuals | LEO/MEO/GEO shells, selected coverage footprints, regional heat focus, mission sequences, agent action trace, and executive snapshot cards |
 | Data provenance | Live / cached / fallback clearly labeled; no false claims |
 | Observability | Runtime UI layer showing exact API / LLM health and data cache metadata |
 | Localisation | EN (default) + ES, all strings keyed |

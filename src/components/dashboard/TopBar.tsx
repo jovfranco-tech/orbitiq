@@ -7,7 +7,7 @@ import { useStore } from '../../state/store';
 import { useUserStore } from '../../state/userStore';
 import { CongestionIndicator } from '../panels/CongestionIndicator';
 import { playClick } from '../../utils/audio';
-import type { DataMode, IntelligenceSummary } from '../../types';
+import type { DataMode, IntelligenceSummary, VisualQuality } from '../../types';
 
 const PROV_MAP: Record<DataMode, [string, string, string]> = {
   live:    ['prov_live',    'prov_live_note',   'm-live'],
@@ -16,6 +16,12 @@ const PROV_MAP: Record<DataMode, [string, string, string]> = {
   mixed:   ['prov_mixed',   'prov_mixed_note',   'm-cached'],
   loading: ['status_loading','prov_demo_note',   'm-loading'],
 };
+
+const QUALITY_OPTIONS: Array<{ value: VisualQuality; shortKey: string; labelKey: string }> = [
+  { value: 'performance', shortKey: 'quality_performance_short', labelKey: 'quality_performance' },
+  { value: 'cinematic', shortKey: 'quality_cinematic_short', labelKey: 'quality_cinematic' },
+  { value: 'presentation', shortKey: 'quality_presentation_short', labelKey: 'quality_presentation' },
+];
 
 interface Props {
   onOpenBrief: () => void;
@@ -29,7 +35,7 @@ interface Props {
 }
 
 export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, onToggleMission, onToggleCinematic, intelligence }: Props) {
-  const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence, showMissionPanel, cinematicMode, tleHealth, agentHealth, showDataHealthPanel, setShowDataHealthPanel } = useStore();
+  const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence, showMissionPanel, cinematicMode, visualQuality, setVisualQuality, tleHealth, agentHealth, showDataHealthPanel, setShowDataHealthPanel } = useStore();
   const { showWatchlistPanel, setShowWatchlistPanel, showSavedViewsPanel, setShowSavedViewsPanel, showSnapshotPanel, setShowSnapshotPanel } = useUserStore();
   
   const [lblKey, noteKey, cls] = PROV_MAP[dataMode] ?? PROV_MAP['fallback'];
@@ -126,6 +132,23 @@ export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, 
         <button className={`ctl ${showIntelligence ? 'intel-active' : ''}`} aria-pressed={showIntelligence} onClick={() => { playClick(); onToggleIntel(); }} title={t('intel_layer')} aria-label={t('intel_layer')}>
           <span className="ctl-icon">⚡</span>
         </button>
+        <div className="quality-switch" role="group" aria-label={t('visual_quality')}>
+          {QUALITY_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={visualQuality === option.value ? 'on' : ''}
+              aria-pressed={visualQuality === option.value}
+              title={t(option.labelKey)}
+              onClick={() => {
+                playClick();
+                setVisualQuality(option.value);
+              }}
+            >
+              {t(option.shortKey)}
+            </button>
+          ))}
+        </div>
         <button
           className={`ctl ctl-icon ${cinematicMode ? 'active' : ''}`}
           aria-pressed={cinematicMode}

@@ -166,7 +166,11 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
   if (actions.altMin != null) chips.push('alt ≥ ' + actions.altMin + 'km');
   if (actions.focusSatnum != null) chips.push('focus: ' + actions.focusSatnum);
   if (actions.brief) chips.push('open brief');
+  if (actions.snapshotAction) chips.push('snapshot: ' + actions.snapshotAction);
+  if (actions.savedViewAction) chips.push('view: ' + actions.savedViewAction.type);
+  if (actions.watchlistAction) chips.push('watchlist: ' + actions.watchlistAction);
   if (result.intent === 'reset') chips.push('reset all');
+  const primaryAction = chips[0] ?? 'view query';
 
   const intel = result.intelligence;
 
@@ -192,6 +196,23 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
             <span className="astat-v accent">{result.visibleCount.toLocaleString()} {t('sats_unit')}</span>
           </div>
         )}
+      </div>
+
+      <div className="agent-action-trace" aria-label={t('agent_actions')}>
+        <div className="trace-step done">
+          <span>{t('agent_trace_intent')}</span>
+          <b>{result.intent}</b>
+        </div>
+        <div className="trace-line" />
+        <div className="trace-step done">
+          <span>{t('agent_trace_validate')}</span>
+          <b>{primaryAction}</b>
+        </div>
+        <div className="trace-line active" />
+        <div className="trace-step active">
+          <span>{t('agent_trace_apply')}</span>
+          <b>{t('agent_trace_done')}</b>
+        </div>
       </div>
 
       {/* Intelligence attachment */}

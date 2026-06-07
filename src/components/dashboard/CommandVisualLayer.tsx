@@ -2,6 +2,8 @@ import { useStore } from '../../state/store';
 
 export function CommandVisualLayer() {
   const cinematicMode = useStore((s) => s.cinematicMode);
+  const visualQuality = useStore((s) => s.visualQuality);
+  const commandPulse = useStore((s) => s.commandPulse);
   const selected = useStore((s) => s.selected);
   const showMissionPanel = useStore((s) => s.showMissionPanel);
   const showRiskLayer = useStore((s) => s.showRiskLayer);
@@ -17,6 +19,7 @@ export function CommandVisualLayer() {
     <div
       className={[
         'command-visual-layer',
+        `quality-${visualQuality}`,
         cinematicMode ? 'is-cinematic' : '',
         selected >= 0 ? 'has-target' : '',
         hasFocusLayer ? 'has-focus-layer' : '',
@@ -30,6 +33,8 @@ export function CommandVisualLayer() {
       <div className="orbital-sweep sweep-b" />
       <div className="risk-pulse-field" />
       <div className="targeting-reticle" />
+      <div key={commandPulse} className="agent-command-wave" />
+      <div className="regional-heat-field" />
     </div>
   );
 }

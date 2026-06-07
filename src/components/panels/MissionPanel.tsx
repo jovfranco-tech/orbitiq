@@ -116,6 +116,8 @@ function RiskSignalCard({ score, level, explanation, action }: { score: number, 
 // Minimal dispatcher bridging UI actions to the store directly
 function dispatchAction(action: AgentAction) {
   const store = useStore.getState();
+  store.setVisualQuality('presentation');
+  store.triggerCommandPulse(action.type);
   if (action.type === 'filter_by_group') {
     store.setShowRiskLayer(true);
     store.resetFilters();

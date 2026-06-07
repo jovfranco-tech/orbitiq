@@ -6,7 +6,7 @@
 // propagation tick. Only UI-driving state goes here.
 // ============================================================
 import { create } from 'zustand';
-import type { DataMode, GroupKey, BandKey, MissionScenarioType, ApiHealth, TleApiMeta } from '../types';
+import type { DataMode, GroupKey, BandKey, MissionScenarioType, ApiHealth, TleApiMeta, VisualQuality } from '../types';
 import { CS } from './catalogStore';
 
 export interface UIState {
@@ -46,6 +46,9 @@ export interface UIState {
   activeMissionScenario: MissionScenarioType | null;
   showRiskLayer: boolean;
   cinematicMode: boolean;
+  visualQuality: VisualQuality;
+  commandPulse: number;
+  lastAgentIntent: string | null;
 
   // Mobile active tab
   activeMobileTab: 'globe' | 'agent' | 'catalog' | 'intel' | 'mission';
@@ -86,6 +89,8 @@ export interface UIActions {
   setActiveMissionScenario(s: MissionScenarioType | null): void;
   setShowRiskLayer(v: boolean): void;
   setCinematicMode(v: boolean): void;
+  setVisualQuality(v: VisualQuality): void;
+  triggerCommandPulse(intent?: string): void;
 
   setActiveMobileTab(tab: 'globe' | 'agent' | 'catalog' | 'intel' | 'mission'): void;
 
@@ -128,6 +133,9 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   activeMissionScenario: null,
   showRiskLayer: false,
   cinematicMode: false,
+  visualQuality: 'cinematic',
+  commandPulse: 0,
+  lastAgentIntent: null,
   activeMobileTab: 'globe',
 
   simMode: 'live',
@@ -182,6 +190,11 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   setActiveMissionScenario: (s) => set({ activeMissionScenario: s }),
   setShowRiskLayer: (v) => set({ showRiskLayer: v }),
   setCinematicMode: (v) => set({ cinematicMode: v, activeMobileTab: 'globe' }),
+  setVisualQuality: (v) => set({ visualQuality: v }),
+  triggerCommandPulse: (intent) => set((state) => ({
+    commandPulse: state.commandPulse + 1,
+    lastAgentIntent: intent ?? state.lastAgentIntent,
+  })),
   setActiveMobileTab: (tab) => set({ activeMobileTab: tab }),
 
   setSimMode: (mode) => {

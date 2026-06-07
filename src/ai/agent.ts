@@ -177,7 +177,7 @@ export function deterministicParse(rawQuery: string, ctx: AgentContext, lang: 'e
   }
 
   // ---- Executive brief ---------------------------------------------------
-  if (/\bbrief\b|executive|summary|overview|picture|situation|resumen|informe|ejecutivo/.test(q) && !/which|where|over|cual|donde|sobre/.test(q)) {
+  if (/\bbrief\b|executive|summary|overview|picture|situation|resumen|informe|ejecutivo/.test(q) && !/snapshot|instantánea|instantanea|instantenea/.test(q) && !/which|where|over|cual|donde|sobre/.test(q)) {
     a.brief = true; intent = 'executive_brief'; confidence = 0.99;
     answer = lang === 'es' ? 'Abriendo el informe ejecutivo del panorama orbital actual.' : 'Opening the executive brief of the current orbital picture.';
     return makeResponse(answer, intent, confidence, assumptions, a, ctx, true);

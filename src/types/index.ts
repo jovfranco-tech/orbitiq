@@ -41,6 +41,7 @@ export type BandKey = 'LEO' | 'MEO' | 'GEO';
 
 /** Data source / freshness mode reported in the UI. */
 export type DataMode = 'live' | 'cached' | 'fallback' | 'mixed' | 'loading';
+export type VisualQuality = 'performance' | 'cinematic' | 'presentation';
 
 /** API Health state */
 export type ApiHealth = 'healthy' | 'degraded' | 'unavailable' | 'fallback';
@@ -399,6 +400,13 @@ export interface GlobeApi {
   setSelected(i: number, name?: string, alt?: number): void;
   setRegionMarker(lat: number | null, lon?: number): void;
   flyTo(p: { clone(): { x: number; y: number; z: number } }): void;
+  setVisualQuality(q: VisualQuality): void;
+  setVisualContext(context: {
+    activeBand: BandKey | null;
+    activeGroups: GroupKey[];
+    regionActive: boolean;
+    missionActive: boolean;
+  }): void;
   setAutoRotate(v: boolean): void;
   setEarthRotation(gmst: number): void;
   setSunTime(timestampMs: number): void;

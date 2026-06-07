@@ -1,6 +1,7 @@
 ## [1.0.0-public-portfolio-release] - 2026-06-06
 
 ### Added
+- Added presentation-grade orbital shells, coverage footprints, constellation trails, regional heat focus, agent action trace, mission cinematic sequence, visual quality modes, and executive snapshot briefing cards.
 - Added executive cinematic view, ambient command visual layers, mission/risk scan affordances, and upgraded target-selection presentation.
 - Added subtle Aloria Labs attribution and project transparency copy.
 - **Mobile Responsive Tab Bar**: Integrated floating bottom navigation bar and touch gestures pass-through on devices `<= 768px` to ensure the 3D globe remains interactive on mobile.

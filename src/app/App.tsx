@@ -20,6 +20,7 @@ import { DataHealthPanel } from '../components/panels/DataHealthPanel';
 import { BottomTabBar } from '../components/dashboard/BottomTabBar';
 import { AttributionBadge } from '../components/dashboard/AttributionBadge';
 import { CommandVisualLayer } from '../components/dashboard/CommandVisualLayer';
+import { MissionCinematicCue } from '../components/dashboard/MissionCinematicCue';
 import { useStore } from '../state/store';
 import { useUserStore } from '../state/userStore';
 import { CS, initCatalogStore } from '../state/catalogStore';
@@ -31,6 +32,7 @@ import { executeAgentCommand } from '../ai/agent';
 import type { AgentContext } from '../ai/agent';
 import { getLang, setLang, t } from '../i18n/i18n';
 import { getIntelligence, invalidateIntelligence } from '../intelligence/intelligence';
+import { getMissionScenarios } from '../intelligence/risk';
 import * as THREE from 'three';
 import { useLiveTelemetry } from '../hooks/useLiveTelemetry';
 import type { GlobeApi, IntelligenceSummary } from '../types';
@@ -149,6 +151,7 @@ export function App() {
   const onGlobeReady = useCallback(async (globe: GlobeApi) => {
     globeRef.current = globe;
     globe.setAutoRotate(true);
+    globe.setVisualQuality(useStore.getState().visualQuality);
     globe.onPick((i) => { if (i >= 0) selectSat(globe, i, true); });
 
     const result = await loadSatellites();
@@ -346,6 +349,37 @@ export function App() {
     return n;
   }, []);
 
+  const createExecutiveSnapshot = useCallback((sourceMode?: string) => {
+    const sState = useStore.getState();
+    const intel = getIntelligence();
+    const selectedSat = sState.selected >= 0 ? CS.catalog[sState.selected] : null;
+    const missionMap = getMissionScenarios(getLang());
+    const missionBrief = sState.activeMissionScenario ? missionMap[sState.activeMissionScenario] ?? null : null;
+
+    useUserStore.getState().createSnapshot({
+      simOffsetMs: sState.simMode === 'live' ? 0 : CS.simTimestampMs - Date.now(),
+      sourceMode: sourceMode ?? sState.dataMode,
+      totalLoaded: CS.N,
+      visibleCount: sState.renderedCount,
+      mostCrowdedBand: intel.mostCrowdedBand,
+      highestConcentrationRegion: intel.highestConcentrationRegion,
+      dominantGroup: intel.dominantGroup,
+      selectedSatellite: selectedSat ? {
+        name: selectedSat.name,
+        satnum: selectedSat.satnum,
+        lat: CS.lat[sState.selected],
+        lon: CS.lon[sState.selected],
+        alt: CS.alt[sState.selected],
+      } : null,
+      executiveBrief: null,
+      missionBrief,
+      riskLayerSummary: missionBrief?.riskSignal ?? null,
+      caveats: ['Public TLE/SGP4-based orbital visualization. Not for flight safety or conjunction assessment.'],
+    });
+    useUserStore.getState().setShowSnapshotPanel(true);
+    store.triggerCommandPulse('create_snapshot');
+  }, [store]);
+
   // ---- Run AI agent command --------------------------------------------
   const runAgent = useCallback(async (query: string) => {
     if (!query.trim()) return;
@@ -381,6 +415,7 @@ export function App() {
     res.sourceMode = latestState.dataMode === 'loading' ? 'fallback' : latestState.dataMode;
     res.visibleCount = latestState.renderedCount;
     setAgentResult(res);
+    store.triggerCommandPulse(res.intent);
 
     // Apply declarative actions to store
     const a = res.actions;
@@ -491,27 +526,7 @@ export function App() {
         if (a.snapshotAction === 'export') {
           uStore.setShowSnapshotPanel(true);
         } else if (a.snapshotAction === 'create') {
-          const sState = useStore.getState();
-          const intel = getIntelligence();
-          const sel = sState.selected >= 0 ? CS.catalog[sState.selected] : null;
-          uStore.createSnapshot({
-            simOffsetMs: sState.simMode === 'live' ? 0 : CS.simTimestampMs - Date.now(),
-            sourceMode: res.sourceMode,
-            totalLoaded: CS.N,
-            visibleCount: sState.renderedCount,
-            mostCrowdedBand: intel.mostCrowdedBand,
-            highestConcentrationRegion: intel.highestConcentrationRegion,
-            dominantGroup: intel.dominantGroup,
-            selectedSatellite: sel ? {
-              name: sel.name, satnum: sel.satnum,
-              lat: CS.lat[sState.selected], lon: CS.lon[sState.selected], alt: CS.alt[sState.selected]
-            } : null,
-            executiveBrief: null,
-            missionBrief: null,
-            riskLayerSummary: null,
-            caveats: ['Public TLE/SGP4-based orbital visualization. Not for flight safety or conjunction assessment.']
-          });
-          uStore.setShowSnapshotPanel(true);
+          createExecutiveSnapshot(res.sourceMode);
         }
       }
     }
@@ -519,7 +534,7 @@ export function App() {
     applyFilter();
 
     setIsThinking(false);
-  }, [countWhere, findSat, regionCountFor, store, selectSat, applyFilter]);
+  }, [countWhere, findSat, regionCountFor, store, selectSat, applyFilter, createExecutiveSnapshot]);
 
   // ---- Language switch -------------------------------------------------
   const handleSetLang = useCallback((l: 'en' | 'es') => {
@@ -533,7 +548,15 @@ export function App() {
   }, [store]);
 
   const handleToggleMission = useCallback(() => {
-    store.setShowMissionPanel(!store.showMissionPanel);
+    const next = !useStore.getState().showMissionPanel;
+    store.setShowMissionPanel(next);
+    if (next) {
+      store.setShowRiskLayer(true);
+      store.setVisualQuality('presentation');
+      globeRef.current?.resetView();
+    } else {
+      store.setShowRiskLayer(false);
+    }
   }, [store]);
 
   const handleToggleCinematic = useCallback(() => {
@@ -541,10 +564,24 @@ export function App() {
     store.setCinematicMode(next);
     if (next) {
       store.setAutoRotate(true);
+      store.setVisualQuality('presentation');
       globeRef.current?.setAutoRotate(true);
       globeRef.current?.resetView();
     }
   }, [store]);
+
+  useEffect(() => {
+    globeRef.current?.setVisualQuality(store.visualQuality);
+  }, [store.visualQuality]);
+
+  useEffect(() => {
+    globeRef.current?.setVisualContext({
+      activeBand: store.filterBand,
+      activeGroups: Array.from(store.activeGroups),
+      regionActive: !!store.filterRegion,
+      missionActive: store.showMissionPanel || store.showRiskLayer || !!store.activeMissionScenario,
+    });
+  }, [store.filterBand, store.activeGroups, store.filterRegion, store.showMissionPanel, store.showRiskLayer, store.activeMissionScenario]);
 
   // ---- Keyboard shortcuts ---------------------------------------------
   useEffect(() => {
@@ -552,6 +589,8 @@ export function App() {
       if (e.key === 'Escape') {
         store.setShowBrief(false);
         store.setCinematicMode(false);
+        store.setShowMissionPanel(false);
+        store.setShowRiskLayer(false);
         clearSelection();
       }
     };
@@ -598,9 +637,10 @@ export function App() {
       )}
       <TourModal />
       <CommandVisualLayer />
+      <MissionCinematicCue missionOpen={missionOpen} activeMissionScenario={store.activeMissionScenario} lang={store.lang} />
 
       {/* UI overlay */}
-      <div id="ui" className={`ui mobile-tab-${activeMobileTab}${cinematicMode ? ' cinematic' : ''}${missionOpen ? ' mission-open' : ''}`}>
+      <div id="ui" className={`ui mobile-tab-${activeMobileTab}${cinematicMode ? ' cinematic' : ''}${missionOpen ? ' mission-open' : ''}${userStore.showSnapshotPanel ? ' snapshot-open' : ''}`}>
         <TopBar
           onOpenBrief={() => store.setShowBrief(true)}
           onResetView={() => globeRef.current?.resetView()}

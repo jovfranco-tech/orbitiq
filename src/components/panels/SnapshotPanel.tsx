@@ -56,6 +56,27 @@ ${snap.caveats.map(c => `- ${c}`).join('\n')}
           <div className="snapshot-list">
             {snapshots.map(s => (
               <div key={s.id} className="snapshot-card">
+                <div className="snapshot-visual">
+                  <div className="snapshot-orbit-map" aria-hidden="true">
+                    <span />
+                    <i />
+                    <b />
+                  </div>
+                  <div className="snapshot-scoreboard">
+                    <div>
+                      <span>Assets</span>
+                      <strong>{s.visibleCount.toLocaleString()}</strong>
+                    </div>
+                    <div>
+                      <span>Band</span>
+                      <strong>{s.mostCrowdedBand}</strong>
+                    </div>
+                    <div>
+                      <span>Mode</span>
+                      <strong>{s.sourceMode}</strong>
+                    </div>
+                  </div>
+                </div>
                 <div className="s-header">
                   <div className="s-date">{new Date(s.timestamp).toLocaleString()}</div>
                   <button 
@@ -69,6 +90,9 @@ ${snap.caveats.map(c => `- ${c}`).join('\n')}
                 <div className="s-body">
                   <p><strong>Total:</strong> {s.visibleCount.toLocaleString()} objects</p>
                   <p><strong>Hotspot:</strong> {s.highestConcentrationRegion}</p>
+                  {s.missionBrief && <p><strong>Mission:</strong> {s.missionBrief.title}</p>}
+                  {s.riskLayerSummary && <p><strong>Risk:</strong> {s.riskLayerSummary.score}/100 · {s.riskLayerSummary.level}</p>}
+                  {s.selectedSatellite && <p><strong>Target:</strong> {s.selectedSatellite.name}</p>}
                 </div>
                 <div className="s-actions">
                   <button className="export-md-btn" onClick={() => handleExportMarkdown(s)}>
