@@ -10,12 +10,49 @@ import { z } from 'zod';
 interface VercelRequest {
   method?: string;
   body?: unknown;
+  headers?: Record<string, string | string[] | undefined>;
 }
 interface VercelResponse {
   setHeader(k: string, v: string): this;
   status(code: number): this;
   json(data: unknown): void;
   end(): void;
+}
+
+// ---- Rate limiting — sliding window (in-memory, survives warm lambda) ------
+
+const _rlMap = new Map<string, number[]>();
+const RL_WINDOW_MS = 60_000; // 1 minute
+const RL_MAX = 15;           // 15 requests per window per IP
+
+function getClientIp(req: VercelRequest): string {
+  const fwd = req.headers?.['x-forwarded-for'];
+  const raw = Array.isArray(fwd) ? fwd[0] : (fwd ?? 'unknown');
+  return raw.split(',')[0].trim();
+}
+
+function checkRateLimit(ip: string): { allowed: boolean; retryAfterMs: number } {
+  const now = Date.now();
+  const cutoff = now - RL_WINDOW_MS;
+  let ts = (_rlMap.get(ip) ?? []).filter((t) => t > cutoff);
+
+  if (ts.length >= RL_MAX) {
+    const retryAfterMs = ts[0] + RL_WINDOW_MS - now;
+    _rlMap.set(ip, ts);
+    return { allowed: false, retryAfterMs };
+  }
+
+  ts = [...ts, now];
+  _rlMap.set(ip, ts);
+
+  // Prevent unbounded growth — prune stale IPs every ~1 000 unique IPs added
+  if (_rlMap.size > 5000) {
+    for (const [k, v] of _rlMap) {
+      if (v.every((t) => t <= cutoff)) _rlMap.delete(k);
+    }
+  }
+
+  return { allowed: true, retryAfterMs: 0 };
 }
 
 // ---- Zod Schema for Validation ---------------------------------------------
@@ -82,6 +119,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  const ip = getClientIp(req);
+  const rl = checkRateLimit(ip);
+  if (!rl.allowed) {
+    const retryAfterSec = Math.ceil(rl.retryAfterMs / 1000);
+    res.setHeader('Retry-After', String(retryAfterSec));
+    res.status(429).json({ error: 'rate_limit_exceeded', retryAfterSec });
     return;
   }
 

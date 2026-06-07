@@ -85,7 +85,13 @@ function detectRegion(q: string): string | null {
 }
 
 function detectAltitude(q: string): { altMin: number | null; altMax: number | null } {
-  const m = q.match(/(below|under|less than|lower than|above|over|higher than|greater than|debajo|bajo|menos de|inferior a|sobre|arriba|mas de|más de|superior a)\s*(\d{2,6})\s*(km)?/);
+  // Handle Spanish prepositional phrases: "debajo de X km", "encima de X km"
+  const normalized = q
+    .replace(/\bdebajo\s+de\b/g, 'debajo')
+    .replace(/\bencima\s+de\b/g, 'encima')
+    .replace(/\bpor encima de\b/g, 'encima')
+    .replace(/\bpor debajo de\b/g, 'debajo');
+  const m = normalized.match(/(below|under|less than|lower than|above|over|higher than|greater than|debajo|bajo|menos de|inferior a|sobre|arriba|mas de|más de|superior a|encima)\s*(\d{2,6})\s*(km)?/);
   if (!m) return { altMin: null, altMax: null };
   const v = +m[2];
   if (/below|under|less|lower|debajo|bajo|menos|inferior/.test(m[1])) return { altMin: null, altMax: v };
