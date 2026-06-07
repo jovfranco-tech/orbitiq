@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeConversationHistory } from './agent';
+import { sanitizeConversationHistory } from '../../api/agent';
 
 describe('sanitizeConversationHistory', () => {
   it('keeps only valid conversation turns and trims content', () => {
