@@ -6,7 +6,7 @@
   --bg:#05070d; --bg2:#070b14;
   --panel:rgba(11,17,29,.62); --panel-solid:#0b111d;
   --border:rgba(122,170,255,.16); --border-soft:rgba(122,170,255,.09);
-  --text:#dde7f6; --muted:#8597b3; --faint:#5a6b86;
+  --text:#dde7f6; --muted:#8597b3; --faint:#6e80a0;
   --cyan:#5fd0f5; --cyan-bright:#8ef0ff; --violet:#b58cff; --green:#06d6a0;
   --amber:#ffd166; --danger:#ff6b8b;
   --glow:0 0 0 1px var(--border), 0 18px 50px -18px rgba(0,0,0,.85);

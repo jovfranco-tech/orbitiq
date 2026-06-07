@@ -15,6 +15,7 @@ import { CommandVisualLayer } from '../components/dashboard/CommandVisualLayer';
 import { MissionCinematicCue } from '../components/dashboard/MissionCinematicCue';
 import { useStore } from '../state/store';
 import { useUserStore } from '../state/userStore';
+import { PanelErrorBoundary } from '../components/PanelErrorBoundary';
 import { CS, initCatalogStore } from '../state/catalogStore';
 import { loadSatellites } from '../data/client';
 import { GROUPS, classifyGroup } from '../data/groups';
@@ -542,6 +543,7 @@ export function App() {
   const handleSetLang = useCallback((l: 'en' | 'es') => {
     setLang(l);
     store.setLang(l);
+    document.documentElement.lang = l;
   }, [store]);
 
   // ---- Intelligence toggle ---------------------------------------------
@@ -576,6 +578,7 @@ export function App() {
     if (window.matchMedia('(max-width: 768px)').matches && useStore.getState().visualQuality === 'cinematic') {
       store.setVisualQuality('performance');
     }
+    document.documentElement.lang = store.lang;
   }, [store]);
 
   useEffect(() => {
@@ -676,50 +679,62 @@ export function App() {
         </aside>
 
         {selected >= 0 && CS.catalog[selected] && (
-          <Suspense fallback={null}>
-            <DetailPanel onClose={clearSelection} onToggleTrack={toggleTrack} />
-          </Suspense>
+          <PanelErrorBoundary panelName="Detail">
+            <Suspense fallback={null}>
+              <DetailPanel onClose={clearSelection} onToggleTrack={toggleTrack} />
+            </Suspense>
+          </PanelErrorBoundary>
         )}
 
         {/* Intelligence panel — only when no detail panel and toggle is on (or mobile tab is active) */}
         {(showIntelligence && selected < 0 || activeMobileTab === 'intel') && (
-          <Suspense fallback={null}>
-            <OrbitalIntelligencePanel
-              intelligence={intelligence}
-              onClose={() => {
-                store.setShowIntelligence(false);
-                if (activeMobileTab === 'intel') store.setActiveMobileTab('globe');
-              }}
-            />
-          </Suspense>
+          <PanelErrorBoundary panelName="Intelligence">
+            <Suspense fallback={null}>
+              <OrbitalIntelligencePanel
+                intelligence={intelligence}
+                onClose={() => {
+                  store.setShowIntelligence(false);
+                  if (activeMobileTab === 'intel') store.setActiveMobileTab('globe');
+                }}
+              />
+            </Suspense>
+          </PanelErrorBoundary>
         )}
-        
+
         {missionOpen && (
-          <Suspense fallback={null}>
-            <MissionPanel />
-          </Suspense>
+          <PanelErrorBoundary panelName="Mission">
+            <Suspense fallback={null}>
+              <MissionPanel />
+            </Suspense>
+          </PanelErrorBoundary>
         )}
 
         {userStore.showWatchlistPanel && (
-          <Suspense fallback={null}>
-            <WatchlistPanel
-              onClose={() => userStore.setShowWatchlistPanel(false)}
-              onSelectSatnum={(s) => {
-                const idx = CS.catalog.findIndex(c => c && c.satnum === s);
-                if (idx >= 0 && globeRef.current) selectSat(globeRef.current, idx, true);
-              }}
-            />
-          </Suspense>
+          <PanelErrorBoundary panelName="Watchlist">
+            <Suspense fallback={null}>
+              <WatchlistPanel
+                onClose={() => userStore.setShowWatchlistPanel(false)}
+                onSelectSatnum={(s) => {
+                  const idx = CS.catalog.findIndex(c => c && c.satnum === s);
+                  if (idx >= 0 && globeRef.current) selectSat(globeRef.current, idx, true);
+                }}
+              />
+            </Suspense>
+          </PanelErrorBoundary>
         )}
         {userStore.showSavedViewsPanel && (
-          <Suspense fallback={null}>
-            <SavedViewsPanel onClose={() => userStore.setShowSavedViewsPanel(false)} />
-          </Suspense>
+          <PanelErrorBoundary panelName="Saved Views">
+            <Suspense fallback={null}>
+              <SavedViewsPanel onClose={() => userStore.setShowSavedViewsPanel(false)} />
+            </Suspense>
+          </PanelErrorBoundary>
         )}
         {userStore.showSnapshotPanel && (
-          <Suspense fallback={null}>
-            <SnapshotPanel onClose={() => userStore.setShowSnapshotPanel(false)} />
-          </Suspense>
+          <PanelErrorBoundary panelName="Snapshots">
+            <Suspense fallback={null}>
+              <SnapshotPanel onClose={() => userStore.setShowSnapshotPanel(false)} />
+            </Suspense>
+          </PanelErrorBoundary>
         )}
 
         <TimeControlsPanel />
@@ -743,9 +758,11 @@ export function App() {
         <AttributionBadge />
 
         {showBrief && (
-          <Suspense fallback={null}>
-            <BriefModal onClose={() => store.setShowBrief(false)} />
-          </Suspense>
+          <PanelErrorBoundary panelName="Executive Brief">
+            <Suspense fallback={null}>
+              <BriefModal onClose={() => store.setShowBrief(false)} />
+            </Suspense>
+          </PanelErrorBoundary>
         )}
       </div>
     </>
