@@ -27,3 +27,7 @@ npm-debug.log*
 # Vercel
 .vercel/
 .vercel
+
+# Playwright test output
+playwright-report/
+test-results/
