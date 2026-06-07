@@ -23,6 +23,8 @@ test.describe('Accessibility — WCAG 2.1 AA', () => {
   });
 
   test('skip-link navigates to main content', async ({ page }) => {
+    // Click body to give the page keyboard focus before tabbing
+    await page.locator('body').click();
     await page.keyboard.press('Tab');
     const skipLink = page.locator('.skip-link');
     await expect(skipLink).toBeFocused();
@@ -32,6 +34,9 @@ test.describe('Accessibility — WCAG 2.1 AA', () => {
   });
 
   test('bottom tab bar supports arrow key navigation', async ({ page }) => {
+    // BottomTabBar is display:none on desktop — use mobile viewport for this test
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.waitForSelector('.bottom-tab-bar', { timeout: 5_000 });
     const firstTab = page.locator('[role="tab"]').first();
     await firstTab.focus();
     await firstTab.press('ArrowRight');
