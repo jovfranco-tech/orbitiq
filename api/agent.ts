@@ -8,6 +8,7 @@ import { z } from 'zod';
 interface VercelRequest {
   method?: string;
   body?: unknown;
+  headers?: Record<string, string | string[] | undefined>;
 }
 interface VercelResponse {
   setHeader(k: string, v: string): this;
@@ -65,6 +66,21 @@ const ResponseSchema = z.object({
 });
 
 export type LlmAgentResponse = z.infer<typeof ResponseSchema>;
+
+function header(req: VercelRequest, key: string): string | undefined {
+  const value = req.headers?.[key] ?? req.headers?.[key.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function logEvent(level: 'info' | 'error', data: Record<string, unknown>): void {
+  const payload = JSON.stringify({
+    level,
+    route: '/api/agent',
+    ...data,
+  });
+  if (level === 'error') console.error(payload);
+  else console.log(payload);
+}
 
 // ---- Shared system prompt --------------------------------------------------
 
@@ -134,10 +150,46 @@ type LlmAgentResponse = {
 };`;
 }
 
+interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export function sanitizeConversationHistory(history: unknown): ConversationMessage[] {
+  if (!Array.isArray(history)) return [];
+
+  return history
+    .filter((m): m is ConversationMessage => {
+      if (typeof m !== 'object' || m === null) return false;
+      const candidate = m as Partial<ConversationMessage>;
+      return (
+        (candidate.role === 'user' || candidate.role === 'assistant') &&
+        typeof candidate.content === 'string' &&
+        candidate.content.trim().length > 0 &&
+        candidate.content.length <= 2000
+      );
+    })
+    .map((m) => ({ role: m.role, content: m.content.trim() }))
+    .slice(-6);
+}
+
 // ---- Gemini call -----------------------------------------------------------
 
-async function callGemini(apiKey: string, query: string, context: unknown): Promise<string> {
+async function callGemini(
+  apiKey: string,
+  query: string,
+  context: unknown,
+  history: ConversationMessage[] = [],
+): Promise<string> {
   const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+
+  // Build multi-turn contents array from history + current query
+  const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
+  for (const msg of history) {
+    contents.push({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] });
+  }
+  contents.push({ role: 'user', parts: [{ text: query }] });
+
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -145,7 +197,7 @@ async function callGemini(apiKey: string, query: string, context: unknown): Prom
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: buildSystemPrompt(context) }] },
-        contents: [{ role: 'user', parts: [{ text: query }] }],
+        contents,
         generationConfig: {
           responseMimeType: 'application/json',
           temperature: 0.1,
@@ -162,8 +214,18 @@ async function callGemini(apiKey: string, query: string, context: unknown): Prom
 
 // ---- OpenAI call -----------------------------------------------------------
 
-async function callOpenAI(apiKey: string, query: string, context: unknown): Promise<string> {
+async function callOpenAI(
+  apiKey: string,
+  query: string,
+  context: unknown,
+  history: ConversationMessage[] = [],
+): Promise<string> {
   const model = process.env.LLM_MODEL || 'gpt-4o-mini';
+  const messages = [
+    { role: 'system', content: buildSystemPrompt(context) },
+    ...history.map((m) => ({ role: m.role, content: m.content })),
+    { role: 'user', content: query },
+  ];
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -172,10 +234,7 @@ async function callOpenAI(apiKey: string, query: string, context: unknown): Prom
     },
     body: JSON.stringify({
       model,
-      messages: [
-        { role: 'system', content: buildSystemPrompt(context) },
-        { role: 'user', content: query },
-      ],
+      messages,
       temperature: 0.1,
       response_format: { type: 'json_object' },
     }),
@@ -189,6 +248,11 @@ async function callOpenAI(apiKey: string, query: string, context: unknown): Prom
 // ---- Main Handler ----------------------------------------------------------
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const t0 = Date.now();
+  const requestId = header(req, 'x-vercel-id') ?? header(req, 'x-request-id') ?? 'local';
+
+  logEvent('info', { event: 'agent_start', method: req.method, requestId });
+
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -199,6 +263,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (req.method !== 'POST') {
+    logEvent('info', { event: 'agent_method_not_allowed', method: req.method, requestId, durationMs: Date.now() - t0 });
     res.status(405).json({ error: 'Method not allowed' });
     return;
   }
@@ -207,29 +272,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const openaiKey = process.env.OPENAI_API_KEY;
 
   if (!geminiKey && !openaiKey) {
+    logEvent('error', { event: 'agent_not_configured', requestId, durationMs: Date.now() - t0 });
     res.status(503).json({ error: 'LLM not configured. Deterministic fallback required.' });
     return;
   }
 
   if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
+    logEvent('info', { event: 'agent_bad_body', requestId, durationMs: Date.now() - t0 });
     res.status(400).json({ error: 'Invalid request body' });
     return;
   }
 
-  const { query, context } = req.body as { query?: unknown; context?: unknown };
+  const { query, context, history } = req.body as {
+    query?: unknown;
+    context?: unknown;
+    history?: unknown;
+  };
   if (!query || typeof query !== 'string' || query.length > 500) {
+    logEvent('info', { event: 'agent_bad_query', requestId, durationMs: Date.now() - t0 });
     res.status(400).json({ error: 'Missing or invalid query (max 500 chars)' });
     return;
   }
+
+  const safeHistory = sanitizeConversationHistory(history);
 
   let contextSize = 0;
   try {
     contextSize = JSON.stringify(context || {}).length;
   } catch {
+    logEvent('info', { event: 'agent_bad_context', requestId, durationMs: Date.now() - t0 });
     res.status(400).json({ error: 'Invalid context payload' });
     return;
   }
   if (contextSize > 10000) {
+    logEvent('info', { event: 'agent_context_too_large', requestId, contextSize, durationMs: Date.now() - t0 });
     res.status(400).json({ error: 'Context payload too large' });
     return;
   }
@@ -238,9 +314,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     let content: string;
 
     if (geminiKey) {
-      content = await callGemini(geminiKey, query, context);
+      content = await callGemini(geminiKey, query, context, safeHistory);
     } else {
-      content = await callOpenAI(openaiKey!, query, context);
+      content = await callOpenAI(openaiKey!, query, context, safeHistory);
     }
 
     content = content.trim();
@@ -251,13 +327,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const parsed = JSON.parse(content);
     const validatedData = ResponseSchema.parse(parsed);
 
+    logEvent('info', {
+      event: 'agent_success',
+      intent: validatedData.intent,
+      provider: geminiKey ? 'gemini' : 'openai',
+      historyTurns: safeHistory.length,
+      requestId,
+      durationMs: Date.now() - t0,
+    });
+
     res.status(200).json(validatedData);
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
-      console.error('[/api/agent] LLM Response Schema mismatch');
+      logEvent('error', {
+        event: 'agent_schema_error',
+        issues: err.issues.map((i) => i.message).slice(0, 5),
+        requestId,
+        durationMs: Date.now() - t0,
+      });
       res.status(500).json({ error: 'invalid_schema' });
     } else {
-      console.error('[/api/agent] LLM fetch or parse failed');
+      const msg = err instanceof Error ? err.message : String(err);
+      logEvent('error', {
+        event: 'agent_provider_error',
+        error: msg.slice(0, 200),
+        provider: geminiKey ? 'gemini' : 'openai',
+        requestId,
+        durationMs: Date.now() - t0,
+      });
       res.status(503).json({ error: 'provider_unavailable' });
     }
   }

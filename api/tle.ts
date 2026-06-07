@@ -10,7 +10,10 @@
 // ============================================================
 
 // Inline types matching @vercel/node — no package install required at typecheck time
-interface VercelRequest { method?: string; }
+interface VercelRequest {
+  method?: string;
+  headers?: Record<string, string | string[] | undefined>;
+}
 interface VercelResponse {
   setHeader(k: string, v: string): this;
   status(code: number): this;
@@ -68,6 +71,10 @@ const CELESTRAK_ACTIVE_URL =
   'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle';
 const CELESTRAK_STARLINK_SUPGP_URL =
   'https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=tle';
+const CELESTRAK_CUBESAT_URL =
+  'https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle';
+const CELESTRAK_AMATEUR_URL =
+  'https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle';
 
 interface TleSource {
   label: string;
@@ -80,14 +87,28 @@ const ACTIVE_SOURCE: TleSource = {
   label: 'CelesTrak GP active',
   url: CELESTRAK_ACTIVE_URL,
   minRecords: 1000,
-  timeoutMs: 3000,
+  timeoutMs: 8000,
 };
 
 const STARLINK_SUPGP_SOURCE: TleSource = {
   label: 'CelesTrak SupGP Starlink',
   url: CELESTRAK_STARLINK_SUPGP_URL,
   minRecords: 1000,
-  timeoutMs: 6000,
+  timeoutMs: 8000,
+};
+
+const CUBESAT_SOURCE: TleSource = {
+  label: 'CelesTrak GP CubeSat',
+  url: CELESTRAK_CUBESAT_URL,
+  minRecords: 50,
+  timeoutMs: 5000,
+};
+
+const AMATEUR_SOURCE: TleSource = {
+  label: 'CelesTrak GP Amateur',
+  url: CELESTRAK_AMATEUR_URL,
+  minRecords: 50,
+  timeoutMs: 5000,
 };
 
 function parseTleText(text: string, minRecords: number): SatPayload[] {
@@ -161,14 +182,37 @@ function successCacheControl(): string {
   return `public, s-maxage=${EDGE_CACHE_SECONDS}, stale-while-revalidate=${EDGE_STALE_SECONDS}`;
 }
 
+function header(req: VercelRequest, key: string): string | undefined {
+  const value = req.headers?.[key] ?? req.headers?.[key.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function logEvent(level: 'info' | 'error', data: Record<string, unknown>): void {
+  const payload = JSON.stringify({
+    level,
+    route: '/api/tle',
+    ...data,
+  });
+  if (level === 'error') console.error(payload);
+  else console.log(payload);
+}
+
 // ---------------------------------------------------------------------------
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const startedAt = Date.now();
+  const requestId = header(req, 'x-vercel-id') ?? header(req, 'x-request-id') ?? 'local';
+  logEvent('info', { event: 'tle_start', method: req.method, requestId });
+
   // CORS: allow same-origin and Vercel preview deployments
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') { res.status(204).end(); return; }
-  if (req.method !== 'GET')    { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (req.method !== 'GET') {
+    logEvent('info', { event: 'tle_method_not_allowed', method: req.method, requestId, durationMs: Date.now() - startedAt });
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
 
   const now = Date.now();
 
@@ -192,16 +236,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     };
     res.setHeader('Cache-Control', successCacheControl());
+    logEvent('info', {
+      event: 'tle_cache_hit',
+      requestId,
+      count: cached.satellites.length,
+      cacheAgeSeconds: cached.meta.cacheAgeSeconds,
+      durationMs: Date.now() - startedAt,
+    });
     res.status(200).json(cached);
     return;
   }
 
-  // Attempt live fetch
+  // Attempt live fetch — primary catalog + supplemental in parallel
   try {
-    const satellites = await fetchTleSource(ACTIVE_SOURCE);
+    const [activeSats, cubeSats, amateurSats] = await Promise.allSettled([
+      fetchTleSource(ACTIVE_SOURCE),
+      fetchTleSource(CUBESAT_SOURCE),
+      fetchTleSource(AMATEUR_SOURCE),
+    ]);
+
+    if (activeSats.status !== 'fulfilled') throw new Error('Active catalog unavailable');
+
+    // Merge supplemental feeds, deduplicating by satnum
+    const seenSatnums = new Set(activeSats.value.map((s) => s.satnum));
+    let satellites: SatPayload[] = [...activeSats.value];
+    for (const result of [cubeSats, amateurSats]) {
+      if (result.status === 'fulfilled') {
+        for (const s of result.value) {
+          if (!seenSatnums.has(s.satnum)) {
+            seenSatnums.add(s.satnum);
+            satellites.push(s);
+          }
+        }
+      }
+    }
+
+    const supplementalSources = [
+      cubeSats.status === 'fulfilled' ? `+${cubeSats.value.length} CubeSat` : null,
+      amateurSats.status === 'fulfilled' ? `+${amateurSats.value.length} Amateur` : null,
+    ].filter(Boolean).join(', ');
+
     const payload: TleResponse = {
       meta: {
-        source: 'CelesTrak GP (celestrak.org)',
+        source: supplementalSources
+          ? `CelesTrak GP active (${satellites.length} total: ${supplementalSources})`
+          : 'CelesTrak GP (celestrak.org)',
         sourceMode: 'live',
         fetchTimestamp: new Date(now).toISOString(),
         fetchedAt: new Date(now).toISOString(),
@@ -220,12 +299,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     cache = { data: payload, fetchedAt: now };
 
     res.setHeader('Cache-Control', successCacheControl());
+    logEvent('info', {
+      event: 'tle_live_success',
+      requestId,
+      count: satellites.length,
+      supplementalSources,
+      durationMs: Date.now() - startedAt,
+    });
     res.status(200).json(payload);
   } catch (err) {
     // Network/parse/rate-limit failure — serve stale cache, then try a smaller
     // public Starlink source before falling back to the representative catalog.
     const errorMsg = safeFallbackReason(err);
-    console.error('[/api/tle] CelesTrak fetch failed:', errorMsg);
+    logEvent('error', {
+      event: 'tle_primary_failed',
+      requestId,
+      error: errorMsg,
+      durationMs: Date.now() - startedAt,
+    });
 
     if (cache?.data?.satellites.length) {
       const cacheAgeSeconds = Math.floor((now - cache.fetchedAt) / 1000);
@@ -248,6 +339,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         },
       };
       res.setHeader('Cache-Control', successCacheControl());
+      logEvent('info', {
+        event: 'tle_stale_cache_success',
+        requestId,
+        count: staleCached.satellites.length,
+        cacheAgeSeconds,
+        durationMs: Date.now() - startedAt,
+      });
       res.status(200).json(staleCached);
       return;
     }
@@ -276,10 +374,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       cache = { data: payload, fetchedAt: now };
 
       res.setHeader('Cache-Control', successCacheControl());
+      logEvent('info', {
+        event: 'tle_starlink_success',
+        requestId,
+        count: satellites.length,
+        durationMs: Date.now() - startedAt,
+      });
       res.status(200).json(payload);
       return;
     } catch (starlinkErr) {
-      console.error('[/api/tle] Starlink SupGP fetch failed:', safeFallbackReason(starlinkErr));
+      logEvent('error', {
+        event: 'tle_starlink_failed',
+        requestId,
+        error: safeFallbackReason(starlinkErr),
+        durationMs: Date.now() - startedAt,
+      });
     }
 
     const fallback: TleResponse = {
@@ -302,6 +411,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
 
     res.setHeader('Cache-Control', 'no-store');
+    logEvent('info', {
+      event: 'tle_client_fallback',
+      requestId,
+      durationMs: Date.now() - startedAt,
+    });
     res.status(200).json(fallback);
   }
 }

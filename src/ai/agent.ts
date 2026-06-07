@@ -581,7 +581,17 @@ function buildFiltersApplied(a: AgentActions): Record<string, unknown> {
 
 // ---- LLM execute wrapper ---------------------------------------------------
 
-export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, lang: 'en' | 'es'): Promise<AiAgentResponse> {
+export interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export async function executeAgentCommand(
+  rawQuery: string,
+  ctx: AgentContext,
+  lang: 'en' | 'es',
+  history: ConversationMessage[] = [],
+): Promise<AiAgentResponse> {
   if (!rawQuery.trim()) {
     return { ...deterministicParse(rawQuery, ctx, lang), responseMode: 'deterministic' };
   }
@@ -590,6 +600,7 @@ export async function executeAgentCommand(rawQuery: string, ctx: AgentContext, l
     const intel = getIntelligence();
     const payload = {
       query: rawQuery,
+      history: history.slice(-6), // last 6 turns for context
       context: {
         language: lang,
         total: ctx.total,

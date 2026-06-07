@@ -21,8 +21,13 @@ import { matchRegion, REGIONS } from '../regions/regions';
 import type { AgentContext } from '../ai/agent';
 import { getLang, setLang, t } from '../i18n/i18n';
 import { useLiveTelemetry } from '../hooks/useLiveTelemetry';
+import { useURLSync } from '../hooks/useURLSync';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useMobile } from '../hooks/useMobile';
+import { useFirebaseCloudSync } from '../hooks/useFirebaseCloudSync';
 import type { GlobeApi, IntelligenceSummary } from '../types';
 import type { AiAgentResponse, GroupKey, BandKey } from '../types';
+import type { ConversationMessage } from '../ai/agent';
 
 const GlobeMount = lazy(() => import('../components/globe/GlobeMount').then((m) => ({ default: m.GlobeMount })));
 const MissionPanel = lazy(() => import('../components/panels/MissionPanel').then((m) => ({ default: m.MissionPanel })));
@@ -104,11 +109,14 @@ export function App() {
 
   const [agentResult, setAgentResult] = useState<AiAgentResponse | null>(null);
   const [isThinking, setIsThinking]   = useState(false);
+  const agentInputRef = useRef<HTMLInputElement | null>(null);
   const { tickerMsg } = useLiveTelemetry();
   const [intelligence, setIntelligence] = useState<IntelligenceSummary | null>(null);
 
   const store = useStore();
   const userStore = useUserStore();
+  const isMobile = useMobile();
+  useFirebaseCloudSync();
 
   const loadIntelligenceRuntime = useCallback(() => {
     intelligenceRuntimeRef.current ??= import('../intelligence/runtime');
@@ -124,27 +132,42 @@ export function App() {
   }, [loadIntelligenceRuntime]);
 
   // ---- Filter pass (hot path) ------------------------------------------
+  const MOBILE_MAX_RENDER = 600;
   const applyFilter = useCallback(() => {
     if (!globeRef.current) return;
     const globe = globeRef.current;
     const { activeGroups, filterBand, filterRegion, altMin, altMax, selected } = useStore.getState();
     const hasLayerFilter = !!activeGroups.size || !!filterBand || !!filterRegion || altMin != null || altMax != null;
+    const mobile = window.innerWidth < 768;
     let rendered = 0, regionCount = 0;
+    // First pass: collect matching indices
+    const matches: boolean[] = new Array(CS.N).fill(false);
     for (let i = 0; i < CS.N; i++) {
-      let matches = true;
-      if (CS.alt[i] < 0) matches = false;
-      else if (activeGroups.size && !activeGroups.has(CS.group[i])) matches = false;
-      else if (filterBand && CS.band[i] !== filterBand) matches = false;
-      else if (altMax != null && CS.alt[i] > altMax) matches = false;
-      else if (altMin != null && CS.alt[i] < altMin) matches = false;
-      else if (filterRegion && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) matches = false;
-      CS.vis[i] = matches ? 1 : hasLayerFilter && CS.alt[i] >= 0 ? 0.075 : 0;
-      if (matches) rendered++;
-      if (filterRegion && matches) regionCount++;
+      if (CS.alt[i] < 0) continue;
+      if (activeGroups.size && !activeGroups.has(CS.group[i])) continue;
+      if (filterBand && CS.band[i] !== filterBand) continue;
+      if (altMax != null && CS.alt[i] > altMax) continue;
+      if (altMin != null && CS.alt[i] < altMin) continue;
+      if (filterRegion && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) continue;
+      matches[i] = true;
+      rendered++;
+      if (filterRegion) regionCount++;
+    }
+    // On mobile, thin out to MOBILE_MAX_RENDER via deterministic sampling
+    const sampleRate = mobile && rendered > MOBILE_MAX_RENDER ? MOBILE_MAX_RENDER / rendered : 1;
+    let kept = 0;
+    for (let i = 0; i < CS.N; i++) {
+      if (matches[i]) {
+        const show = sampleRate >= 1 || (i % Math.ceil(1 / sampleRate) === 0);
+        CS.vis[i] = show ? 1 : hasLayerFilter ? 0.075 : 0;
+        if (show) kept++;
+      } else {
+        CS.vis[i] = hasLayerFilter && CS.alt[i] >= 0 ? 0.075 : 0;
+      }
     }
     if (selected >= 0 && selected < CS.N) CS.vis[selected] = 1;
     globe.setVisible(CS.vis);
-    useStore.getState().setCounts(CS.N, rendered, regionCount);
+    useStore.getState().setCounts(CS.N, mobile ? kept : rendered, regionCount);
   }, []);
 
   // ---- Propagation tick (offloaded to Web Worker) -----------------------
@@ -164,7 +187,10 @@ export function App() {
     }
     
     isWorkerBusyRef.current = true;
-    workerRef.current.postMessage({ type: 'TICK', payload: { timestampMs: CS.simTimestampMs } });
+    workerRef.current.postMessage({
+      type: 'TICK',
+      payload: { timestampMs: CS.simTimestampMs, selectedIdx: useStore.getState().selected },
+    });
   }, []);
 
   // ---- Load catalog into GPU buffers -----------------------------------
@@ -237,7 +263,7 @@ export function App() {
 
     tickRef.current = setInterval(tick, TICK_MS);
     intelRef.current = setInterval(refreshIntel, INTEL_REFRESH_MS);
-  }, [loadCatalog, tick, refreshIntel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadCatalog, tick, refreshIntel]);
 
   // ---- Worker setup & cleanup (StrictMode double-mount safe) ---------------
   useEffect(() => {
@@ -254,7 +280,8 @@ export function App() {
       } else if (e.data.type === 'TICK_RESULT') {
         isWorkerBusyRef.current = false;
         if (!globe) return;
-        const { timestampMs, gmst, posBuf, lat, lon, alt, band } = e.data.payload;
+        const { timestampMs, gmst, posBuf, lat, lon, alt, band, proximity } = e.data.payload;
+        if (proximity) CS.proximity = proximity;
         
         CS.posBuf = posBuf;
         CS.lat = lat;
@@ -293,37 +320,8 @@ export function App() {
     };
   }, []);
 
-  // ---- URL Init: restore state from hash params on mount ------------------
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.hash.slice(1));
-    const band = params.get('band') as BandKey | null;
-    const region = params.get('region');
-    const groups = params.get('groups');
-    const sat = params.get('sat');
-
-    if (band) useStore.getState().setFilterBand(band);
-    if (region) useStore.getState().setFilterRegion(region);
-    if (groups) {
-      const gs = groups.split(',').filter(Boolean) as GroupKey[];
-      if (gs.length > 0) useStore.getState().setActiveGroups(new Set(gs));
-    }
-    if (sat) {
-      const satnum = Number(sat);
-      if (Number.isFinite(satnum) && satnum > 0) pendingSatRef.current = satnum;
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ---- URL State Sync --------------------------------------------------
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (store.filterBand) params.set('band', store.filterBand);
-    if (store.filterRegion) params.set('region', store.filterRegion);
-    if (store.activeGroups.size > 0) params.set('groups', Array.from(store.activeGroups).join(','));
-    if (store.selected >= 0 && CS.catalog[store.selected]) params.set('sat', CS.catalog[store.selected].satnum.toString());
-    const hash = params.toString();
-    const newUrl = hash ? `${window.location.pathname}#${hash}` : window.location.pathname;
-    window.history.replaceState(null, '', newUrl);
-  }, [store.filterBand, store.filterRegion, store.activeGroups, store.selected]);
+  // ---- URL sync (init from hash + write on filter changes) ---------------
+  useURLSync(pendingSatRef);
 
   // ---- React to filter changes instantly -------------------------------
   useEffect(() => {
@@ -456,161 +454,189 @@ export function App() {
   }, [store, loadIntelligenceRuntime]);
 
   // ---- Run AI agent command --------------------------------------------
-  const runAgent = useCallback(async (query: string) => {
+  const runAgent = useCallback(async (query: string, history: ConversationMessage[] = []) => {
     if (!query.trim()) return;
     setIsThinking(true);
 
-    const state = useStore.getState();
-    const groupCounts: Record<string, number> = {};
-    const bandCounts = { LEO: 0, MEO: 0, GEO: 0 };
-    for (let i = 0; i < CS.N; i++) {
-      if (CS.alt[i] < 0) continue;
-      groupCounts[CS.group[i]] = (groupCounts[CS.group[i]] ?? 0) + 1;
-      if (CS.band[i] in bandCounts) bandCounts[CS.band[i] as keyof typeof bandCounts]++;
-    }
+    try {
+      const state = useStore.getState();
+      const groupCounts: Record<string, number> = {};
+      const bandCounts = { LEO: 0, MEO: 0, GEO: 0 };
+      for (let i = 0; i < CS.N; i++) {
+        if (CS.alt[i] < 0) continue;
+        groupCounts[CS.group[i]] = (groupCounts[CS.group[i]] ?? 0) + 1;
+        if (CS.band[i] in bandCounts) bandCounts[CS.band[i] as keyof typeof bandCounts]++;
+      }
 
-    const ctx: AgentContext = {
-      count: countWhere,
-      find: findSat,
-      groupLabel: (g: GroupKey) => (GROUPS[g] ?? GROUPS['other']).label,
-      regionCount: regionCountFor,
-      total: CS.N,
-      rendered: state.renderedCount,
-      groupCounts,
-      bandCounts,
-      activeRegion: state.filterRegion,
-      activeBand: state.filterBand,
-      activeMission: state.activeMissionScenario,
-      timeOffsetMs: state.simMode === 'live' ? 0 : CS.simTimestampMs - Date.now(),
-    };
+      const ctx: AgentContext = {
+        count: countWhere,
+        find: findSat,
+        groupLabel: (g: GroupKey) => (GROUPS[g] ?? GROUPS['other']).label,
+        regionCount: regionCountFor,
+        total: CS.N,
+        rendered: state.renderedCount,
+        groupCounts,
+        bandCounts,
+        activeRegion: state.filterRegion,
+        activeBand: state.filterBand,
+        activeMission: state.activeMissionScenario,
+        timeOffsetMs: state.simMode === 'live' ? 0 : CS.simTimestampMs - Date.now(),
+      };
 
-    const { executeAgentCommand } = await import('../ai/agent');
-    const res = await executeAgentCommand(query, ctx, getLang());
-    // Use the latest state since the await could take a few seconds
-    const latestState = useStore.getState();
-    res.sourceMode = latestState.dataMode === 'loading' ? 'fallback' : latestState.dataMode;
-    res.visibleCount = latestState.renderedCount;
-    setAgentResult(res);
-    store.triggerCommandPulse(res.intent);
+      const { executeAgentCommand } = await import('../ai/agent');
+      const res = await executeAgentCommand(query, ctx, getLang(), history);
+      // Use the latest state since the await could take a few seconds
+      const latestState = useStore.getState();
+      res.sourceMode = latestState.dataMode === 'loading' ? 'fallback' : latestState.dataMode;
+      res.visibleCount = latestState.renderedCount;
+      setAgentResult(res);
+      store.triggerCommandPulse(res.intent);
 
-    // Apply declarative actions to store
-    const a = res.actions;
-    if (res.intent === 'reset') {
-      store.resetFilters();
-      globeRef.current?.setRegionMarker(null);
-    } else {
-      const hasFilter = a.groups || a.band || a.region || a.altMax != null || a.altMin != null;
-      if (hasFilter) {
+      // Apply declarative actions to store
+      const a = res.actions;
+      if (res.intent === 'reset') {
         store.resetFilters();
-        if (a.groups && a.groups.length > 0) {
-          useStore.setState({ activeGroups: new Set(a.groups) });
+        globeRef.current?.setRegionMarker(null);
+      } else {
+        const hasFilter = a.groups || a.band || a.region || a.altMax != null || a.altMin != null;
+        if (hasFilter) {
+          store.resetFilters();
+          if (a.groups && a.groups.length > 0) {
+            useStore.setState({ activeGroups: new Set(a.groups) });
+          }
+          if (a.band) store.setFilterBand(a.band);
+          if (a.altMax != null || a.altMin != null) {
+            store.setAltFilter(a.altMin, a.altMax);
+          }
+          if (a.region) {
+            store.setFilterRegion(a.region);
+            const c = REGIONS[a.region]?.center;
+            if (c) globeRef.current?.setRegionMarker(c[0], c[1]);
+          }
         }
-        if (a.band) store.setFilterBand(a.band);
-        if (a.altMax != null || a.altMin != null) {
-          store.setAltFilter(a.altMin, a.altMax);
+        if (a.brief) store.setShowBrief(true);
+        if (a.missionScenario) {
+          store.setShowMissionPanel(true);
+          store.setActiveMissionScenario(a.missionScenario);
         }
-        if (a.region) {
-          store.setFilterRegion(a.region);
-          const c = REGIONS[a.region]?.center;
-          if (c) globeRef.current?.setRegionMarker(c[0], c[1]);
+        if (a.showRiskLayer) {
+          store.setShowMissionPanel(true);
         }
-      }
-      if (a.brief) store.setShowBrief(true);
-      if (a.missionScenario) {
-        store.setShowMissionPanel(true);
-        store.setActiveMissionScenario(a.missionScenario);
-      }
-      if (a.showRiskLayer) {
-        store.setShowMissionPanel(true);
-      }
-      if (a.focusSatnum != null) {
-        const idx = CS.catalog.findIndex((c) => c?.satnum === a.focusSatnum);
-        if (idx >= 0 && globeRef.current) {
-          selectSat(globeRef.current, idx, true);
+        if (a.focusSatnum != null) {
+          const idx = CS.catalog.findIndex((c) => c?.satnum === a.focusSatnum);
+          if (idx >= 0 && globeRef.current) {
+            selectSat(globeRef.current, idx, true);
+          }
         }
-      }
-      if (a.timeAction) {
-        const t = a.timeAction;
-        if (t.type === 'jump_time' && Number.isFinite(t.offsetMs)) {
-          const offsetMs = Math.max(-MAX_AGENT_TIME_JUMP_MS, Math.min(MAX_AGENT_TIME_JUMP_MS, t.offsetMs));
-          store.jumpTime(offsetMs);
+        if (a.timeAction) {
+          const t = a.timeAction;
+          if (t.type === 'jump_time' && Number.isFinite(t.offsetMs)) {
+            const offsetMs = Math.max(-MAX_AGENT_TIME_JUMP_MS, Math.min(MAX_AGENT_TIME_JUMP_MS, t.offsetMs));
+            store.jumpTime(offsetMs);
+          }
+          if (t.type === 'set_time_speed' && Number.isFinite(t.speed)) {
+            const speed = Math.max(MIN_AGENT_SPEED, Math.min(MAX_AGENT_SPEED, t.speed));
+            store.setSimSpeed(speed);
+          }
+          if (t.type === 'set_time_mode') store.setSimMode(t.mode);
+          if (t.type === 'reset_to_now') store.resetTime();
+          if (t.type === 'pause_simulation') store.setSimMode('paused');
+          if (t.type === 'resume_simulation') store.setSimMode('simulating');
         }
-        if (t.type === 'set_time_speed' && Number.isFinite(t.speed)) {
-          const speed = Math.max(MIN_AGENT_SPEED, Math.min(MAX_AGENT_SPEED, t.speed));
-          store.setSimSpeed(speed);
-        }
-        if (t.type === 'set_time_mode') store.setSimMode(t.mode);
-        if (t.type === 'reset_to_now') store.resetTime();
-        if (t.type === 'pause_simulation') store.setSimMode('paused');
-        if (t.type === 'resume_simulation') store.setSimMode('simulating');
-      }
-      if (a.watchlistAction) {
-        const uStore = useUserStore.getState();
-        if (a.watchlistAction === 'show') {
-          uStore.setShowWatchlistPanel(true);
-        } else if (a.watchlistAction === 'add') {
-          const { selected } = useStore.getState();
-          if (selected >= 0 && CS.catalog[selected]) {
-            const s = CS.catalog[selected];
-            uStore.addToWatchlist({
-              name: s.name,
-              satnum: s.satnum,
-              group: CS.group[selected],
-              band: CS.band[selected],
-              alt: CS.alt[selected],
-              region: 'Unknown',
-              sourceMode: res.sourceMode,
-            });
+        if (a.watchlistAction) {
+          const uStore = useUserStore.getState();
+          if (a.watchlistAction === 'show') {
             uStore.setShowWatchlistPanel(true);
-          }
-        } else if (a.watchlistAction === 'remove') {
-          const { selected } = useStore.getState();
-          if (selected >= 0 && CS.catalog[selected]) {
-            uStore.removeFromWatchlist(CS.catalog[selected].satnum);
+          } else if (a.watchlistAction === 'add') {
+            const { selected } = useStore.getState();
+            if (selected >= 0 && CS.catalog[selected]) {
+              const s = CS.catalog[selected];
+              uStore.addToWatchlist({
+                name: s.name,
+                satnum: s.satnum,
+                group: CS.group[selected],
+                band: CS.band[selected],
+                alt: CS.alt[selected],
+                region: 'Unknown',
+                sourceMode: res.sourceMode,
+              });
+              uStore.setShowWatchlistPanel(true);
+            }
+          } else if (a.watchlistAction === 'remove') {
+            const { selected } = useStore.getState();
+            if (selected >= 0 && CS.catalog[selected]) {
+              uStore.removeFromWatchlist(CS.catalog[selected].satnum);
+            }
           }
         }
-      }
       
-      if (a.savedViewAction) {
-        const uStore = useUserStore.getState();
-        if (a.savedViewAction.type === 'load' || a.savedViewAction.type === 'recommend') {
-          uStore.setShowSavedViewsPanel(true);
-        } else if (a.savedViewAction.type === 'save') {
-          const sState = useStore.getState();
-          uStore.saveView({
-            name: a.savedViewAction.payload || `View ${new Date().toLocaleTimeString()}`,
-            description: 'Saved by AI Command Agent',
-            filters: {
-              groups: Array.from(sState.activeGroups),
-              band: sState.filterBand,
-              region: sState.filterRegion,
-              altMin: sState.altMin,
-              altMax: sState.altMax,
-            },
-            simMode: sState.simMode,
-            simOffsetMs: sState.simMode === 'live' ? 0 : CS.simTimestampMs - Date.now(),
-            missionScenario: sState.activeMissionScenario,
-            showRiskLayer: sState.showRiskLayer,
-            lang: getLang(),
-          });
-          uStore.setShowSavedViewsPanel(true);
+        if (a.savedViewAction) {
+          const uStore = useUserStore.getState();
+          if (a.savedViewAction.type === 'load' || a.savedViewAction.type === 'recommend') {
+            uStore.setShowSavedViewsPanel(true);
+          } else if (a.savedViewAction.type === 'save') {
+            const sState = useStore.getState();
+            uStore.saveView({
+              name: a.savedViewAction.payload || `View ${new Date().toLocaleTimeString()}`,
+              description: 'Saved by AI Command Agent',
+              filters: {
+                groups: Array.from(sState.activeGroups),
+                band: sState.filterBand,
+                region: sState.filterRegion,
+                altMin: sState.altMin,
+                altMax: sState.altMax,
+              },
+              simMode: sState.simMode,
+              simOffsetMs: sState.simMode === 'live' ? 0 : CS.simTimestampMs - Date.now(),
+              missionScenario: sState.activeMissionScenario,
+              showRiskLayer: sState.showRiskLayer,
+              lang: getLang(),
+            });
+            uStore.setShowSavedViewsPanel(true);
+          }
         }
-      }
 
-      if (a.snapshotAction) {
-        const uStore = useUserStore.getState();
-        if (a.snapshotAction === 'export') {
-          uStore.setShowSnapshotPanel(true);
-        } else if (a.snapshotAction === 'create') {
-          await createExecutiveSnapshot(res.sourceMode);
+        if (a.snapshotAction) {
+          const uStore = useUserStore.getState();
+          if (a.snapshotAction === 'export') {
+            uStore.setShowSnapshotPanel(true);
+          } else if (a.snapshotAction === 'create') {
+            await createExecutiveSnapshot(res.sourceMode);
+          }
         }
       }
+      // Re-apply filters explicitly to get fresh counts
+      applyFilter();
+    } catch (err) {
+      const latestState = useStore.getState();
+      console.error('Agent command failed:', err);
+      latestState.setAgentHealth('fallback');
+      setAgentResult({
+        answer: getLang() === 'es'
+          ? 'No pude completar ese comando. El agente local sigue disponible; intenta una consulta más específica.'
+          : 'I could not complete that command. The local agent remains available; try a more specific query.',
+        intent: 'agent_error',
+        confidence: 0,
+        assumptions: [],
+        actions: {
+          groups: null, band: null, region: null,
+          altMax: null, altMin: null, focusSatnum: null, brief: false,
+          missionScenario: null, showRiskLayer: false,
+          timeAction: null,
+        },
+        filtersApplied: {},
+        visibleCount: latestState.renderedCount,
+        sourceMode: latestState.dataMode === 'loading' ? 'fallback' : latestState.dataMode,
+        responseMode: 'deterministic',
+        safetyCaveat: getLang() === 'es'
+          ? 'Fallo controlado del agente. No se aplicaron acciones nuevas.'
+          : 'Controlled agent failure. No new actions were applied.',
+      });
+    } finally {
+      setIsThinking(false);
     }
-    // Re-apply filters explicitly to get fresh counts
-    applyFilter();
 
-    setIsThinking(false);
-  }, [countWhere, findSat, regionCountFor, store, selectSat, applyFilter, createExecutiveSnapshot]);
+  }, [countWhere, findSat, regionCountFor, store, selectSat, applyFilter, createExecutiveSnapshot]); // history passed as arg, not dep
 
   // ---- Language switch -------------------------------------------------
   const handleSetLang = useCallback((l: 'en' | 'es') => {
@@ -646,11 +672,12 @@ export function App() {
     }
   }, [store]);
 
+  // Mobile: downgrade quality and cap rendered points
   useEffect(() => {
-    if (window.matchMedia('(max-width: 768px)').matches && useStore.getState().visualQuality === 'cinematic') {
+    if (isMobile && useStore.getState().visualQuality === 'cinematic') {
       store.setVisualQuality('performance');
     }
-  }, [store]);
+  }, [isMobile, store]);
 
   useEffect(() => {
     globeRef.current?.setVisualQuality(store.visualQuality);
@@ -665,20 +692,16 @@ export function App() {
     });
   }, [store.filterBand, store.activeGroups, store.filterRegion, store.showMissionPanel, store.showRiskLayer, store.activeMissionScenario]);
 
-  // ---- Keyboard shortcuts ---------------------------------------------
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        store.setShowBrief(false);
-        store.setCinematicMode(false);
-        store.setShowMissionPanel(false);
-        store.setShowRiskLayer(false);
-        clearSelection();
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [store, clearSelection]);
+  // ---- Keyboard shortcuts (expanded) ----------------------------------
+  useKeyboardShortcuts({
+    onResetView: () => globeRef.current?.resetView(),
+    onClearSelection: clearSelection,
+    onFocusAgent: () => {
+      const el = document.getElementById('agentInput') as HTMLInputElement | null;
+      el?.focus();
+      agentInputRef.current = el;
+    },
+  });
 
   // ---- Sync filterRegion → globe region marker (on filter panel changes) --
   useEffect(() => {
@@ -749,7 +772,7 @@ export function App() {
         )}
 
         <aside className="left">
-          <AgentPanel onRun={runAgent} lastResult={agentResult} isThinking={isThinking} />
+          <AgentPanel onRun={runAgent} lastResult={agentResult} isThinking={isThinking} agentInputRef={agentInputRef} />
           <CatalogPanel onSelectSat={(i) => globeRef.current && selectSat(globeRef.current, i, true)} />
         </aside>
 

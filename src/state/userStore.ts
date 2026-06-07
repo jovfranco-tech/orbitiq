@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { WatchlistItem, SavedMissionView, ExecutiveSnapshot, UserExportData } from '../types';
+import type { WatchlistItem, SavedMissionView, ExecutiveSnapshot, UserExportData, CloudSyncStatus } from '../types';
 
-interface UserState {
+export interface UserState {
   watchlists: WatchlistItem[];
   savedViews: SavedMissionView[];
   snapshots: ExecutiveSnapshot[];
@@ -10,12 +10,16 @@ interface UserState {
   showSavedViewsPanel: boolean;
   showSnapshotPanel: boolean;
   hasSeenTour: boolean;
+  cloudSyncStatus: CloudSyncStatus;
+  cloudUserId: string | null;
+  cloudSyncError: string | null;
   
   // Panel UI toggles
   setShowWatchlistPanel: (v: boolean) => void;
   setShowSavedViewsPanel: (v: boolean) => void;
   setShowSnapshotPanel: (v: boolean) => void;
   setHasSeenTour: (v: boolean) => void;
+  setCloudSyncState: (status: CloudSyncStatus, userId?: string | null, error?: string | null) => void;
   
   // Watchlist
   addToWatchlist: (item: Omit<WatchlistItem, 'addedAt'>) => void;
@@ -32,11 +36,14 @@ interface UserState {
   
   // Import/Export
   importData: (data: UserExportData) => void;
+  replaceData: (data: Pick<UserExportData, 'watchlists' | 'savedViews' | 'snapshots'> & { hasSeenTour?: boolean }) => void;
 }
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9) + '-' + Date.now().toString(36);
 }
+
+const BROADCAST_CHANNEL = 'orbitiq-user-data-sync';
 
 export const useUserStore = create<UserState>()(
   persist(
@@ -48,11 +55,19 @@ export const useUserStore = create<UserState>()(
       showSavedViewsPanel: false,
       showSnapshotPanel: false,
       hasSeenTour: false,
+      cloudSyncStatus: 'disabled',
+      cloudUserId: null,
+      cloudSyncError: null,
       
       setShowWatchlistPanel: (v) => set({ showWatchlistPanel: v, showSavedViewsPanel: false, showSnapshotPanel: false }),
       setShowSavedViewsPanel: (v) => set({ showSavedViewsPanel: v, showWatchlistPanel: false, showSnapshotPanel: false }),
       setShowSnapshotPanel: (v) => set({ showSnapshotPanel: v, showWatchlistPanel: false, showSavedViewsPanel: false }),
       setHasSeenTour: (v) => set({ hasSeenTour: v }),
+      setCloudSyncState: (status, userId = null, error = null) => set({
+        cloudSyncStatus: status,
+        cloudUserId: userId,
+        cloudSyncError: error,
+      }),
       
       addToWatchlist: (item) => set((state) => {
         if (state.watchlists.some(w => w.satnum === item.satnum)) return state;
@@ -106,6 +121,13 @@ export const useUserStore = create<UserState>()(
           snapshots: mergedSnaps
         };
       }),
+
+      replaceData: (data) => set({
+        watchlists: data.watchlists,
+        savedViews: data.savedViews,
+        snapshots: data.snapshots,
+        ...(typeof data.hasSeenTour === 'boolean' ? { hasSeenTour: data.hasSeenTour } : {}),
+      }),
     }),
     {
       name: 'orbitiq-user-data',
@@ -114,7 +136,32 @@ export const useUserStore = create<UserState>()(
         savedViews: state.savedViews,
         snapshots: state.snapshots,
         hasSeenTour: state.hasSeenTour,
-      }), // only persist data, not UI toggles
+      }),
     }
   )
 );
+
+// Cross-tab sync via BroadcastChannel (same browser, different tabs)
+if (typeof BroadcastChannel !== 'undefined') {
+  const channel = new BroadcastChannel(BROADCAST_CHANNEL);
+  let isSyncing = false;
+
+  useUserStore.subscribe((state) => {
+    if (isSyncing) return;
+    channel.postMessage({
+      watchlists: state.watchlists,
+      savedViews: state.savedViews,
+      snapshots: state.snapshots,
+    });
+  });
+
+  channel.onmessage = (e: MessageEvent) => {
+    isSyncing = true;
+    useUserStore.setState({
+      watchlists: e.data.watchlists ?? [],
+      savedViews: e.data.savedViews ?? [],
+      snapshots: e.data.snapshots ?? [],
+    });
+    isSyncing = false;
+  };
+}

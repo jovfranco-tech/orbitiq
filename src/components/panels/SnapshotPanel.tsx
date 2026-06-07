@@ -10,7 +10,7 @@ interface Props {
 }
 
 export function SnapshotPanel({ onClose }: Props) {
-  const { snapshots, deleteSnapshot } = useUserStore();
+  const { snapshots, deleteSnapshot, cloudSyncStatus, cloudUserId, cloudSyncError } = useUserStore();
   const [showEI, setShowEI] = useState(false);
   const [copiedSnapshotId, setCopiedSnapshotId] = useState<string | null>(null);
   const copiedTimerRef = useRef<number | null>(null);
@@ -22,18 +22,24 @@ export function SnapshotPanel({ onClose }: Props) {
   }, []);
 
   const handleExportMarkdown = (snap: ExecutiveSnapshot) => {
-    if (!navigator.clipboard) {
-      setCopiedSnapshotId(null);
-      return;
-    }
-
+    if (!navigator.clipboard) return;
     void navigator.clipboard.writeText(buildExecutiveSnapshotMarkdown(snap)).then(() => {
       if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current);
       setCopiedSnapshotId(snap.id);
       copiedTimerRef.current = window.setTimeout(() => setCopiedSnapshotId(null), 2400);
-    }).catch(() => {
-      setCopiedSnapshotId(null);
     });
+  };
+
+  const handleDownloadMarkdown = (snap: ExecutiveSnapshot) => {
+    const md = buildExecutiveSnapshotMarkdown(snap);
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `orbitiq-snapshot-${new Date(snap.timestamp).toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
   };
 
   return (
@@ -77,6 +83,7 @@ export function SnapshotPanel({ onClose }: Props) {
                     className="s-remove" 
                     onClick={() => deleteSnapshot(s.id)}
                     title={t('delete') || 'Delete'}
+                    aria-label={t('delete') || 'Delete'}
                   >
                     ✕
                   </button>
@@ -92,6 +99,14 @@ export function SnapshotPanel({ onClose }: Props) {
                   <button className="export-md-btn" onClick={() => handleExportMarkdown(s)}>
                     {copiedSnapshotId === s.id ? t('markdown_copied') : t('export_markdown')}
                   </button>
+                  <button
+                    className="export-md-btn"
+                    onClick={() => handleDownloadMarkdown(s)}
+                    title={t('download_markdown')}
+                    aria-label={t('download_markdown')}
+                  >
+                    {t('download_markdown')}
+                  </button>
                 </div>
               </div>
             ))}
@@ -100,6 +115,11 @@ export function SnapshotPanel({ onClose }: Props) {
       </div>
       
       <div className="panel-footer">
+        <div className={`cloud-sync cloud-sync-${cloudSyncStatus}`} title={cloudSyncError ?? undefined}>
+          <span />
+          <strong>{t(`cloud_sync_${cloudSyncStatus}`)}</strong>
+          {cloudUserId && <small>{cloudUserId.slice(0, 8)}</small>}
+        </div>
         <button className="ei-toggle-btn" onClick={() => setShowEI(true)}>
           {t('export_import') || 'Export / Import Data'}
         </button>

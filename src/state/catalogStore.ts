@@ -8,6 +8,11 @@
 // ============================================================
 import type { SatelliteRecord, SatRec, GroupKey, BandKey } from '../types';
 
+export interface ProximityEntry {
+  idx: number;
+  distKm: number;
+}
+
 export interface CatalogStore {
   catalog: SatelliteRecord[];
   recs: SatRec[];
@@ -22,6 +27,7 @@ export interface CatalogStore {
   vis: Float32Array;
   selected: number;
   simTimestampMs: number;
+  proximity: ProximityEntry[];
   liveSnapshot: {
     total: number;
     bands: { LEO: number; MEO: number; GEO: number };
@@ -41,6 +47,7 @@ function empty(): CatalogStore {
     vis: new Float32Array(0),
     selected: -1,
     simTimestampMs: Date.now(),
+    proximity: [],
     liveSnapshot: null
   };
 }

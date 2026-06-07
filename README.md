@@ -185,10 +185,11 @@ representative, not a live observation.
 3. **Configure environment variables**:
    Create a `.env` file in the root directory (use `.env.example` as a template).
    ```
-   OPENAI_API_KEY=your_server_side_openai_api_key_here
-   LLM_MODEL=gpt-4o-mini
+   GEMINI_API_KEY=your_server_side_gemini_api_key_here
+   GEMINI_MODEL=gemini-2.0-flash
    ```
-   *Note: The app will run without an API key by gracefully degrading to the deterministic fallback agent.*
+   `OPENAI_API_KEY` can also be used as a fallback provider. The app runs without an
+   LLM key by gracefully degrading to the deterministic fallback agent.
 
 4. **Run the development server**:
    ```bash
@@ -203,7 +204,8 @@ OrbitIQ is optimized for Vercel edge/serverless environments.
    Connect your GitHub repository to Vercel.
 
 2. **Environment Variables**:
-   In your Vercel project settings, add the `OPENAI_API_KEY` environment variable.
+   In your Vercel project settings, add `GEMINI_API_KEY` and `GEMINI_MODEL`.
+   `OPENAI_API_KEY` is optional fallback provider configuration.
 
 3. **Build Settings**:
    The default Vite build settings are pre-configured:
@@ -216,7 +218,8 @@ OrbitIQ is optimized for Vercel edge/serverless environments.
 
 ## AI command agent
 
-OrbitIQ uses `/api/agent` as a server-side LLM proxy when `OPENAI_API_KEY` is configured.
+OrbitIQ uses `/api/agent` as a server-side LLM proxy when `GEMINI_API_KEY` or
+`OPENAI_API_KEY` is configured.
 The backend requires strict JSON, validates every returned action with Zod, rejects unsupported
 actions, and never exposes provider errors or API keys to the frontend. The local
 `deterministicParse()` router returns the same response shape when the LLM is unavailable.
@@ -262,11 +265,35 @@ npx vercel           # or push to a repo connected to Vercel
 ```
 
 - `vercel.json` routes `/api/*` to the serverless functions
-- No environment variables are required for the 3D/TLE experience; without `OPENAI_API_KEY`, the command agent uses deterministic fallback
-- Optional server-side environment variables: `OPENAI_API_KEY`, `LLM_MODEL`
+- No environment variables are required for the 3D/TLE experience; without an LLM key, the command agent uses deterministic fallback
+- Optional server-side environment variables: `GEMINI_API_KEY`, `GEMINI_MODEL`, `OPENAI_API_KEY`, `LLM_MODEL`
+- Optional Firebase client environment variables enable authenticated cloud sync for watchlists, saved mission views and executive snapshots
 - Static assets get long-cache headers
 
 ---
+
+## Optional Firebase cloud sync
+
+OrbitIQ keeps user data in `localStorage` by default. When Firebase is configured,
+the app signs in anonymously and syncs watchlists, saved mission views, executive
+snapshots and the tour flag to Firestore at:
+
+```txt
+users/{uid}/orbitiq/userData
+```
+
+Required Firebase setup:
+
+1. Create a Firebase web app.
+2. Enable Anonymous sign-in in Firebase Authentication.
+3. Create a Firestore database.
+4. Add the `VITE_FIREBASE_*` variables from `.env.example` to local `.env` and Vercel.
+5. Deploy `firestore.rules` from the included `firebase.json`.
+
+The Firebase SDK is loaded through a dynamic browser chunk only when the required
+`VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`
+and `VITE_FIREBASE_APP_ID` values are present. Without those variables, the app
+stays local-only and does not load Firebase.
 
 
 ## Security baseline
@@ -274,8 +301,9 @@ npx vercel           # or push to a repo connected to Vercel
 - No API keys in frontend code or committed to the repo
 - No secrets in source
 - CelesTrak fetched **server-side** only (`/api/tle`)
-- No user PII collected or stored
+- No user PII collected or stored by default
 - No `localStorage` of sensitive information
+- Optional Firebase sync uses anonymous authentication and stores only portfolio workspace metadata
 - Public data disclaimer shown on every screen
 - Graceful fallback when upstream source fails
 
@@ -284,18 +312,18 @@ See `SECURITY.md` for full baseline.
 ## AI Command Agent (v0.4.0 LLM Backend)
 
 OrbitIQ includes a real LLM backend for the AI Command Agent.
-It uses a proxy architecture via a Vercel serverless function (`/api/agent`) to communicate with OpenAI-compatible models. The LLM is forced to emit a strict JSON contract representing an array of allowed `AgentAction`s. This is strictly validated using `zod` on the server.
+It uses a proxy architecture via a Vercel serverless function (`/api/agent`) to communicate with Gemini first and OpenAI-compatible models as fallback. The LLM is forced to emit a strict JSON contract representing an array of allowed `AgentAction`s. This is strictly validated using `zod` on the server.
 
 The LLM has NO direct access to manipulate the orbital database or propagate orbits. It only translates intent into deterministic UI filters.
 
 ### Graceful Deterministic Fallback
 
-If the LLM API fails, times out, returns an invalid schema, or if `OPENAI_API_KEY` is not set, the agent seamlessly falls back to the local `deterministicParse()` regex router. The UI transparently indicates whether the response was generated via LLM or Deterministic Fallback.
+If the LLM API fails, times out, returns an invalid schema, or if no LLM key is set, the agent seamlessly falls back to the local `deterministicParse()` regex router. The UI transparently indicates whether the response was generated via LLM or Deterministic Fallback.
 
 ### Running the LLM backend locally
 
 1. Copy `.env.example` to `.env`
-2. Add your `OPENAI_API_KEY`
+2. Add your `GEMINI_API_KEY` or `OPENAI_API_KEY`
 3. Run `npx vercel dev` or `npm run dev`
 
 ## v0.6.0 — Time Controls & Scenario Simulation
@@ -315,7 +343,7 @@ OrbitIQ v0.7.0 introduces **Local Persistence**, elevating the app into a person
 - **Satellite Watchlists**: Track specific satellites of interest across sessions.
 - **Saved Mission Views**: Snapshot the entire workspace state (active filters, time simulation offset, mission context) and restore it later.
 - **Executive Snapshots**: Freeze the current state of orbital intelligence (congestion score, hotspots, etc.) and generate Markdown or JSON reports.
-- **Privacy-First Export/Import**: All preferences are saved locally in the browser's `localStorage` and can be exported to or imported from strict-schema JSON files.
+- **Privacy-First Export/Import**: Preferences are saved locally in the browser's `localStorage` by default and can be exported to or imported from strict-schema JSON files. Optional Firebase sync can persist the same metadata through anonymous authentication.
 - **AI Agent Local Context**: The agent can add/remove objects from the watchlist and trigger local snapshots via natural language.
 
 ## v1.0 Release Readiness

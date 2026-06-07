@@ -20,17 +20,32 @@ interface LiveData {
   alt: number; speed: number; lat: number; lon: number; region: string; band: string;
 }
 
+interface ProximityEntry {
+  idx: number;
+  distKm: number;
+}
+
 interface Props {
   onClose: () => void;
   onToggleTrack: () => void;
 }
 
 export function DetailPanel({ onClose, onToggleTrack }: Props) {
-  const { selected, tracking, dataMode, simMode } = useStore();
+  const { selected, tracking, dataMode, simMode, lang } = useStore();
   const { watchlists, addToWatchlist, removeFromWatchlist } = useUserStore();
   
   const [live, setLive] = useState<LiveData | null>(null);
   const [sim, setSim] = useState<LiveData | null>(null);
+  const [proximity, setProximity] = useState<ProximityEntry[]>([]);
+
+  // Subscribe to proximity data from catalog store
+  useEffect(() => {
+    if (selected < 0) { setProximity([]); return; }
+    const id = setInterval(() => {
+      setProximity(CS.proximity ? [...CS.proximity] : []);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [selected]);
 
   useEffect(() => {
     if (selected < 0) { setLive(null); return; }
@@ -168,6 +183,33 @@ export function DetailPanel({ onClose, onToggleTrack }: Props) {
       <div className="detail-source">
         <b>{t('d_source')}:</b> {srcLabel}
       </div>
+
+      {proximity.length > 0 && (
+        <div className="detail-proximity">
+          <div className="dcell-k" style={{ marginBottom: '6px' }}>
+            <span style={{ color: 'var(--amber)', marginRight: '5px' }}>⚠</span>
+            {lang === 'es' ? 'Satélites cercanos (análisis básico)' : 'Nearby satellites (basic analysis)'}
+          </div>
+          {proximity.map((p) => {
+            const neighbor = CS.catalog[p.idx];
+            if (!neighbor) return null;
+            const distColor = p.distKm < 100 ? 'var(--danger)' : p.distKm < 500 ? 'var(--amber)' : 'var(--muted)';
+            return (
+              <div key={p.idx} className="proximity-row">
+                <span className="proximity-name">{neighbor.name}</span>
+                <span className="proximity-dist" style={{ color: distColor }}>
+                  {p.distKm < 1000 ? `${p.distKm} km` : `${(p.distKm / 1000).toFixed(1)}k km`}
+                </span>
+              </div>
+            );
+          })}
+          <div style={{ fontSize: '8px', color: 'var(--muted)', marginTop: '4px' }}>
+            {lang === 'es'
+              ? 'Solo para conciencia situacional — no es evaluación de conjunciones operacional.'
+              : 'For situational awareness only — not an operational conjunction assessment.'}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

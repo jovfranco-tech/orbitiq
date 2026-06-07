@@ -1,9 +1,10 @@
 // ============================================================
-// OrbitIQ v0.3.0 — AI Command Agent panel
+// OrbitIQ v0.4.0 — AI Command Agent panel (multi-turn)
 // ============================================================
-import { lazy, Suspense, useState, useCallback, useEffect } from 'react';
+import { lazy, Suspense, useState, useCallback, useEffect, useRef } from 'react';
 import { t } from '../../i18n/i18n';
 import type { AiAgentResponse } from '../../types';
+import type { ConversationMessage } from '../../ai/agent';
 import { playClick, playAgentSuccess } from '../../utils/audio';
 import { useStore } from '../../state/store';
 
@@ -40,33 +41,61 @@ const EXAMPLES_ES = [
 ];
 
 interface Props {
-  onRun: (query: string) => void;
+  onRun: (query: string, history: ConversationMessage[]) => void;
   lastResult: AiAgentResponse | null;
   isThinking: boolean;
+  agentInputRef?: React.MutableRefObject<HTMLInputElement | null>;
 }
 
-export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
+export function AgentPanel({ onRun, lastResult, isThinking, agentInputRef }: Props) {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [history, setHistory] = useState<ConversationMessage[]>([]);
+  const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
+  const historyEndRef = useRef<HTMLDivElement>(null);
   const lang = useStore((s) => s.lang);
   const chips = lang === 'es' ? EXAMPLES_ES : EXAMPLES_EN;
+
+  // Append assistant response to history when it arrives
+  useEffect(() => {
+    if (!lastResult || isThinking) return;
+    setHistory((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.role === 'assistant' && last.content === lastResult.answer) return prev;
+      return [...prev, { role: 'assistant', content: lastResult.answer }];
+    });
+  }, [lastResult, isThinking]);
+
+  // Auto-scroll history
+  useEffect(() => {
+    historyEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [history]);
 
   const run = useCallback((q: string) => {
     if (!q.trim()) return;
     playClick();
-    onRun(q.trim());
+    const userMsg: ConversationMessage = { role: 'user', content: q.trim() };
+    setHistory((prev) => [...prev, userMsg]);
+    onRun(q.trim(), [...history, userMsg]);
+    setInput('');
     setTimeout(playAgentSuccess, 100);
-  }, [onRun]);
+  }, [onRun, history]);
 
   const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') run(input);
   };
 
+  const clearHistory = () => setHistory([]);
+
   const toggleListen = () => {
     if (isListening) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return alert('Speech recognition not supported in this browser.');
+    if (!SpeechRecognition) {
+      setVoiceNotice(lang === 'es' ? 'Comando de voz no disponible en este navegador.' : 'Voice command is not available in this browser.');
+      return;
+    }
+    setVoiceNotice(null);
     playClick();
     const rec = new SpeechRecognition();
     rec.lang = 'en-US';
@@ -93,14 +122,41 @@ export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
             <div className="card-sub">{t('agent_sub')}</div>
           </div>
         </div>
-        <span className={`agent-status${isThinking ? ' busy' : ''}`}>
-          {isThinking ? t('ai_thinking') : t('ai_ready')}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {history.length > 0 && (
+            <button
+              className="ctl ctl-icon"
+              onClick={clearHistory}
+              title={lang === 'es' ? 'Limpiar conversación' : 'Clear conversation'}
+              aria-label={lang === 'es' ? 'Limpiar conversación' : 'Clear conversation'}
+              style={{ fontSize: '10px', padding: '2px 6px', opacity: 0.6 }}
+            >
+              ✕ {lang === 'es' ? 'limpiar' : 'clear'}
+            </button>
+          )}
+          <span className={`agent-status${isThinking ? ' busy' : ''}`}>
+            {isThinking ? t('ai_thinking') : t('ai_ready')}
+          </span>
+        </div>
       </div>
+
+      {/* Conversation history */}
+      {history.length > 1 && (
+        <div className="agent-history">
+          {history.slice(0, -1).map((msg, i) => (
+            <div key={i} className={`agent-history-msg ${msg.role}`}>
+              <span className="history-role">{msg.role === 'user' ? '›' : '◈'}</span>
+              <span className="history-content">{msg.content}</span>
+            </div>
+          ))}
+          <div ref={historyEndRef} />
+        </div>
+      )}
 
       <div className="agent-input">
         <input
           id="agentInput"
+          ref={(el) => { if (agentInputRef) agentInputRef.current = el; }}
           type="text"
           autoComplete="off"
           placeholder={t('agent_placeholder')}
@@ -108,22 +164,24 @@ export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
         />
-        <button 
-          onClick={toggleListen} 
-        className={`mic-btn ${isListening ? 'listening' : ''}`}
-        title={lang === 'es' ? 'Comando de voz' : 'Voice Command'}
-        style={{ background: isListening ? 'var(--danger)' : 'transparent', color: isListening ? '#fff' : 'var(--muted)', padding: '0 8px', border: 0, borderRight: '1px solid var(--border)' }}
-      >
-        🎤
-      </button>
-      <button onClick={() => run(input)}>{t('agent_run')}</button>
-    </div>
+        <button
+          onClick={toggleListen}
+          className={`mic-btn ${isListening ? 'listening' : ''}`}
+          title={lang === 'es' ? 'Comando de voz' : 'Voice Command'}
+          aria-label={lang === 'es' ? 'Comando de voz' : 'Voice Command'}
+          style={{ background: isListening ? 'var(--danger)' : 'transparent', color: isListening ? '#fff' : 'var(--muted)', padding: '0 8px', border: 0, borderRight: '1px solid var(--border)' }}
+        >
+          🎤
+        </button>
+        <button onClick={() => { run(input); }}>{t('agent_run')}</button>
+      </div>
+      {voiceNotice && <div className="agent-voice-notice" role="status">{voiceNotice}</div>}
 
-    <div className="agent-chips">
-      {chips.map((q) => (
-        <button key={q} onClick={() => { setInput(q); run(q); }}>{q}</button>
-      ))}
-    </div>
+      <div className="agent-chips">
+        {chips.map((q) => (
+          <button key={q} onClick={() => run(q)}>{q}</button>
+        ))}
+      </div>
 
       {lastResult && !isThinking && (
         <AgentOutput result={lastResult} />

@@ -82,8 +82,27 @@ self.onmessage = (e: MessageEvent) => {
       }
     }
 
-    // We can't transfer the exact same buffers back and forth continuously without complex ping-ponging, 
-    // but copying a few small Float32Arrays is extremely fast (< 1ms).
+    // Conjunction analysis: find 5 nearest satellites to the selected index (ECI distance)
+    let proximity: Array<{ idx: number; distKm: number }> = [];
+    const selectedIdx: number = payload.selectedIdx ?? -1;
+    if (selectedIdx >= 0 && selectedIdx < N && alt[selectedIdx] >= 0) {
+      const RE_KM = 6378.137;
+      const sx = posBuf[selectedIdx * 3] * RE_KM;
+      const sy = posBuf[selectedIdx * 3 + 1] * RE_KM;
+      const sz = posBuf[selectedIdx * 3 + 2] * RE_KM;
+      const candidates: Array<{ idx: number; distKm: number }> = [];
+      for (let i = 0; i < N; i++) {
+        if (i === selectedIdx || alt[i] < 0) continue;
+        const dx = posBuf[i * 3] * RE_KM - sx;
+        const dy = posBuf[i * 3 + 1] * RE_KM - sy;
+        const dz = posBuf[i * 3 + 2] * RE_KM - sz;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist < 5000) candidates.push({ idx: i, distKm: Math.round(dist) });
+      }
+      candidates.sort((a, b) => a.distKm - b.distKm);
+      proximity = candidates.slice(0, 5);
+    }
+
     self.postMessage({
       type: 'TICK_RESULT',
       payload: {
@@ -94,6 +113,7 @@ self.onmessage = (e: MessageEvent) => {
         lon: new Float32Array(lon),
         alt: new Float32Array(alt),
         band: new Uint8Array(band),
+        proximity,
       }
     });
   }

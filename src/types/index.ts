@@ -329,6 +329,8 @@ export interface UserExportData {
   snapshots: ExecutiveSnapshot[];
 }
 
+export type CloudSyncStatus = 'disabled' | 'connecting' | 'syncing' | 'synced' | 'error';
+
 // ============================================================
 // App state
 // ============================================================
