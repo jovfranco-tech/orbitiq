@@ -268,6 +268,7 @@ npx vercel           # or push to a repo connected to Vercel
 - No environment variables are required for the 3D/TLE experience; without an LLM key, the command agent uses deterministic fallback
 - Optional server-side environment variables: `GEMINI_API_KEY`, `GEMINI_MODEL`, `OPENAI_API_KEY`, `LLM_MODEL`
 - Optional Firebase client environment variables enable authenticated cloud sync for watchlists, saved mission views and executive snapshots
+- Optional `VITE_ENABLE_VERCEL_ANALYTICS=true` enables Vercel Web Analytics after it is active for the project
 - Static assets get long-cache headers
 
 ---

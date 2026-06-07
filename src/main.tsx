@@ -9,11 +9,13 @@ import './index.css';
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element not found');
 
+const enableWebAnalytics = import.meta.env.VITE_ENABLE_VERCEL_ANALYTICS === 'true';
+
 createRoot(root).render(
   <StrictMode>
     <ErrorBoundary>
       <App />
-      <Analytics />
+      {enableWebAnalytics && <Analytics />}
       <SpeedInsights />
     </ErrorBoundary>
   </StrictMode>
