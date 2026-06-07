@@ -53,9 +53,9 @@ export default defineConfig({
       include: ['src/**/*.ts', 'src/**/*.tsx'],
       exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/main.tsx', 'src/vite-env.d.ts'],
       thresholds: {
-        lines: 20,
-        functions: 20,
-        branches: 20,
+        lines: 30,
+        functions: 30,
+        branches: 25,
       },
       reporter: ['text', 'lcov'],
     },

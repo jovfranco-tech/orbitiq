@@ -27,6 +27,8 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   renderer.toneMappingExposure = 1.05;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
+  renderer.domElement.setAttribute('role', 'img');
+  renderer.domElement.setAttribute('aria-label', 'Interactive 3D satellite globe — arrow keys rotate, +/- zoom, Tab cycles satellites.');
 
   const controls = new OrbitControls(camera, container);
   controls.enableDamping = true;

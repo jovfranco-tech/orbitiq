@@ -2,6 +2,7 @@
 // OrbitIQ Command Center v0.3.0 — App root
 // ============================================================
 import { lazy, Suspense, useRef, useCallback, useEffect, useState } from 'react';
+import { useGlobeKeyboard } from '../hooks/useGlobeKeyboard';
 import { GlobeMount } from '../components/globe/GlobeMount';
 import { GlobeHelp } from '../components/globe/GlobeHelp';
 import { TopBar } from '../components/dashboard/TopBar';
@@ -594,55 +595,8 @@ export function App() {
     });
   }, [store.filterBand, store.activeGroups, store.filterRegion, store.showMissionPanel, store.showRiskLayer, store.activeMissionScenario]);
 
-  // ---- Keyboard shortcuts (globe nav + Escape) ------------------------
-  useEffect(() => {
-    const ROTATE_STEP = 0.06; // radians
-    const ZOOM_IN = 0.85;
-    const ZOOM_OUT = 1 / 0.85;
-    const handler = (e: KeyboardEvent) => {
-      // Never hijack when focus is on an input/button/select
-      const tag = (document.activeElement?.tagName ?? '').toLowerCase();
-      const inputFocused = tag === 'input' || tag === 'textarea' || tag === 'select';
-
-      if (e.key === 'Escape') {
-        store.setShowBrief(false);
-        store.setCinematicMode(false);
-        store.setShowMissionPanel(false);
-        store.setShowRiskLayer(false);
-        clearSelection();
-        return;
-      }
-
-      if (inputFocused) return;
-
-      const globe = globeRef.current;
-      switch (e.key) {
-        case 'ArrowLeft':  e.preventDefault(); globe?.rotateBy(-ROTATE_STEP, 0); break;
-        case 'ArrowRight': e.preventDefault(); globe?.rotateBy(ROTATE_STEP, 0); break;
-        case 'ArrowUp':    e.preventDefault(); globe?.rotateBy(0, -ROTATE_STEP); break;
-        case 'ArrowDown':  e.preventDefault(); globe?.rotateBy(0, ROTATE_STEP); break;
-        case '+': case '=': e.preventDefault(); globe?.zoomBy(ZOOM_IN); break;
-        case '-':           e.preventDefault(); globe?.zoomBy(ZOOM_OUT); break;
-        case 'Tab': {
-          if (!CS.N) break;
-          e.preventDefault();
-          const cur = useStore.getState().selected;
-          const dir = e.shiftKey ? -1 : 1;
-          let next = cur < 0 ? 0 : (cur + dir + CS.N) % CS.N;
-          for (let tries = 0; tries < CS.N; tries++) {
-            if (CS.vis[next] >= 0.5 && CS.alt[next] >= 0) {
-              if (globe) selectSat(globe, next, true);
-              break;
-            }
-            next = (next + dir + CS.N) % CS.N;
-          }
-          break;
-        }
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [store, clearSelection, selectSat]);
+  // ---- Keyboard shortcuts (globe nav + Escape) — delegated to hook ----
+  useGlobeKeyboard({ globeRef, clearSelection, selectSat });
 
   // ---- Sync filterRegion → globe region marker (on filter panel changes) --
   useEffect(() => {
