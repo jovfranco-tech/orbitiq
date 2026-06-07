@@ -34,7 +34,7 @@ interface Props {
   intelligence: IntelligenceSummary | null;
 }
 
-export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, onToggleMission, onToggleCinematic, intelligence }: Props) {
+export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, onToggleIntel, onToggleMission, onToggleCinematic, intelligence }: Props) {
   const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence, showMissionPanel, cinematicMode, visualQuality, setVisualQuality, tleHealth, agentHealth, showDataHealthPanel, setShowDataHealthPanel } = useStore();
   const { showWatchlistPanel, setShowWatchlistPanel, showSavedViewsPanel, setShowSavedViewsPanel, showSnapshotPanel, setShowSnapshotPanel } = useUserStore();
   
@@ -73,6 +73,22 @@ export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, 
         </span>
       </button>
 
+      {/* Staleness badge — visible when TLE data is older than 3 days */}
+      {ageDays > 3 && (
+        <div
+          className="staleness-badge"
+          title={lang === 'es'
+            ? `Datos TLE con ${ageDays.toFixed(1)} días de antigüedad. La precisión disminuye con el tiempo.`
+            : `TLE data is ${ageDays.toFixed(1)} days old. Accuracy degrades over time.`}
+        >
+          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          {lang === 'es' ? `${ageDays.toFixed(0)}d antigüedad` : `${ageDays.toFixed(0)}d old`}
+        </div>
+      )}
+
       <button
         onClick={() => { playClick(); setShowDataHealthPanel(!showDataHealthPanel); }}
         className={`ctl ctl-icon ${showDataHealthPanel ? 'intel-active' : ''}`}
@@ -107,6 +123,21 @@ export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, 
 
       {/* Actions */}
       <div className="topbar-actions">
+        <button
+          id="briefBtn"
+          className="ctl"
+          onClick={() => { playClick(); onOpenBrief(); }}
+          title={t('brief_title')}
+          aria-label={t('brief_title')}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M6 3h8l4 4v14H6z" />
+            <path d="M14 3v5h5" />
+            <path d="M9 13h6" />
+            <path d="M9 17h5" />
+          </svg>
+          <span>{t('brief_short')}</span>
+        </button>
         <button
           className={`ctl ctl-icon${showWatchlistPanel ? ' intel-active' : ''}`}
           onClick={() => { playClick(); setShowWatchlistPanel(!showWatchlistPanel); }}

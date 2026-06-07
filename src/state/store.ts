@@ -6,6 +6,7 @@
 // propagation tick. Only UI-driving state goes here.
 // ============================================================
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { DataMode, GroupKey, BandKey, MissionScenarioType, ApiHealth, TleApiMeta, VisualQuality } from '../types';
 import { CS } from './catalogStore';
 
@@ -102,7 +103,9 @@ export interface UIActions {
 
 const ALL_GROUPS: GroupKey[] = ['starlink', 'leo', 'meo', 'geo', 'gnss', 'weather', 'stations', 'science'];
 
-export const useStore = create<UIState & UIActions>((set, get) => ({
+export const useStore = create<UIState & UIActions>()(
+  persist(
+  (set, get) => ({
   // --- initial state ---
   dataMode: 'loading',
   totalCount: 0,
@@ -200,7 +203,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   setSimMode: (mode) => {
     if (get().simMode === 'live' && mode !== 'live') {
       // Capture live snapshot before shifting time
-      import('../intelligence/intelligence').then(({ getIntelligence }) => {
+      import('../intelligence/runtime').then(({ getIntelligence }) => {
         const intel = getIntelligence();
         CS.liveSnapshot = {
           total: CS.N,
@@ -220,7 +223,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   setSimSpeed: (speed) => set({ simSpeed: speed }),
   jumpTime: (offsetMs) => {
     if (get().simMode === 'live') {
-      import('../intelligence/intelligence').then(({ getIntelligence }) => {
+      import('../intelligence/runtime').then(({ getIntelligence }) => {
         const intel = getIntelligence();
         CS.liveSnapshot = {
           total: CS.N,
@@ -242,4 +245,13 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
     CS.simTimestampMs = Date.now();
     set({ simMode: 'live', simSpeed: 1 });
   },
-}));
+  }),
+  {
+    name: 'orbitiq-ui-prefs',
+    partialize: (state) => ({
+      lang: state.lang,
+      visualQuality: state.visualQuality,
+      autoRotate: state.autoRotate,
+    }),
+  }
+));

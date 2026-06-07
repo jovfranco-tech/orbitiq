@@ -8,7 +8,7 @@
 import { CS } from '../state/catalogStore';
 import { REGIONS, matchRegion } from '../regions/regions';
 import { GROUPS } from '../data/groups';
-import { satelliteRelevance } from '../ai/agent';
+import { satelliteRelevance } from './relevance';
 import { t } from '../i18n/i18n';
 import type {
   BandKey, GroupKey, CongestionLevel,

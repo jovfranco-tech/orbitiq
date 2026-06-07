@@ -1,12 +1,10 @@
 // ============================================================
 // OrbitIQ — /api/agent
-// Vercel serverless function: Proxies the AI Command Agent
-// queries to an LLM provider (OpenAI-compatible) and enforces
-// a strict JSON schema response.
+// Vercel serverless function: Proxies AI Command Agent queries
+// to Gemini (primary) or OpenAI-compatible (fallback).
 // ============================================================
 import { z } from 'zod';
 
-// Inline types matching @vercel/node
 interface VercelRequest {
   method?: string;
   body?: unknown;
@@ -68,55 +66,10 @@ const ResponseSchema = z.object({
 
 export type LlmAgentResponse = z.infer<typeof ResponseSchema>;
 
-// ---- Main Handler ----------------------------------------------------------
+// ---- Shared system prompt --------------------------------------------------
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    res.status(204).end();
-    return;
-  }
-
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
-  }
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    res.status(503).json({ error: 'LLM not configured. Deterministic fallback required.' });
-    return;
-  }
-
-  if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
-    res.status(400).json({ error: 'Invalid request body' });
-    return;
-  }
-
-  const { query, context } = req.body as { query?: unknown; context?: unknown };
-  if (!query || typeof query !== 'string' || query.length > 500) {
-    res.status(400).json({ error: 'Missing or invalid query (max 500 chars)' });
-    return;
-  }
-  
-  let contextSize = 0;
-  try {
-    contextSize = JSON.stringify(context || {}).length;
-  } catch {
-    res.status(400).json({ error: 'Invalid context payload' });
-    return;
-  }
-  if (contextSize > 10000) {
-    res.status(400).json({ error: 'Context payload too large' });
-    return;
-  }
-
-  const model = process.env.LLM_MODEL || 'gpt-4o-mini';
-
-  const systemPrompt = `You are OrbitIQ AI Command Agent, an orbital intelligence assistant.
+function buildSystemPrompt(context: unknown): string {
+  return `You are OrbitIQ AI Command Agent, an orbital intelligence assistant.
 Your job is to interpret the user's natural language query and map it to specific, predefined orbital actions.
 
 CRITICAL RULES:
@@ -179,45 +132,127 @@ type LlmAgentResponse = {
   safetyCaveat: string;
   language: "en" | "es";
 };`;
+}
+
+// ---- Gemini call -----------------------------------------------------------
+
+async function callGemini(apiKey: string, query: string, context: unknown): Promise<string> {
+  const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: buildSystemPrompt(context) }] },
+        contents: [{ role: 'user', parts: [{ text: query }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.1,
+          maxOutputTokens: 2048,
+        },
+      }),
+      signal: AbortSignal.timeout(12_000),
+    }
+  );
+  if (!res.ok) throw new Error(`Gemini API Error ${res.status}`);
+  const json = await res.json();
+  return json.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+}
+
+// ---- OpenAI call -----------------------------------------------------------
+
+async function callOpenAI(apiKey: string, query: string, context: unknown): Promise<string> {
+  const model = process.env.LLM_MODEL || 'gpt-4o-mini';
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: buildSystemPrompt(context) },
+        { role: 'user', content: query },
+      ],
+      temperature: 0.1,
+      response_format: { type: 'json_object' },
+    }),
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!res.ok) throw new Error(`OpenAI API Error ${res.status}`);
+  const json = await res.json();
+  return json.choices?.[0]?.message?.content || '{}';
+}
+
+// ---- Main Handler ----------------------------------------------------------
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.status(405).json({ error: 'Method not allowed' });
+    return;
+  }
+
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const openaiKey = process.env.OPENAI_API_KEY;
+
+  if (!geminiKey && !openaiKey) {
+    res.status(503).json({ error: 'LLM not configured. Deterministic fallback required.' });
+    return;
+  }
+
+  if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
+    res.status(400).json({ error: 'Invalid request body' });
+    return;
+  }
+
+  const { query, context } = req.body as { query?: unknown; context?: unknown };
+  if (!query || typeof query !== 'string' || query.length > 500) {
+    res.status(400).json({ error: 'Missing or invalid query (max 500 chars)' });
+    return;
+  }
+
+  let contextSize = 0;
+  try {
+    contextSize = JSON.stringify(context || {}).length;
+  } catch {
+    res.status(400).json({ error: 'Invalid context payload' });
+    return;
+  }
+  if (contextSize > 10000) {
+    res.status(400).json({ error: 'Context payload too large' });
+    return;
+  }
 
   try {
-    const aiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: query }
-        ],
-        temperature: 0.1,
-        response_format: { type: 'json_object' }
-      }),
-      signal: AbortSignal.timeout(12_000)
-    });
+    let content: string;
 
-    if (!aiRes.ok) {
-      throw new Error(`LLM API Error ${aiRes.status}`);
+    if (geminiKey) {
+      content = await callGemini(geminiKey, query, context);
+    } else {
+      content = await callOpenAI(openaiKey!, query, context);
     }
 
-    const json = await aiRes.json();
-    let content = json.choices?.[0]?.message?.content || '{}';
     content = content.trim();
     if (content.startsWith('```json')) {
-      content = content.replace(/^```json\n/, '').replace(/\n```$/, '');
+      content = content.replace(/^```json\n?/, '').replace(/\n?```$/, '');
     }
 
     const parsed = JSON.parse(content);
-    
-    // Zod validation throws if shape is invalid
     const validatedData = ResponseSchema.parse(parsed);
 
     res.status(200).json(validatedData);
-  } catch (err: any) {
-    // Return a generic safe error without raw stack traces
+  } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       console.error('[/api/agent] LLM Response Schema mismatch');
       res.status(500).json({ error: 'invalid_schema' });

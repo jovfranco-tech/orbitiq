@@ -2,7 +2,7 @@
 // OrbitIQ Command Center v0.3.0 — App root
 // ============================================================
 import { lazy, Suspense, useRef, useCallback, useEffect, useState } from 'react';
-import { GlobeMount } from '../components/globe/GlobeMount';
+import { SidePanelSkeleton, ModalSkeleton } from '../components/PanelSkeleton';
 import { TopBar } from '../components/dashboard/TopBar';
 import { Legend } from '../components/dashboard/Legend';
 import { AgentPanel } from '../components/panels/AgentPanel';
@@ -11,7 +11,6 @@ import { TimeControlsPanel } from '../components/panels/TimeControlsPanel';
 import { BottomTabBar } from '../components/dashboard/BottomTabBar';
 import { AttributionBadge } from '../components/dashboard/AttributionBadge';
 import { CommandVisualLayer } from '../components/dashboard/CommandVisualLayer';
-import { MissionCinematicCue } from '../components/dashboard/MissionCinematicCue';
 import { useStore } from '../state/store';
 import { useUserStore } from '../state/userStore';
 import { CS, initCatalogStore } from '../state/catalogStore';
@@ -19,16 +18,13 @@ import { loadSatellites } from '../data/client';
 import { GROUPS, classifyGroup } from '../data/groups';
 import { buildRecords, dataAgeDays, sampleOrbitPath } from '../orbital/propagator';
 import { matchRegion, REGIONS } from '../regions/regions';
-import { executeAgentCommand } from '../ai/agent';
 import type { AgentContext } from '../ai/agent';
 import { getLang, setLang, t } from '../i18n/i18n';
-import { getIntelligence, invalidateIntelligence } from '../intelligence/intelligence';
-import { getMissionScenarios } from '../intelligence/risk';
-import * as THREE from 'three';
 import { useLiveTelemetry } from '../hooks/useLiveTelemetry';
 import type { GlobeApi, IntelligenceSummary } from '../types';
 import type { AiAgentResponse, GroupKey, BandKey } from '../types';
 
+const GlobeMount = lazy(() => import('../components/globe/GlobeMount').then((m) => ({ default: m.GlobeMount })));
 const MissionPanel = lazy(() => import('../components/panels/MissionPanel').then((m) => ({ default: m.MissionPanel })));
 const DetailPanel = lazy(() => import('../components/panels/DetailPanel').then((m) => ({ default: m.DetailPanel })));
 const BriefModal = lazy(() => import('../components/panels/BriefModal').then((m) => ({ default: m.BriefModal })));
@@ -38,6 +34,7 @@ const WatchlistPanel = lazy(() => import('../components/panels/WatchlistPanel').
 const SavedViewsPanel = lazy(() => import('../components/panels/SavedViewsPanel').then((m) => ({ default: m.SavedViewsPanel })));
 const SnapshotPanel = lazy(() => import('../components/panels/SnapshotPanel').then((m) => ({ default: m.SnapshotPanel })));
 const DataHealthPanel = lazy(() => import('../components/panels/DataHealthPanel').then((m) => ({ default: m.DataHealthPanel })));
+const MissionCinematicCue = lazy(() => import('../components/dashboard/MissionCinematicCue').then((m) => ({ default: m.MissionCinematicCue })));
 
 // ---- Hex color → [r,g,b] 0–1 ----------------------------------------
 function hexToRGB(h: string): [number, number, number] {
@@ -51,13 +48,55 @@ const MAX_AGENT_TIME_JUMP_MS = 7 * 24 * 60 * 60 * 1000;
 const MIN_AGENT_SPEED = 0.25;
 const MAX_AGENT_SPEED = 360;
 
+class FlyVector {
+  x = 0;
+  y = 0;
+  z = 0;
+
+  set(x: number, y: number, z: number): void {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+  }
+
+  clone(): FlyVector {
+    const next = new FlyVector();
+    next.set(this.x, this.y, this.z);
+    return next;
+  }
+
+  lengthSq(): number {
+    return this.x * this.x + this.y * this.y + this.z * this.z;
+  }
+
+  length(): number {
+    return Math.sqrt(this.lengthSq());
+  }
+
+  normalize(): FlyVector {
+    const len = this.length();
+    if (len > 0) this.multiplyScalar(1 / len);
+    return this;
+  }
+
+  multiplyScalar(scale: number): FlyVector {
+    this.x *= scale;
+    this.y *= scale;
+    this.z *= scale;
+    return this;
+  }
+}
+
 export function App() {
   const globeRef  = useRef<GlobeApi | null>(null);
   const tickRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const intelRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingSatRef = useRef<number | null>(null);
+  const intelligenceRuntimeRef = useRef<Promise<typeof import('../intelligence/runtime')> | null>(null);
+  const isMountedRef = useRef(true);
   const lastTickTimeRef = useRef<number>(performance.now());
   // Stable Vector3 reused for fly-to — avoids creating objects each pick
-  const flyVec    = useRef(new THREE.Vector3());
+  const flyVec    = useRef(new FlyVector());
 
   const workerRef = useRef<Worker | null>(null);
   const workerReadyRef = useRef(false);
@@ -71,12 +110,18 @@ export function App() {
   const store = useStore();
   const userStore = useUserStore();
 
+  const loadIntelligenceRuntime = useCallback(() => {
+    intelligenceRuntimeRef.current ??= import('../intelligence/runtime');
+    return intelligenceRuntimeRef.current;
+  }, []);
+
   // ---- Intelligence refresh (decoupled from tick) -----------------------
   const refreshIntel = useCallback(() => {
     if (CS.N === 0) return;
-    const intel = getIntelligence();
-    setIntelligence(intel);
-  }, []);
+    void loadIntelligenceRuntime().then(({ getIntelligence }) => {
+      if (isMountedRef.current && CS.N > 0) setIntelligence(getIntelligence());
+    });
+  }, [loadIntelligenceRuntime]);
 
   // ---- Filter pass (hot path) ------------------------------------------
   const applyFilter = useCallback(() => {
@@ -145,8 +190,8 @@ export function App() {
 
     const validRec = CS.recs.find((r) => r && !r.error);
     if (validRec) useStore.getState().setAgeDays(dataAgeDays(validRec, new Date()));
-    invalidateIntelligence();
-  }, []);
+    void loadIntelligenceRuntime().then(({ invalidateIntelligence }) => invalidateIntelligence());
+  }, [loadIntelligenceRuntime]);
 
   // ---- Globe ready (called once after mount) ---------------------------
   const onGlobeReady = useCallback(async (globe: GlobeApi) => {
@@ -154,6 +199,16 @@ export function App() {
     globe.setAutoRotate(true);
     globe.setVisualQuality(useStore.getState().visualQuality);
     globe.onPick((i) => { if (i >= 0) selectSat(globe, i, true); });
+
+    const reveal = () => {
+      document.getElementById('loading')?.classList.add('gone');
+      setTimeout(() => {
+        const l = document.getElementById('loading');
+        if (l) l.style.display = 'none';
+      }, 800);
+    };
+    globe.ready.then(reveal);
+    setTimeout(reveal, 4500);
 
     const result = await loadSatellites();
     loadCatalog(globe, result.catalog);
@@ -169,22 +224,20 @@ export function App() {
       }
     }
 
+    // Restore satellite selection from URL (needs catalog to be loaded first)
+    if (pendingSatRef.current != null) {
+      const satnum = pendingSatRef.current;
+      pendingSatRef.current = null;
+      const idx = CS.catalog.findIndex((c) => c && c.satnum === satnum);
+      if (idx >= 0) selectSat(globe, idx, true);
+    }
+
     tick();
     refreshIntel();
 
-    const reveal = () => {
-      document.getElementById('loading')?.classList.add('gone');
-      setTimeout(() => {
-        const l = document.getElementById('loading');
-        if (l) l.style.display = 'none';
-      }, 800);
-    };
-    globe.ready.then(reveal);
-    setTimeout(reveal, 4500);
-
     tickRef.current = setInterval(tick, TICK_MS);
     intelRef.current = setInterval(refreshIntel, INTEL_REFRESH_MS);
-  }, [loadCatalog, tick, refreshIntel]);
+  }, [loadCatalog, tick, refreshIntel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- Worker setup & cleanup (StrictMode double-mount safe) ---------------
   useEffect(() => {
@@ -234,23 +287,43 @@ export function App() {
     };
   }, [applyFilter]);
 
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // ---- URL Init: restore state from hash params on mount ------------------
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const band = params.get('band') as BandKey | null;
+    const region = params.get('region');
+    const groups = params.get('groups');
+    const sat = params.get('sat');
+
+    if (band) useStore.getState().setFilterBand(band);
+    if (region) useStore.getState().setFilterRegion(region);
+    if (groups) {
+      const gs = groups.split(',').filter(Boolean) as GroupKey[];
+      if (gs.length > 0) useStore.getState().setActiveGroups(new Set(gs));
+    }
+    if (sat) {
+      const satnum = Number(sat);
+      if (Number.isFinite(satnum) && satnum > 0) pendingSatRef.current = satnum;
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ---- URL State Sync --------------------------------------------------
   useEffect(() => {
-    const sStore = useStore.getState();
     const params = new URLSearchParams();
-    if (sStore.filterBand) params.set('band', sStore.filterBand);
-    if (sStore.filterRegion) params.set('region', sStore.filterRegion);
-    if (sStore.activeGroups.size > 0) params.set('groups', Array.from(sStore.activeGroups).join(','));
-    if (sStore.selected >= 0 && CS.catalog[sStore.selected]) params.set('sat', CS.catalog[sStore.selected].satnum.toString());
+    if (store.filterBand) params.set('band', store.filterBand);
+    if (store.filterRegion) params.set('region', store.filterRegion);
+    if (store.activeGroups.size > 0) params.set('groups', Array.from(store.activeGroups).join(','));
+    if (store.selected >= 0 && CS.catalog[store.selected]) params.set('sat', CS.catalog[store.selected].satnum.toString());
     const hash = params.toString();
     const newUrl = hash ? `${window.location.pathname}#${hash}` : window.location.pathname;
     window.history.replaceState(null, '', newUrl);
-  }, [
-    useStore(s => s.filterBand),
-    useStore(s => s.filterRegion),
-    useStore(s => s.activeGroups),
-    useStore(s => s.selected)
-  ]);
+  }, [store.filterBand, store.filterRegion, store.activeGroups, store.selected]);
 
   // ---- React to filter changes instantly -------------------------------
   useEffect(() => {
@@ -284,7 +357,7 @@ export function App() {
     
     if (fly) {
       globe.getPos(i, flyVec.current);
-      if (flyVec.current.lengthSq() > 0.01) globe.flyTo(flyVec.current as never);
+      if (flyVec.current.lengthSq() > 0.01) globe.flyTo(flyVec.current);
     }
   }, []);
 
@@ -350,8 +423,9 @@ export function App() {
     return n;
   }, []);
 
-  const createExecutiveSnapshot = useCallback((sourceMode?: string) => {
+  const createExecutiveSnapshot = useCallback(async (sourceMode?: string) => {
     const sState = useStore.getState();
+    const { getIntelligence, getMissionScenarios } = await loadIntelligenceRuntime();
     const intel = getIntelligence();
     const selectedSat = sState.selected >= 0 ? CS.catalog[sState.selected] : null;
     const missionMap = getMissionScenarios(getLang());
@@ -379,7 +453,7 @@ export function App() {
     });
     useUserStore.getState().setShowSnapshotPanel(true);
     store.triggerCommandPulse('create_snapshot');
-  }, [store]);
+  }, [store, loadIntelligenceRuntime]);
 
   // ---- Run AI agent command --------------------------------------------
   const runAgent = useCallback(async (query: string) => {
@@ -410,6 +484,7 @@ export function App() {
       timeOffsetMs: state.simMode === 'live' ? 0 : CS.simTimestampMs - Date.now(),
     };
 
+    const { executeAgentCommand } = await import('../ai/agent');
     const res = await executeAgentCommand(query, ctx, getLang());
     // Use the latest state since the await could take a few seconds
     const latestState = useStore.getState();
@@ -527,7 +602,7 @@ export function App() {
         if (a.snapshotAction === 'export') {
           uStore.setShowSnapshotPanel(true);
         } else if (a.snapshotAction === 'create') {
-          createExecutiveSnapshot(res.sourceMode);
+          await createExecutiveSnapshot(res.sourceMode);
         }
       }
     }
@@ -629,7 +704,9 @@ export function App() {
   return (
     <>
       {/* Globe canvas — imperative Three.js, behind the UI */}
-      <GlobeMount onReady={onGlobeReady} onError={() => useStore.getState().setLoading(false)} />
+      <Suspense fallback={null}>
+        <GlobeMount onReady={onGlobeReady} onError={() => useStore.getState().setLoading(false)} />
+      </Suspense>
 
       {/* Loading veil */}
       {isLoading && (
@@ -646,7 +723,11 @@ export function App() {
         <TourModal />
       </Suspense>
       <CommandVisualLayer />
-      <MissionCinematicCue missionOpen={missionOpen} activeMissionScenario={store.activeMissionScenario} lang={store.lang} />
+      {missionOpen && (
+        <Suspense fallback={null}>
+          <MissionCinematicCue missionOpen={missionOpen} activeMissionScenario={store.activeMissionScenario} lang={store.lang} />
+        </Suspense>
+      )}
 
       {/* UI overlay */}
       <div id="ui" className={`ui mobile-tab-${activeMobileTab}${cinematicMode ? ' cinematic' : ''}${missionOpen ? ' mission-open' : ''}${userStore.showSnapshotPanel ? ' snapshot-open' : ''}`}>
@@ -673,14 +754,14 @@ export function App() {
         </aside>
 
         {selected >= 0 && CS.catalog[selected] && (
-          <Suspense fallback={null}>
+          <Suspense fallback={<SidePanelSkeleton />}>
             <DetailPanel onClose={clearSelection} onToggleTrack={toggleTrack} />
           </Suspense>
         )}
 
         {/* Intelligence panel — only when no detail panel and toggle is on (or mobile tab is active) */}
         {(showIntelligence && selected < 0 || activeMobileTab === 'intel') && (
-          <Suspense fallback={null}>
+          <Suspense fallback={<SidePanelSkeleton />}>
             <OrbitalIntelligencePanel
               intelligence={intelligence}
               onClose={() => {
@@ -690,15 +771,15 @@ export function App() {
             />
           </Suspense>
         )}
-        
+
         {missionOpen && (
-          <Suspense fallback={null}>
+          <Suspense fallback={<SidePanelSkeleton />}>
             <MissionPanel />
           </Suspense>
         )}
 
         {userStore.showWatchlistPanel && (
-          <Suspense fallback={null}>
+          <Suspense fallback={<SidePanelSkeleton />}>
             <WatchlistPanel
               onClose={() => userStore.setShowWatchlistPanel(false)}
               onSelectSatnum={(s) => {
@@ -709,12 +790,12 @@ export function App() {
           </Suspense>
         )}
         {userStore.showSavedViewsPanel && (
-          <Suspense fallback={null}>
+          <Suspense fallback={<SidePanelSkeleton />}>
             <SavedViewsPanel onClose={() => userStore.setShowSavedViewsPanel(false)} />
           </Suspense>
         )}
         {userStore.showSnapshotPanel && (
-          <Suspense fallback={null}>
+          <Suspense fallback={<SidePanelSkeleton />}>
             <SnapshotPanel onClose={() => userStore.setShowSnapshotPanel(false)} />
           </Suspense>
         )}
@@ -740,7 +821,7 @@ export function App() {
         <AttributionBadge />
 
         {showBrief && (
-          <Suspense fallback={null}>
+          <Suspense fallback={<ModalSkeleton />}>
             <BriefModal onClose={() => store.setShowBrief(false)} />
           </Suspense>
         )}

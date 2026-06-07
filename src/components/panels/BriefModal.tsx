@@ -1,13 +1,16 @@
 // ============================================================
 // OrbitIQ v0.3.0 — Executive Orbital Brief modal (v2)
 // ============================================================
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { t } from '../../i18n/i18n';
 import { generateBrief } from '../../ai/agent';
 import { GROUPS } from '../../data/groups';
 import { useStore } from '../../state/store';
+import { useUserStore } from '../../state/userStore';
 import { CS } from '../../state/catalogStore';
 import { getIntelligence } from '../../intelligence/intelligence';
+import { getMissionScenarios } from '../../intelligence/risk';
+import { buildExecutiveBriefMarkdown } from '../../utils/reports';
 import type { GroupKey } from '../../types';
 
 interface Props {
@@ -15,12 +18,19 @@ interface Props {
 }
 
 export function BriefModal({ onClose }: Props) {
-  const { dataMode, renderedCount, totalCount, simMode, lang } = useStore();
+  const { dataMode, renderedCount, totalCount, simMode, lang, selected, activeMissionScenario } = useStore();
+  const createSnapshot = useUserStore((s) => s.createSnapshot);
+  const setShowSnapshotPanel = useUserStore((s) => s.setShowSnapshotPanel);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const feedbackTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current);
+    };
   }, [onClose]);
 
   const groupCounts: Record<string, number> = {};
@@ -41,6 +51,74 @@ export function BriefModal({ onClose }: Props) {
     intelligence,
     lang,
   });
+
+  const caveats = [
+    lang === 'es'
+      ? 'Visualización orbital basada en TLE públicos propagados con SGP4. No apta para seguridad de vuelo ni evaluación de conjunciones.'
+      : 'Public TLE/SGP4-based orbital visualization. Not for flight safety or conjunction assessment.',
+  ];
+
+  const showFeedback = (message: string) => {
+    if (feedbackTimerRef.current) window.clearTimeout(feedbackTimerRef.current);
+    setFeedback(message);
+    feedbackTimerRef.current = window.setTimeout(() => setFeedback(null), 2400);
+  };
+
+  const buildCurrentMarkdown = () => buildExecutiveBriefMarkdown({
+    brief,
+    generatedAt: Date.now(),
+    sourceMode: dataMode,
+    totalLoaded: totalCount,
+    visibleCount: renderedCount,
+    mostCrowdedBand: intelligence.mostCrowdedBand,
+    highestConcentrationRegion: intelligence.highestConcentrationRegion,
+    dominantGroup: intelligence.dominantGroup,
+    congestionScore: intelligence.congestionScore,
+    congestionLevel: intelligence.congestionLevel,
+    caveats,
+  });
+
+  const handleCopyReport = () => {
+    if (!navigator.clipboard) {
+      showFeedback(t('report_copy_failed'));
+      return;
+    }
+
+    void navigator.clipboard.writeText(buildCurrentMarkdown()).then(() => {
+      showFeedback(t('report_copied'));
+    }).catch(() => {
+      showFeedback(t('report_copy_failed'));
+    });
+  };
+
+  const handleSaveSnapshot = () => {
+    const selectedSat = selected >= 0 ? CS.catalog[selected] : null;
+    const missionMap = getMissionScenarios(lang);
+    const missionBrief = activeMissionScenario ? missionMap[activeMissionScenario] ?? null : null;
+
+    createSnapshot({
+      simOffsetMs: simMode === 'live' ? 0 : CS.simTimestampMs - Date.now(),
+      sourceMode: dataMode,
+      totalLoaded: CS.N,
+      visibleCount: renderedCount,
+      mostCrowdedBand: intelligence.mostCrowdedBand,
+      highestConcentrationRegion: intelligence.highestConcentrationRegion,
+      dominantGroup: intelligence.dominantGroup,
+      selectedSatellite: selectedSat ? {
+        name: selectedSat.name,
+        satnum: selectedSat.satnum,
+        lat: CS.lat[selected],
+        lon: CS.lon[selected],
+        alt: CS.alt[selected],
+      } : null,
+      executiveBrief: brief,
+      missionBrief,
+      riskLayerSummary: missionBrief?.riskSignal ?? null,
+      caveats,
+    });
+    setShowSnapshotPanel(true);
+    showFeedback(t('snapshot_saved'));
+  };
 
   const provKey = dataMode === 'live' ? 'prov_live_note'
     : dataMode === 'cached' ? 'prov_cached_note'
@@ -98,6 +176,16 @@ export function BriefModal({ onClose }: Props) {
               <i />{intelligence.congestionLevel.charAt(0).toUpperCase() + intelligence.congestionLevel.slice(1)}
             </div>
           </div>
+
+          <div className="brief-actions">
+            <button className="brief-action-btn" onClick={handleCopyReport}>
+              {t('copy_report_markdown')}
+            </button>
+            <button className="brief-action-btn primary" onClick={handleSaveSnapshot}>
+              {t('save_snapshot')}
+            </button>
+          </div>
+          {feedback && <div className="brief-feedback" role="status">{feedback}</div>}
         </div>
 
         <div className="brief-foot">{t('disclaimer')}</div>

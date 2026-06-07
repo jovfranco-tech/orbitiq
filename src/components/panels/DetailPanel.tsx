@@ -7,7 +7,7 @@ import { GROUPS } from '../../data/groups';
 import { bandFromAltitude } from '../../data/groups';
 import { inspect, dataAgeDays } from '../../orbital/propagator';
 import { regionOf } from '../../regions/regions';
-import { satelliteRelevance } from '../../ai/agent';
+import { satelliteRelevance } from '../../intelligence/relevance';
 import { CS } from '../../state/catalogStore';
 import { useStore } from '../../state/store';
 import { useUserStore } from '../../state/userStore';

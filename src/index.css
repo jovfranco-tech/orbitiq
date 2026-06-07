@@ -138,6 +138,18 @@ input,select,button{font-family:inherit}
   background:rgba(95,208,245,.1)}
 .health-top-dot{width:8px;height:8px;border-radius:50%;animation:softBeacon 2.8s ease-in-out infinite}
 @keyframes softBeacon{0%,100%{transform:scale(.9);opacity:.72}50%{transform:scale(1.15);opacity:1}}
+
+/* Staleness badge — shown when TLE data age > 3 days */
+.staleness-badge{display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:20px;
+  border:1px solid rgba(255,209,102,.38);background:rgba(255,209,102,.08);
+  color:var(--amber);font-family:var(--mono);font-size:9.5px;font-weight:600;
+  letter-spacing:.08em;white-space:nowrap;cursor:default;
+  animation:staleBlink 3.5s ease-in-out infinite}
+@keyframes staleBlink{0%,100%{opacity:.8}50%{opacity:1}}
+
+/* Panel skeleton — glassmorphism placeholder during lazy-load */
+.panel-skeleton{opacity:.45;animation:skeletonPulse 1.6s ease-in-out infinite;pointer-events:none}
+@keyframes skeletonPulse{0%,100%{opacity:.35}50%{opacity:.55}}
 .lang{display:flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
 .lang button{padding:8px 11px;background:transparent;border:0;font-size:11px;font-weight:700;
   letter-spacing:.06em;color:var(--muted);transition:.15s}
@@ -347,6 +359,14 @@ input,select,button{font-family:inherit}
   margin:0 0 5px;color:var(--cyan-bright);display:flex;align-items:center;gap:8px}
 .brief-sec h3::before{content:"";width:14px;height:1px;background:var(--cyan)}
 .brief-sec p{margin:0;font-size:13px;line-height:1.6;color:var(--muted)}
+.brief-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:2px}
+.brief-action-btn{min-width:0;border:1px solid rgba(95,208,245,.28);border-radius:8px;
+  background:rgba(95,208,245,.08);color:var(--cyan-bright);font-weight:800;font-size:11px;
+  padding:10px 11px;text-transform:uppercase;letter-spacing:.04em}
+.brief-action-btn.primary{background:linear-gradient(135deg,var(--cyan-bright),var(--green));color:#041014;border-color:transparent}
+.brief-action-btn:hover{filter:brightness(1.08)}
+.brief-feedback{min-height:18px;font-family:var(--mono);font-size:10px;color:var(--green);
+  letter-spacing:.05em;text-transform:uppercase}
 .brief-foot{padding:14px 24px 20px;border-top:1px solid var(--border-soft);
   font-size:10.5px;color:var(--faint);line-height:1.45}
 
@@ -1263,6 +1283,9 @@ input,select,button{font-family:inherit}
     height:76px;
   }
   .snapshot-scoreboard {
+    grid-template-columns:1fr;
+  }
+  .brief-actions {
     grid-template-columns:1fr;
   }
   .mission-cue-copy {
