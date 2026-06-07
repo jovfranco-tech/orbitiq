@@ -414,5 +414,7 @@ export interface GlobeApi {
   resize(): void;
   renderOnce(): void;
   resetView(): void;
+  rotateBy(deltaTheta: number, deltaPhi: number): void;
+  zoomBy(factor: number): void;
   ready: Promise<void>;
 }

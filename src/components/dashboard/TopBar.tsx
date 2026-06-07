@@ -85,7 +85,7 @@ export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, 
       <div className="topbar-tag">{t('tagline')}</div>
 
       {/* Metric strip */}
-      <div className="metrics">
+      <div className="metrics" tabIndex={0}>
         <Metric label={t('m_total')} value={totalCount.toLocaleString()} />
         <Metric label={t('m_rendered')} value={renderedCount.toLocaleString()} accent />
         <Metric label={t('m_fresh')} value={fresh} />

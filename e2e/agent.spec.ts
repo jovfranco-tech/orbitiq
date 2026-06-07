@@ -18,7 +18,7 @@ test.describe('AI Agent — golden path', () => {
   test('example chip runs a query', async ({ page }) => {
     const chip = page.locator('.agent-chips button').first();
     await chip.click();
-    const status = page.locator('#agentCard [role="status"]');
+    const status = page.locator('#agentCard .agent-status');
     await expect(status).toContainText(/(Parsing|Analizando|Ready|Listo)/);
   });
 

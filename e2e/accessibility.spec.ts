@@ -34,7 +34,7 @@ test.describe('Accessibility — WCAG 2.1 AA', () => {
   test('bottom tab bar supports arrow key navigation', async ({ page }) => {
     const firstTab = page.locator('[role="tab"]').first();
     await firstTab.focus();
-    await page.keyboard.press('ArrowRight');
+    await firstTab.press('ArrowRight');
     const secondTab = page.locator('[role="tab"]').nth(1);
     await expect(secondTab).toBeFocused();
   });

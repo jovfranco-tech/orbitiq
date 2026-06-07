@@ -643,6 +643,24 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     focusTarget = new THREE.Vector3(0, 0, 0);
     flyT = 0;
   }
+  function rotateBy(deltaTheta: number, deltaPhi: number): void {
+    const offset = camera.position.clone().sub(controls.target);
+    const sph = new THREE.Spherical().setFromVector3(offset);
+    sph.theta += deltaTheta;
+    sph.phi = THREE.MathUtils.clamp(sph.phi + deltaPhi, 0.06, Math.PI - 0.06);
+    offset.setFromSpherical(sph);
+    camera.position.copy(controls.target).add(offset);
+    controls.update();
+    renderOnce();
+  }
+  function zoomBy(factor: number): void {
+    const dir = camera.position.clone().sub(controls.target).normalize();
+    const dist = camera.position.distanceTo(controls.target);
+    const next = THREE.MathUtils.clamp(dist * factor, controls.minDistance, controls.maxDistance);
+    camera.position.copy(controls.target).addScaledVector(dir, next);
+    controls.update();
+    renderOnce();
+  }
   function setAutoRotate(v: boolean): void { controls.autoRotate = v; }
   function setVisualQuality(q: VisualQuality): void {
     visualQuality = q;
@@ -865,6 +883,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     setVisualQuality,
     setVisualContext,
     setAutoRotate, setEarthRotation, setSunTime, onPick, resize, renderOnce, resetView,
+    rotateBy, zoomBy,
     ready: readyPromise,
     destroy,
   };

@@ -24,15 +24,19 @@ export function GlobeHelp() {
     ? [
         { key: 'Arrastrar', action: 'Rotar el globo' },
         { key: 'Scroll / Pellizcar', action: 'Acercar / Alejar' },
+        { key: '← → ↑ ↓', action: 'Rotar (teclado)' },
+        { key: '+ / −', action: 'Zoom (teclado)' },
+        { key: 'Tab / Shift+Tab', action: 'Ciclar satélites' },
         { key: 'Clic', action: 'Seleccionar satélite' },
-        { key: 'Doble clic', action: 'Enfocar satélite' },
         { key: 'Esc', action: 'Limpiar selección' },
       ]
     : [
         { key: 'Drag', action: 'Rotate globe' },
         { key: 'Scroll / Pinch', action: 'Zoom in / out' },
+        { key: '← → ↑ ↓', action: 'Rotate (keyboard)' },
+        { key: '+ / −', action: 'Zoom (keyboard)' },
+        { key: 'Tab / Shift+Tab', action: 'Cycle satellites' },
         { key: 'Click', action: 'Select satellite' },
-        { key: 'Double-click', action: 'Focus satellite' },
         { key: 'Esc', action: 'Clear selection' },
       ];
 
