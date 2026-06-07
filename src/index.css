@@ -31,6 +31,37 @@ input,select,button{font-family:inherit}
 #globe{position:fixed;inset:0;z-index:0;touch-action:none}
 #globe canvas{display:block;touch-action:none}
 
+.command-visual-layer{position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+.visual-vignette{position:absolute;inset:0;background:
+  radial-gradient(circle at 50% 45%,transparent 26%,rgba(2,5,12,.08) 58%,rgba(2,5,12,.42) 100%);
+  opacity:.42;transition:opacity .45s}
+.orbital-density-field{position:absolute;left:50%;top:50%;width:min(112vw,1180px);aspect-ratio:1;border-radius:50%;
+  transform:translate(-50%,-50%) rotate(-14deg);opacity:.13;
+  background:
+    radial-gradient(circle,transparent 46%,rgba(95,208,245,.16) 47%,transparent 49%),
+    radial-gradient(circle,transparent 58%,rgba(122,170,255,.12) 59%,transparent 61%),
+    radial-gradient(circle,transparent 72%,rgba(255,209,102,.08) 73%,transparent 74%);
+  filter:blur(.2px);animation:densityBreath 7s ease-in-out infinite}
+.orbital-sweep{position:absolute;left:50%;top:50%;width:132vmax;height:1px;transform-origin:center;
+  background:linear-gradient(90deg,transparent,rgba(142,240,255,.18),transparent);
+  opacity:.16;filter:blur(.2px)}
+.sweep-a{animation:orbitalSweep 16s linear infinite}
+.sweep-b{animation:orbitalSweep 23s linear infinite reverse;opacity:.09}
+.risk-pulse-field{position:absolute;left:50%;top:50%;width:min(56vw,620px);aspect-ratio:1;border-radius:50%;
+  transform:translate(-50%,-50%) scale(.92);border:1px solid rgba(255,209,102,.0);
+  opacity:0;transition:opacity .45s,border-color .45s}
+.mission-active .risk-pulse-field{opacity:.42;border-color:rgba(255,209,102,.18);animation:riskPulse 2.8s ease-in-out infinite}
+.targeting-reticle{position:absolute;left:50%;top:50%;width:min(48vw,520px);aspect-ratio:1;border-radius:50%;
+  transform:translate(-50%,-50%) scale(.86);border:1px solid rgba(142,240,255,.0);opacity:0;transition:.45s}
+.has-target .targeting-reticle{opacity:.22;border-color:rgba(142,240,255,.22);animation:targetBreathe 3.6s ease-in-out infinite}
+.has-focus-layer .orbital-density-field{opacity:.2}
+.is-cinematic .visual-vignette{opacity:.68}
+.is-cinematic .orbital-density-field{opacity:.24}
+@keyframes orbitalSweep{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}
+@keyframes densityBreath{0%,100%{transform:translate(-50%,-50%) rotate(-14deg) scale(.985)}50%{transform:translate(-50%,-50%) rotate(-9deg) scale(1.025)}}
+@keyframes riskPulse{0%,100%{transform:translate(-50%,-50%) scale(.9);box-shadow:0 0 0 rgba(255,209,102,0)}50%{transform:translate(-50%,-50%) scale(1.08);box-shadow:0 0 90px rgba(255,209,102,.12)}}
+@keyframes targetBreathe{0%,100%{transform:translate(-50%,-50%) scale(.86)}50%{transform:translate(-50%,-50%) scale(1.02)}}
+
 .ui{position:fixed;inset:0;z-index:10;pointer-events:none;
   display:grid;grid-template-rows:auto 1fr auto;
   grid-template-columns:var(--rail) 1fr auto;
@@ -90,6 +121,8 @@ input,select,button{font-family:inherit}
 .ctl-icon{padding:8px}
 .ctl[aria-pressed="true"]{color:var(--cyan-bright);border-color:rgba(95,208,245,.5);
   background:rgba(95,208,245,.1)}
+.health-top-dot{width:8px;height:8px;border-radius:50%;animation:softBeacon 2.8s ease-in-out infinite}
+@keyframes softBeacon{0%,100%{transform:scale(.9);opacity:.72}50%{transform:scale(1.15);opacity:1}}
 .lang{display:flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
 .lang button{padding:8px 11px;background:transparent;border:0;font-size:11px;font-weight:700;
   letter-spacing:.06em;color:var(--muted);transition:.15s}
@@ -230,11 +263,46 @@ input,select,button{font-family:inherit}
 .legend-item i{width:8px;height:8px;border-radius:50%;background:var(--c);box-shadow:0 0 7px var(--c)}
 .legend-item b{color:var(--text);font-weight:600;font-family:var(--mono);font-size:10px;margin-left:auto}
 
+.sat-label{color:#e9f4ff;font-size:11px;font-family:var(--mono);letter-spacing:.03em;
+  background:linear-gradient(180deg,rgba(10,20,40,.82),rgba(5,10,20,.72));
+  padding:4px 9px;border-radius:6px;border:1px solid rgba(142,240,255,.34);
+  box-shadow:0 0 22px rgba(95,208,245,.18);backdrop-filter:blur(5px)}
+
 /* ----------------------------- Disclaimer -------------------------------- */
 .disclaimer{grid-area:foot;justify-self:center;max-width:760px;text-align:center;
   font-size:10.5px;line-height:1.4;color:var(--faint);padding:8px 18px;
   background:rgba(5,8,14,.5);border:1px solid var(--border-soft);border-radius:20px;
   backdrop-filter:blur(8px)}
+
+.attribution-badge{position:fixed;right:14px;bottom:14px;z-index:12;display:flex;align-items:center;gap:0;
+  max-width:min(310px,calc(100vw - 28px));padding:7px 10px;border-radius:18px;
+  border:1px solid rgba(122,170,255,.11);background:rgba(5,8,14,.46);
+  backdrop-filter:blur(10px) saturate(125%);-webkit-backdrop-filter:blur(10px) saturate(125%);
+  box-shadow:0 16px 40px -24px rgba(0,0,0,.9);font-family:var(--mono);
+  font-size:9.5px;line-height:1.2;letter-spacing:.06em;color:rgba(221,231,246,.58);
+  white-space:nowrap}
+.attribution-badge a{color:rgba(142,240,255,.76);text-decoration:none;text-underline-offset:3px}
+.attribution-badge a:hover{color:var(--cyan-bright);text-decoration:underline}
+.attribution-badge a:focus-visible{outline:1px solid var(--cyan);outline-offset:3px;border-radius:8px}
+
+.legend,
+.time-controls-panel,
+.telemetry-ticker,
+.attribution-badge,
+.ui > footer.disclaimer{transition:opacity .24s ease,transform .24s ease}
+.ui.mission-open .legend,
+.ui.mission-open .time-controls-panel,
+.ui.mission-open .telemetry-ticker,
+.ui.mission-open .attribution-badge,
+.ui.mission-open > footer.disclaimer{opacity:0!important;pointer-events:none!important;transform:translateY(8px);animation:none!important}
+
+@media (min-width:769px) and (max-width:1320px){
+  .disclaimer{max-width:max(420px,calc(100vw - 610px))}
+}
+@media (min-width:769px) and (max-width:960px){
+  .attribution-badge{display:none}
+  .disclaimer{max-width:760px}
+}
 
 /* ----------------------------- Brief modal ------------------------------- */
 .brief-overlay{position:fixed;inset:0;z-index:30;display:grid;place-items:center;
@@ -285,9 +353,13 @@ input,select,button{font-family:inherit}
   font-family:var(--mono);letter-spacing:.22em;text-shadow:0 0 20px rgba(95,208,245,.32)}
 .boot-copy span{font-family:var(--disp);font-size:clamp(24px,4vw,46px);font-weight:700;color:var(--text)}
 .boot-copy b{font-size:11px;color:var(--cyan-bright);font-weight:600}
-.boot-copy i{font-style:normal;font-size:10px;color:var(--muted);letter-spacing:.16em;margin-top:8px}
+.boot-steps{display:flex;flex-direction:column;gap:5px;margin-top:10px;min-height:52px}
+.boot-copy i{font-style:normal;font-size:10px;color:var(--muted);letter-spacing:.16em;opacity:0;animation:bootStep 2.2s ease forwards}
+.boot-copy i:nth-child(2){animation-delay:.35s}
+.boot-copy i:nth-child(3){animation-delay:.72s;color:var(--green)}
 @keyframes bootOut{0%,68%{opacity:1}100%{opacity:0;visibility:hidden}}
 @keyframes reticleScan{0%{transform:scale(.76) rotate(-12deg);opacity:0}28%{opacity:1}100%{transform:scale(1.08) rotate(10deg);opacity:.15}}
+@keyframes bootStep{0%{opacity:0;transform:translateY(4px)}35%,78%{opacity:1;transform:none}100%{opacity:.42;transform:none}}
 
 /* --------------------- Provenance chip (data honesty) -------------------- */
 .prov{display:flex;align-items:center;gap:8px;position:relative;flex-shrink:0;white-space:nowrap;
@@ -331,6 +403,13 @@ input,select,button{font-family:inherit}
 .health-panel-partial .health-summary span{color:var(--amber)}
 .health-panel-unavailable .health-summary{border-color:rgba(255,107,107,.24);background:rgba(255,107,107,.08)}
 .health-panel-unavailable .health-summary span{color:var(--danger)}
+.health-attribution{padding:12px 13px;border-radius:10px;margin-bottom:13px;border:1px solid rgba(122,170,255,.12);
+  background:rgba(120,170,255,.045)}
+.health-attribution span{display:block;margin-bottom:6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--cyan-bright)}
+.health-attribution p{margin:0;font-size:11.5px;line-height:1.52;color:var(--muted);text-wrap:pretty}
+.health-attribution p+p{margin-top:8px}
+.health-attribution-disclaimer{color:var(--faint)!important}
 .health-rows{display:flex;flex-direction:column;gap:10px;padding-bottom:13px;margin-bottom:13px;border-bottom:1px solid var(--border-soft)}
 .health-row{display:grid;grid-template-columns:12px minmax(0,1fr) auto;align-items:start;gap:10px}
 .health-dot{width:9px;height:9px;border-radius:50%;margin-top:4px;background:var(--green);box-shadow:0 0 9px var(--green)}
@@ -392,6 +471,8 @@ input,select,button{font-family:inherit}
 /* ---------------------------- Microinteractions -------------------------- */
 .metric{transition:background .18s}
 .metric:hover{background:rgba(120,170,255,.04)}
+.metric-v{transition:color .22s,text-shadow .22s}
+.metric:hover .metric-v{text-shadow:0 0 14px rgba(142,240,255,.22)}
 .detail{box-shadow:var(--glow),0 0 40px -8px rgba(95,208,245,.25)}
 .ctl-icon svg{transition:transform .4s cubic-bezier(.2,.8,.2,1)}
 #resetViewBtn:hover svg{transform:rotate(90deg)}
@@ -480,6 +561,22 @@ input,select,button{font-family:inherit}
 .agent-intel-row .meta-k{width:auto}
 .agent-intel-row .astat-v{font-size:10.5px}
 
+/* ----------------------------- Executive cinematic mode ------------------ */
+.ui.cinematic .left,
+.ui.cinematic .detail,
+.ui.cinematic .intel,
+.ui.cinematic .mission-panel,
+.ui.cinematic .legend,
+.ui.cinematic .telemetry-ticker,
+.ui.cinematic .bottom-tab-bar{opacity:0!important;pointer-events:none;transform:translateY(10px);transition:.32s ease;animation:none!important}
+.ui.cinematic .topbar{justify-self:center;width:min(1120px,calc(100vw - 28px));
+  background:rgba(7,12,22,.46)}
+.ui.cinematic .topbar-tag{display:none}
+.ui.cinematic .metrics{flex:0 1 auto}
+.ui.cinematic .disclaimer{opacity:.56}
+.ui.cinematic .time-controls-panel{box-shadow:0 0 0 1px rgba(142,240,255,.22),0 20px 70px -24px rgba(95,208,245,.5)}
+.ui.cinematic .attribution-badge{opacity:.78}
+
 /* ----------------------------- Responsive -------------------------------- */
 @media(max-width:1500px){ .topbar-tag{display:none} }
 @media(max-width:1340px){ .ctl#briefBtn span{display:none} .ctl#briefBtn{padding:8px} }
@@ -509,6 +606,7 @@ input,select,button{font-family:inherit}
   top: 60px;
   right: 16px;
   bottom: 80px;
+  z-index: 16;
 }
 .mission-selector {
   margin: 12px 16px;
@@ -527,6 +625,20 @@ input,select,button{font-family:inherit}
   color: var(--text-muted);
   margin-bottom: 16px;
 }
+.mission-visual-band{height:38px;margin:4px 0 14px;border-radius:8px;position:relative;overflow:hidden;
+  border:1px solid rgba(122,170,255,.13);
+  background:
+    linear-gradient(90deg,rgba(95,208,245,.06),rgba(6,214,160,.08),rgba(181,140,255,.05)),
+    repeating-linear-gradient(90deg,transparent 0 18px,rgba(142,240,255,.08) 19px 20px)}
+.mission-visual-band::before{content:"";position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(142,240,255,.28),transparent);
+  width:42%;animation:missionScan 2.6s ease-in-out infinite}
+.mission-visual-band span{position:absolute;left:12px;right:12px;height:1px;background:rgba(142,240,255,.12)}
+.mission-visual-band span:first-child{top:11px}.mission-visual-band span:last-child{bottom:11px}
+.mission-visual-band i{position:absolute;left:50%;top:50%;width:9px;height:9px;border-radius:50%;
+  transform:translate(-50%,-50%);background:var(--green);box-shadow:0 0 18px var(--green)}
+.mission-risk-elevated .mission-visual-band i,.mission-risk-high .mission-visual-band i{background:var(--amber);box-shadow:0 0 18px var(--amber)}
+@keyframes missionScan{0%{transform:translateX(-120%)}50%{transform:translateX(190%)}100%{transform:translateX(190%)}}
 .mission-insight-box {
   background: rgba(0,0,0,0.3);
   border-radius: 6px;
@@ -851,6 +963,24 @@ input,select,button{font-family:inherit}
   .topbar-tag, .metrics {
     display: none !important;
   }
+
+  .attribution-badge {
+    right: 18px;
+    bottom: 84px;
+    max-width: calc(100vw - 36px);
+    justify-content: center;
+    font-size: 9px;
+    opacity: .86;
+  }
+  .ui.mobile-tab-globe .attribution-badge,
+  .ui.mobile-tab-mission .attribution-badge {
+    bottom: 312px;
+  }
+  .ui.mobile-tab-agent .attribution-badge,
+  .ui.mobile-tab-catalog .attribution-badge,
+  .ui.mobile-tab-intel .attribution-badge {
+    display: none;
+  }
   
   /* Hide sidebars and panels by default */
   .left {
@@ -883,6 +1013,16 @@ input,select,button{font-family:inherit}
   }
   .ui.mobile-tab-globe .time-controls-panel {
     display: flex !important;
+  }
+  .ui.cinematic #agentCard,
+  .ui.cinematic .card.catalog,
+  .ui.cinematic #intelPanel,
+  .ui.cinematic .mission-panel,
+  .ui.cinematic .detail {
+    display: none !important;
+  }
+  .ui.cinematic .bottom-tab-bar {
+    display: none !important;
   }
   
   /* Style panels as overlays on mobile */

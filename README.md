@@ -12,6 +12,14 @@ agent, click-to-inspect, constellation/region/altitude filters, and an executive
 > representative fallback catalog for offline/demo mode. For portfolio, education and
 > situational awareness only. **Not** for flight safety or operational conjunction assessment.
 
+> **Project attribution** — OrbitIQ Command Center is an AI-native portfolio project created by
+> Jovan Franco under Aloria Labs, exploring real-time orbital intelligence, space infrastructure
+> risk, and executive command center experiences. Aloria Labs is used here as a creative
+> innovation label; OrbitIQ is not affiliated with any satellite operator, official space agency,
+> data provider, or government entity.
+>
+> Added subtle Aloria Labs attribution and project transparency copy.
+
 ---
 
 ## What it does
@@ -25,6 +33,7 @@ agent, click-to-inspect, constellation/region/altitude filters, and an executive
 | AI command agent | Server-side LLM proxy with schema-validated actions plus deterministic fallback |
 | Filters | Constellation, orbital band, region, altitude range, name/NORAD search |
 | Executive brief | Auto-generated situational summary from the live propagated snapshot |
+| Executive view | Cinematic command-center mode for portfolio screenshots and focused demos |
 | Data provenance | Live / cached / fallback clearly labeled; no false claims |
 | Observability | Runtime UI layer showing exact API / LLM health and data cache metadata |
 | Localisation | EN (default) + ES, all strings keyed |

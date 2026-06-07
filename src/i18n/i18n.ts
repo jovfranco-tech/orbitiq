@@ -29,6 +29,7 @@ const DICT: Record<LangKey, Dict> = {
     executive_snapshot_title: 'Executive snapshots',
     intel_layer: 'Orbital intelligence',
     auto_rotate: 'Auto-rotate',
+    cinematic_mode: 'Executive cinematic view',
     disclaimer:
       'Uses real public TLE/SGP4 orbital data where available, with a representative fallback catalog for offline/demo mode. For portfolio, education and situational awareness only — not for flight safety or operational conjunction assessment.',
     fallback_mode: 'Fallback mode.',
@@ -236,6 +237,12 @@ const DICT: Record<LangKey, Dict> = {
     health_note: 'Why this is yellow',
     health_reason_starlink_subset: 'The full active CelesTrak catalog is temporarily unavailable, so OrbitIQ is using the live Starlink SupGP feed plus representative non-Starlink records.',
     health_reason_network: 'The public source or serverless route timed out, so OrbitIQ is using its safe fallback catalog.',
+    aloria_footer_prefix: 'Created by Jovan Franco · ',
+    aloria_footer_aria: 'Created by Jovan Franco under Aloria Labs',
+    aloria_link_aria: 'Open Aloria Labs website in a new tab',
+    project_attribution_title: 'Project Attribution',
+    project_attribution_body: 'OrbitIQ Command Center is an AI-native portfolio project created by Jovan Franco under Aloria Labs, exploring real-time orbital intelligence, space infrastructure risk, and executive command center experiences.',
+    project_attribution_disclaimer: 'Aloria Labs is used here as a creative innovation label. OrbitIQ is not affiliated with any satellite operator, official space agency, data provider, or government entity.',
     // Regions
     region_japan: 'Japan',
     region_latam: 'Latin America',
@@ -283,6 +290,7 @@ const DICT: Record<LangKey, Dict> = {
     executive_snapshot_title: 'Instantáneas ejecutivas',
     intel_layer: 'Inteligencia orbital',
     auto_rotate: 'Auto-rotación',
+    cinematic_mode: 'Vista ejecutiva cinematográfica',
     disclaimer:
       'Usa datos orbitales TLE/SGP4 públicos reales donde estén disponibles, con un catálogo representativo de respaldo para modo sin conexión/demo. Solo para portafolio, educación y conciencia situacional — no apto para seguridad de vuelo ni evaluación de conjunciones.',
     fallback_mode: 'Modo de respaldo.',
@@ -482,6 +490,12 @@ const DICT: Record<LangKey, Dict> = {
     health_note: 'Por qué está amarillo',
     health_reason_starlink_subset: 'El catálogo activo completo de CelesTrak está temporalmente no disponible; OrbitIQ usa el feed Starlink SupGP en vivo más registros representativos no-Starlink.',
     health_reason_network: 'La fuente pública o la ruta serverless tardó demasiado; OrbitIQ usa su catálogo seguro de respaldo.',
+    aloria_footer_prefix: 'Creado por Jovan Franco · ',
+    aloria_footer_aria: 'Creado por Jovan Franco bajo Aloria Labs',
+    aloria_link_aria: 'Abrir sitio web de Aloria Labs en una nueva pestaña',
+    project_attribution_title: 'Atribución del Proyecto',
+    project_attribution_body: 'OrbitIQ Command Center es un proyecto de portafolio AI-native creado por Jovan Franco bajo Aloria Labs, enfocado en inteligencia orbital en tiempo real, riesgo de infraestructura espacial y experiencias tipo executive command center.',
+    project_attribution_disclaimer: 'Aloria Labs se usa aquí como una etiqueta creativa de innovación. OrbitIQ no está afiliado con ningún operador satelital, agencia espacial oficial, proveedor de datos o entidad gubernamental.',
     // Regiones
     region_japan: 'Japón',
     region_latam: 'América Latina',

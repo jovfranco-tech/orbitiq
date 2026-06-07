@@ -1,6 +1,8 @@
 ## [1.0.0-public-portfolio-release] - 2026-06-06
 
 ### Added
+- Added executive cinematic view, ambient command visual layers, mission/risk scan affordances, and upgraded target-selection presentation.
+- Added subtle Aloria Labs attribution and project transparency copy.
 - **Mobile Responsive Tab Bar**: Integrated floating bottom navigation bar and touch gestures pass-through on devices `<= 768px` to ensure the 3D globe remains interactive on mobile.
 - **Code Hygiene & Hygiene Audit**: Cleared all remaining unused variables, parameters, and non-null assertions to achieve 100% clean typecheck and ESLint compiles.
 - **Final v1.0 Release Audit**: Completed build, lint, typecheck, npm audit, API, WebGL, performance, security/privacy, data honesty, localization, documentation, and Vercel readiness review.

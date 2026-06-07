@@ -117,6 +117,12 @@ export function DataHealthPanel() {
         <p>{summaryText}</p>
       </div>
 
+      <div className="health-attribution">
+        <span>{t('project_attribution_title')}</span>
+        <p>{t('project_attribution_body')}</p>
+        <p className="health-attribution-disclaimer">{t('project_attribution_disclaimer')}</p>
+      </div>
+
       <div className="health-rows">
         <HealthBadge
           status={tleHealth}

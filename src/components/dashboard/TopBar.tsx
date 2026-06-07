@@ -24,11 +24,12 @@ interface Props {
   onSetLang: (l: 'en' | 'es') => void;
   onToggleIntel: () => void;
   onToggleMission: () => void;
+  onToggleCinematic: () => void;
   intelligence: IntelligenceSummary | null;
 }
 
-export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, onToggleMission, intelligence }: Props) {
-  const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence, showMissionPanel, tleHealth, agentHealth, showDataHealthPanel, setShowDataHealthPanel } = useStore();
+export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, onToggleMission, onToggleCinematic, intelligence }: Props) {
+  const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence, showMissionPanel, cinematicMode, tleHealth, agentHealth, showDataHealthPanel, setShowDataHealthPanel } = useStore();
   const { showWatchlistPanel, setShowWatchlistPanel, showSavedViewsPanel, setShowSavedViewsPanel, showSnapshotPanel, setShowSnapshotPanel } = useUserStore();
   
   const [lblKey, noteKey, cls] = PROV_MAP[dataMode] ?? PROV_MAP['fallback'];
@@ -72,7 +73,7 @@ export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, 
         style={{ padding: '0 8px', display: 'flex', alignItems: 'center', gap: '6px' }}
         title={t('data_health_layer')}
       >
-        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: healthDotColor, boxShadow: `0 0 8px ${healthDotColor}` }} />
+        <div className="health-top-dot" style={{ backgroundColor: healthDotColor, boxShadow: `0 0 8px ${healthDotColor}` }} />
       </button>
 
       <div className="topbar-tag">{t('tagline')}</div>
@@ -124,6 +125,21 @@ export function TopBar({ onResetView, onToggleRotate, onSetLang, onToggleIntel, 
         </button>
         <button className={`ctl ${showIntelligence ? 'intel-active' : ''}`} aria-pressed={showIntelligence} onClick={() => { playClick(); onToggleIntel(); }} title={t('intel_layer')} aria-label={t('intel_layer')}>
           <span className="ctl-icon">⚡</span>
+        </button>
+        <button
+          className={`ctl ctl-icon ${cinematicMode ? 'active' : ''}`}
+          aria-pressed={cinematicMode}
+          onClick={() => { playClick(); onToggleCinematic(); }}
+          title={t('cinematic_mode')}
+          aria-label={t('cinematic_mode')}
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 9V5a1 1 0 0 1 1-1h4" />
+            <path d="M15 4h4a1 1 0 0 1 1 1v4" />
+            <path d="M20 15v4a1 1 0 0 1-1 1h-4" />
+            <path d="M9 20H5a1 1 0 0 1-1-1v-4" />
+            <circle cx="12" cy="12" r="2.6" />
+          </svg>
         </button>
 
         <div style={{width:'1px',height:'20px',background:'var(--border)',margin:'0 4px'}} />

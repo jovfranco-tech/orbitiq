@@ -18,7 +18,11 @@ export function TourModal() {
       <div className="boot-copy">
         <span>ORBITIQ</span>
         <b>COMMAND CENTER</b>
-        <i>ACQUIRING ORBITAL PICTURE</i>
+        <div className="boot-steps">
+          <i>ACQUIRING ORBITAL PICTURE</i>
+          <i>PROPAGATING SGP4</i>
+          <i>COMMAND CENTER READY</i>
+        </div>
       </div>
     </div>
   );

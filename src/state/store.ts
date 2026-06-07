@@ -45,6 +45,7 @@ export interface UIState {
   showMissionPanel: boolean;
   activeMissionScenario: MissionScenarioType | null;
   showRiskLayer: boolean;
+  cinematicMode: boolean;
 
   // Mobile active tab
   activeMobileTab: 'globe' | 'agent' | 'catalog' | 'intel' | 'mission';
@@ -84,6 +85,7 @@ export interface UIActions {
   setShowMissionPanel(v: boolean): void;
   setActiveMissionScenario(s: MissionScenarioType | null): void;
   setShowRiskLayer(v: boolean): void;
+  setCinematicMode(v: boolean): void;
 
   setActiveMobileTab(tab: 'globe' | 'agent' | 'catalog' | 'intel' | 'mission'): void;
 
@@ -125,6 +127,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   showMissionPanel: false,
   activeMissionScenario: null,
   showRiskLayer: false,
+  cinematicMode: false,
   activeMobileTab: 'globe',
 
   simMode: 'live',
@@ -178,6 +181,7 @@ export const useStore = create<UIState & UIActions>((set, get) => ({
   setShowMissionPanel: (v) => set({ showMissionPanel: v }),
   setActiveMissionScenario: (s) => set({ activeMissionScenario: s }),
   setShowRiskLayer: (v) => set({ showRiskLayer: v }),
+  setCinematicMode: (v) => set({ cinematicMode: v, activeMobileTab: 'globe' }),
   setActiveMobileTab: (tab) => set({ activeMobileTab: tab }),
 
   setSimMode: (mode) => {

@@ -4,18 +4,18 @@ import { t } from '../../i18n/i18n';
 import type { MissionScenarioType, RiskLevel, AgentAction } from '../../types';
 
 export function MissionPanel() {
-  const { activeMissionScenario, showMissionPanel, lang } = useStore();
+  const { activeMissionScenario, activeMobileTab, showMissionPanel, lang } = useStore();
   const scenariosMap = getMissionScenarios(lang);
   const scenarios = Object.values(scenariosMap);
 
-  if (!showMissionPanel) return null;
+  if (!showMissionPanel && activeMobileTab !== 'mission') return null;
 
   // Default to first scenario if none is active
   const activeId = activeMissionScenario || scenarios[0]?.id;
   const activeData = scenariosMap[activeId as string];
 
   return (
-    <div className="intel-panel mission-panel glass">
+    <div className={`intel-panel mission-panel glass mission-risk-${activeData?.riskSignal?.level ?? 'low'}`}>
       <div className="intel-header">
         <h2 className="intel-title">{t('mission_title')}</h2>
         <div className="intel-subtitle">{t('mission_subtitle')}</div>
@@ -36,6 +36,11 @@ export function MissionPanel() {
 
       {activeData && (
         <div className="intel-content">
+          <div className="mission-visual-band" aria-hidden="true">
+            <span />
+            <i />
+            <span />
+          </div>
           <div className="mission-context">{activeData.context}</div>
 
           <div className="intel-section">
@@ -85,9 +90,9 @@ export function MissionPanel() {
 function RiskSignalCard({ score, level, explanation, action }: { score: number, level: RiskLevel, explanation: string, action: string }) {
   const colorMap = {
     low: 'var(--green)',
-    moderate: 'var(--yellow)',
-    elevated: 'var(--orange)',
-    high: 'var(--red)'
+    moderate: 'var(--cyan)',
+    elevated: 'var(--amber)',
+    high: 'var(--danger)'
   };
   const color = colorMap[level] || 'var(--text-muted)';
 
@@ -112,17 +117,21 @@ function RiskSignalCard({ score, level, explanation, action }: { score: number, 
 function dispatchAction(action: AgentAction) {
   const store = useStore.getState();
   if (action.type === 'filter_by_group') {
+    store.setShowRiskLayer(true);
     store.resetFilters();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     store.toggleGroup(action.group as any);
   } else if (action.type === 'filter_by_band') {
+    store.setShowRiskLayer(true);
     store.resetFilters();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     store.setFilterBand(action.band as any);
   } else if (action.type === 'highlight_relevant_region') {
+    store.setShowRiskLayer(true);
     store.resetFilters();
     store.setFilterRegion(action.region);
   } else if (action.type === 'executive_brief') {
+    store.setShowRiskLayer(true);
     store.setShowBrief(true);
   }
 }

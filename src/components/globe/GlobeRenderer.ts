@@ -23,6 +23,8 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   });
   renderer.setClearColor(0x05070d, 1);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
   container.appendChild(renderer.domElement);
 
   const controls = new OrbitControls(camera, container);
@@ -74,7 +76,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   TL.load(CDN + 'earth-night.jpg', (tex) => {
     earthMat.emissiveMap = tex;
     earthMat.emissive.set(0xffc06a);
-    earthMat.emissiveIntensity = 1.3;
+    earthMat.emissiveIntensity = 1.55;
     earthMat.needsUpdate = true; settle();
   }, undefined, () => settle());
 
@@ -91,7 +93,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   // ---- Clouds ----
   const cloudsMat = new THREE.MeshPhongMaterial({
     map: TL.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_clouds_1024.png'),
-    transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false
+    transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false
   });
   const clouds = new THREE.Mesh(new THREE.SphereGeometry(RE_SCENE * 1.008, 64, 64), cloudsMat);
   earthGroup.add(clouds);
@@ -202,8 +204,8 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
         vColor = color;
         vAlpha = clamp(vis, 0.0, 1.0);
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        float distanceScale = clamp(3.5 / max(0.75, -mvPosition.z), 0.55, 2.3);
-        gl_PointSize = uPointSize * distanceScale * mix(0.7, 1.18, vAlpha);
+          float distanceScale = clamp(3.35 / max(0.75, -mvPosition.z), 0.46, 2.05);
+          gl_PointSize = uPointSize * distanceScale * mix(0.32, 1.08, smoothstep(0.08, 1.0, vAlpha));
         gl_Position = projectionMatrix * mvPosition;
       }
     `,
@@ -218,7 +220,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
         float core = smoothstep(0.34, 0.0, d);
         float halo = pow(max(0.0, 1.0 - d), 2.7);
         float shimmer = 0.88 + 0.12 * sin(uTime * 2.8 + gl_FragCoord.x * 0.015 + gl_FragCoord.y * 0.011);
-        float alpha = (core * 0.95 + halo * 0.58) * vAlpha * shimmer;
+        float alpha = (core * 0.95 + halo * 0.52) * pow(vAlpha, 1.18) * shimmer;
         vec3 color = vColor * (0.58 + core * 1.45) + vec3(0.12, 0.22, 0.36) * halo;
         gl_FragColor = vec4(color, alpha);
       }
@@ -294,11 +296,11 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     for (let i = 0; i < arr.length; i += 3) pts.push(new THREE.Vector3(arr[i], arr[i + 1], arr[i + 2]));
     orbitGroup = new THREE.Group();
     const fullMat = new THREE.LineBasicMaterial({
-      color: 0x4cc9f0, transparent: true, opacity: 0.22,
+      color: 0x4cc9f0, transparent: true, opacity: 0.28,
       blending: THREE.AdditiveBlending, depthWrite: false,
     });
     const leadMat = new THREE.LineBasicMaterial({
-      color: 0x8ef0ff, transparent: true, opacity: 0.92,
+      color: 0x8ef0ff, transparent: true, opacity: 1.0,
       blending: THREE.AdditiveBlending, depthWrite: false,
     });
     orbitMats.push(fullMat, leadMat);
@@ -316,7 +318,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
 
   // ---- Selection ring ----
   const ring = new THREE.Mesh(
-    new THREE.RingGeometry(0.045, 0.065, 40),
+    new THREE.RingGeometry(0.052, 0.083, 56),
     new THREE.MeshBasicMaterial({
       color: 0xffffff, side: THREE.DoubleSide, transparent: true,
       opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false,
@@ -336,7 +338,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     })
   );
   selectedGlow.visible = false;
-  selectedGlow.scale.set(0.22, 0.22, 1);
+  selectedGlow.scale.set(0.34, 0.34, 1);
   scene.add(selectedGlow);
 
   let footprintLine: THREE.Line | null = null;
@@ -373,7 +375,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   // ---- CSS2D Label ----
   const labelDiv = document.createElement('div');
   labelDiv.className = 'sat-label';
-  labelDiv.style.cssText = 'color:#e0e8f8;font-size:11px;font-family:"IBM Plex Mono",monospace;background:rgba(10,20,40,0.75);padding:3px 8px;border-radius:4px;border:1px solid rgba(74,175,240,0.3);pointer-events:none;backdrop-filter:blur(4px);white-space:nowrap';
+  labelDiv.style.cssText = 'pointer-events:none;white-space:nowrap';
   const label2D = new CSS2DObject(labelDiv);
   label2D.visible = false;
   scene.add(label2D);
@@ -387,7 +389,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     nadirLine = new THREE.Line(
       new THREE.BufferGeometry().setFromPoints([satPos.clone(), surface]),
       new THREE.LineBasicMaterial({
-        color: 0x00eeff, transparent: true, opacity: 0.4,
+        color: 0x8ef0ff, transparent: true, opacity: 0.55,
         blending: THREE.AdditiveBlending, depthWrite: false,
       })
     );
@@ -425,7 +427,7 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       new THREE.LineBasicMaterial({
         color: 0x06d6a0,
         transparent: true,
-        opacity: 0.34,
+        opacity: 0.48,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       })
@@ -478,9 +480,9 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
   function flyTo(p: THREE.Vector3): void {
     if (!p || !isFinite(p.x)) return;
     const dir = p.clone().normalize();
-    const dist = Math.max(p.length() * 1.1 + 1.35, 2.4);
+    const dist = Math.max(p.length() * 0.95 + 1.12, 2.05);
     flyTarget = dir.multiplyScalar(dist);
-    focusTarget = p.clone().multiplyScalar(0.42);
+    focusTarget = p.clone().multiplyScalar(0.58);
     flyT = 0;
   }
   const DEFAULT_CAM = new THREE.Vector3(0, 1.4, 3.4);
@@ -588,10 +590,10 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
     clouds.rotation.y = cloudRot;
 
     if (flyTarget) {
-      flyT = Math.min(1, flyT + 0.035);
+      flyT = Math.min(1, flyT + 0.025);
       const e = 1 - Math.pow(1 - flyT, 3);
-      camera.position.lerp(flyTarget, e * 0.25);
-      if (focusTarget) controls.target.lerp(focusTarget, e * 0.18);
+      camera.position.lerp(flyTarget, e * 0.22);
+      if (focusTarget) controls.target.lerp(focusTarget, e * 0.2);
       if (flyT >= 1) flyTarget = null;
     }
     if (ring.visible) {
@@ -600,8 +602,8 @@ export function createGlobe(container: HTMLElement): GlobeApi & { destroy(): voi
       (ring.material as THREE.MeshBasicMaterial).opacity = 0.5 + 0.5 * Math.abs(Math.sin(now * 0.003));
     }
     if (selectedGlow.visible) {
-      selectedGlow.scale.setScalar(0.2 + 0.04 * Math.sin(now * 0.004));
-      (selectedGlow.material as THREE.SpriteMaterial).opacity = 0.5 + 0.18 * Math.sin(now * 0.0037);
+      selectedGlow.scale.setScalar(0.31 + 0.07 * Math.sin(now * 0.004));
+      (selectedGlow.material as THREE.SpriteMaterial).opacity = 0.58 + 0.22 * Math.sin(now * 0.0037);
     }
     controls.update();
     renderer.render(scene, camera);

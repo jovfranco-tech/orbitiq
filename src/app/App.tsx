@@ -18,6 +18,8 @@ import { SavedViewsPanel } from '../components/panels/SavedViewsPanel';
 import { SnapshotPanel } from '../components/panels/SnapshotPanel';
 import { DataHealthPanel } from '../components/panels/DataHealthPanel';
 import { BottomTabBar } from '../components/dashboard/BottomTabBar';
+import { AttributionBadge } from '../components/dashboard/AttributionBadge';
+import { CommandVisualLayer } from '../components/dashboard/CommandVisualLayer';
 import { useStore } from '../state/store';
 import { useUserStore } from '../state/userStore';
 import { CS, initCatalogStore } from '../state/catalogStore';
@@ -88,7 +90,7 @@ export function App() {
       else if (altMax != null && CS.alt[i] > altMax) matches = false;
       else if (altMin != null && CS.alt[i] < altMin) matches = false;
       else if (filterRegion && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) matches = false;
-      CS.vis[i] = matches ? 1 : hasLayerFilter && CS.alt[i] >= 0 ? 0.16 : 0;
+      CS.vis[i] = matches ? 1 : hasLayerFilter && CS.alt[i] >= 0 ? 0.075 : 0;
       if (matches) rendered++;
       if (filterRegion && matches) regionCount++;
     }
@@ -147,7 +149,7 @@ export function App() {
   const onGlobeReady = useCallback(async (globe: GlobeApi) => {
     globeRef.current = globe;
     globe.setAutoRotate(true);
-    globe.onPick((i) => { if (i >= 0) selectSat(globe, i, false); });
+    globe.onPick((i) => { if (i >= 0) selectSat(globe, i, true); });
 
     const result = await loadSatellites();
     loadCatalog(globe, result.catalog);
@@ -534,11 +536,22 @@ export function App() {
     store.setShowMissionPanel(!store.showMissionPanel);
   }, [store]);
 
+  const handleToggleCinematic = useCallback(() => {
+    const next = !useStore.getState().cinematicMode;
+    store.setCinematicMode(next);
+    if (next) {
+      store.setAutoRotate(true);
+      globeRef.current?.setAutoRotate(true);
+      globeRef.current?.resetView();
+    }
+  }, [store]);
+
   // ---- Keyboard shortcuts ---------------------------------------------
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         store.setShowBrief(false);
+        store.setCinematicMode(false);
         clearSelection();
       }
     };
@@ -564,7 +577,8 @@ export function App() {
     return unsub;
   }, []);
 
-  const { showBrief, showIntelligence, isLoading, selected, activeMobileTab } = store;
+  const { showBrief, showIntelligence, isLoading, selected, activeMobileTab, cinematicMode, showMissionPanel } = store;
+  const missionOpen = showMissionPanel || activeMobileTab === 'mission';
 
   return (
     <>
@@ -583,9 +597,10 @@ export function App() {
         </div>
       )}
       <TourModal />
+      <CommandVisualLayer />
 
       {/* UI overlay */}
-      <div id="ui" className={`ui mobile-tab-${activeMobileTab}`}>
+      <div id="ui" className={`ui mobile-tab-${activeMobileTab}${cinematicMode ? ' cinematic' : ''}${missionOpen ? ' mission-open' : ''}`}>
         <TopBar
           onOpenBrief={() => store.setShowBrief(true)}
           onResetView={() => globeRef.current?.resetView()}
@@ -593,11 +608,13 @@ export function App() {
           onSetLang={handleSetLang}
           onToggleIntel={handleToggleIntel}
           onToggleMission={handleToggleMission}
+          onToggleCinematic={handleToggleCinematic}
           intelligence={intelligence}
         />
 
+        <DataHealthPanel />
+
         <aside className="left">
-          <DataHealthPanel />
           <AgentPanel onRun={runAgent} lastResult={agentResult} isThinking={isThinking} />
           <CatalogPanel onSelectSat={(i) => globeRef.current && selectSat(globeRef.current, i, true)} />
         </aside>
@@ -617,7 +634,7 @@ export function App() {
           />
         )}
         
-        {(store.showMissionPanel || activeMobileTab === 'mission') && <MissionPanel />}
+        {missionOpen && <MissionPanel />}
 
         {userStore.showWatchlistPanel && (
           <WatchlistPanel 
@@ -649,6 +666,7 @@ export function App() {
         <footer className="disclaimer" role="contentinfo">
           {t('disclaimer')}
         </footer>
+        <AttributionBadge />
 
         {showBrief && <BriefModal onClose={() => store.setShowBrief(false)} />}
       </div>
