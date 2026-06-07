@@ -1,7 +1,8 @@
 import { useStore } from '../../state/store';
 import { getMissionScenarios } from '../../intelligence/risk';
 import { t } from '../../i18n/i18n';
-import type { MissionScenarioType, RiskLevel, AgentAction } from '../../types';
+import { REGIONS } from '../../regions/regions';
+import type { MissionScenario, MissionScenarioType, RiskLevel, AgentAction } from '../../types';
 
 export function MissionPanel() {
   const { activeMissionScenario, activeMobileTab, showMissionPanel, lang } = useStore();
@@ -36,6 +37,8 @@ export function MissionPanel() {
 
       {activeData && (
         <div className="intel-content">
+          <MissionDecisionFlow scenario={activeData} />
+
           <div className="mission-visual-band" aria-hidden="true">
             <span />
             <i />
@@ -76,6 +79,17 @@ export function MissionPanel() {
             >
               {t('apply_scenario_view')}
             </button>
+            <button
+              className="action-btn secondary"
+              onClick={() => {
+                const store = useStore.getState();
+                store.setShowRiskLayer(true);
+                store.setShowBrief(true);
+                store.triggerCommandPulse('executive_brief');
+              }}
+            >
+              {t('open_executive_brief')}
+            </button>
           </div>
 
           <div className="intel-footer disclaimer">
@@ -83,6 +97,35 @@ export function MissionPanel() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function MissionDecisionFlow({ scenario }: { scenario: MissionScenario }) {
+  const risk = scenario.riskSignal;
+  const signal = risk ? `${risk.score}/100 · ${t(`risk_${risk.level}`)}` : t('mission_decision_nominal');
+  const bands = scenario.relevantBands.length ? scenario.relevantBands.join(' / ') : t('f_all');
+  const regions = scenario.relevantRegions.length
+    ? scenario.relevantRegions.map((r) => {
+      const translated = t(`region_${r}`);
+      return translated === `region_${r}` ? REGIONS[r]?.label ?? r.toUpperCase() : translated;
+    }).join(', ')
+    : t('mission_decision_global');
+
+  return (
+    <div className="mission-decision-flow" aria-label={t('mission_decision_flow')}>
+      <div className="decision-node">
+        <span>{t('mission_decision_signal')}</span>
+        <strong>{signal}</strong>
+      </div>
+      <div className="decision-node">
+        <span>{t('mission_decision_scope')}</span>
+        <strong>{scenario.visibleCount.toLocaleString()} · {bands}</strong>
+      </div>
+      <div className="decision-node">
+        <span>{t('mission_decision_next')}</span>
+        <strong>{regions}</strong>
+      </div>
     </div>
   );
 }

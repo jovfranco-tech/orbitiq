@@ -1,12 +1,13 @@
 // ============================================================
 // OrbitIQ v0.3.0 — AI Command Agent panel
 // ============================================================
-import { useState, useCallback, useEffect } from 'react';
+import { lazy, Suspense, useState, useCallback, useEffect } from 'react';
 import { t } from '../../i18n/i18n';
 import type { AiAgentResponse } from '../../types';
 import { playClick, playAgentSuccess } from '../../utils/audio';
-import { ResponsiveContainer, BarChart, XAxis, Tooltip, Bar } from 'recharts';
 import { useStore } from '../../state/store';
+
+const AgentChart = lazy(() => import('./AgentChart').then((m) => ({ default: m.AgentChart })));
 
 const EXAMPLES_EN = [
   'Show me all Starlink satellites',
@@ -255,15 +256,12 @@ function AgentOutput({ result }: { result: AiAgentResponse }) {
 
       {/* Chart attachment */}
       {result.actions.chartAction && result.actions.chartAction.type === 'bar' && (
-        <div className="agent-chart" style={{ width: '100%', height: 200, marginTop: 16 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={result.actions.chartAction.data as Record<string, string | number>[]}>
-              <XAxis dataKey="name" stroke="#60708c" fontSize={10} tickLine={false} axisLine={false} />
-              <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '4px', fontSize: '12px' }} />
-              <Bar dataKey={result.actions.chartAction.dataKey} fill="#3a8fe6" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <Suspense fallback={<div className="agent-chart chart-loading" />}>
+          <AgentChart
+            data={result.actions.chartAction.data as Record<string, string | number>[]}
+            dataKey={result.actions.chartAction.dataKey}
+          />
+        </Suspense>
       )}
 
       <div className="agent-meta">

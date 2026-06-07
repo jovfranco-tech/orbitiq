@@ -135,7 +135,7 @@ export function getMissionScenarios(lang: 'en' | 'es' = 'en'): Record<string, Mi
   };
 
   // LATAM Connectivity
-  const latamCommsCount = countSatellites(['geo', 'starlink'], [], ['sa', 'ca']);
+  const latamCommsCount = countSatellites(['geo', 'starlink'], [], ['latam']);
   const latamScore = Math.min(100, Math.round((latamCommsCount / 200) * 100));
 
   const latamScenario: MissionScenario = {
@@ -146,7 +146,7 @@ export function getMissionScenarios(lang: 'en' | 'es' = 'en'): Record<string, Mi
       : 'Monitoring space-enabled communication infrastructure over Latin America (GEO broadband and LEO mega-constellations).',
     relevantGroups: ['geo', 'starlink'],
     relevantBands: ['GEO', 'LEO'],
-    relevantRegions: ['sa', 'ca'],
+    relevantRegions: ['latam'],
     visibleCount: latamCommsCount,
     insight: lang === 'es'
       ? `Se detectaron ${latamCommsCount} satélites de comunicaciones brindando servicio a LATAM. La resiliencia es ${t('risk_' + getLevel(latamScore)) || getLevel(latamScore)}.`
@@ -157,7 +157,7 @@ export function getMissionScenarios(lang: 'en' | 'es' = 'en'): Record<string, Mi
     caveat: lang === 'es'
       ? 'El sobrevuelo regional es aproximado y se basa en subpuntos propagados.'
       : 'Regional overflight is approximate and based on propagated subpoints.',
-    recommendedAction: { type: 'highlight_relevant_region', region: 'sa' },
+    recommendedAction: { type: 'highlight_relevant_region', region: 'latam' },
     riskSignal: {
       category: 'Connectivity',
       score: latamScore,

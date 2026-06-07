@@ -1,22 +1,13 @@
 // ============================================================
 // OrbitIQ Command Center v0.3.0 — App root
 // ============================================================
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useRef, useCallback, useEffect, useState } from 'react';
 import { GlobeMount } from '../components/globe/GlobeMount';
 import { TopBar } from '../components/dashboard/TopBar';
 import { Legend } from '../components/dashboard/Legend';
 import { AgentPanel } from '../components/panels/AgentPanel';
 import { CatalogPanel } from '../components/panels/CatalogPanel';
-import { MissionPanel } from '../components/panels/MissionPanel';
-import { DetailPanel } from '../components/panels/DetailPanel';
-import { BriefModal } from '../components/panels/BriefModal';
-import { TourModal } from '../components/panels/TourModal';
-import { OrbitalIntelligencePanel } from '../components/panels/OrbitalIntelligencePanel';
 import { TimeControlsPanel } from '../components/panels/TimeControlsPanel';
-import { WatchlistPanel } from '../components/panels/WatchlistPanel';
-import { SavedViewsPanel } from '../components/panels/SavedViewsPanel';
-import { SnapshotPanel } from '../components/panels/SnapshotPanel';
-import { DataHealthPanel } from '../components/panels/DataHealthPanel';
 import { BottomTabBar } from '../components/dashboard/BottomTabBar';
 import { AttributionBadge } from '../components/dashboard/AttributionBadge';
 import { CommandVisualLayer } from '../components/dashboard/CommandVisualLayer';
@@ -37,6 +28,16 @@ import * as THREE from 'three';
 import { useLiveTelemetry } from '../hooks/useLiveTelemetry';
 import type { GlobeApi, IntelligenceSummary } from '../types';
 import type { AiAgentResponse, GroupKey, BandKey } from '../types';
+
+const MissionPanel = lazy(() => import('../components/panels/MissionPanel').then((m) => ({ default: m.MissionPanel })));
+const DetailPanel = lazy(() => import('../components/panels/DetailPanel').then((m) => ({ default: m.DetailPanel })));
+const BriefModal = lazy(() => import('../components/panels/BriefModal').then((m) => ({ default: m.BriefModal })));
+const TourModal = lazy(() => import('../components/panels/TourModal').then((m) => ({ default: m.TourModal })));
+const OrbitalIntelligencePanel = lazy(() => import('../components/panels/OrbitalIntelligencePanel').then((m) => ({ default: m.OrbitalIntelligencePanel })));
+const WatchlistPanel = lazy(() => import('../components/panels/WatchlistPanel').then((m) => ({ default: m.WatchlistPanel })));
+const SavedViewsPanel = lazy(() => import('../components/panels/SavedViewsPanel').then((m) => ({ default: m.SavedViewsPanel })));
+const SnapshotPanel = lazy(() => import('../components/panels/SnapshotPanel').then((m) => ({ default: m.SnapshotPanel })));
+const DataHealthPanel = lazy(() => import('../components/panels/DataHealthPanel').then((m) => ({ default: m.DataHealthPanel })));
 
 // ---- Hex color → [r,g,b] 0–1 ----------------------------------------
 function hexToRGB(h: string): [number, number, number] {
@@ -571,6 +572,12 @@ export function App() {
   }, [store]);
 
   useEffect(() => {
+    if (window.matchMedia('(max-width: 768px)').matches && useStore.getState().visualQuality === 'cinematic') {
+      store.setVisualQuality('performance');
+    }
+  }, [store]);
+
+  useEffect(() => {
     globeRef.current?.setVisualQuality(store.visualQuality);
   }, [store.visualQuality]);
 
@@ -635,7 +642,9 @@ export function App() {
           </div>
         </div>
       )}
-      <TourModal />
+      <Suspense fallback={null}>
+        <TourModal />
+      </Suspense>
       <CommandVisualLayer />
       <MissionCinematicCue missionOpen={missionOpen} activeMissionScenario={store.activeMissionScenario} lang={store.lang} />
 
@@ -652,7 +661,11 @@ export function App() {
           intelligence={intelligence}
         />
 
-        <DataHealthPanel />
+        {store.showDataHealthPanel && (
+          <Suspense fallback={null}>
+            <DataHealthPanel />
+          </Suspense>
+        )}
 
         <aside className="left">
           <AgentPanel onRun={runAgent} lastResult={agentResult} isThinking={isThinking} />
@@ -660,33 +673,51 @@ export function App() {
         </aside>
 
         {selected >= 0 && CS.catalog[selected] && (
-          <DetailPanel onClose={clearSelection} onToggleTrack={toggleTrack} />
+          <Suspense fallback={null}>
+            <DetailPanel onClose={clearSelection} onToggleTrack={toggleTrack} />
+          </Suspense>
         )}
 
         {/* Intelligence panel — only when no detail panel and toggle is on (or mobile tab is active) */}
         {(showIntelligence && selected < 0 || activeMobileTab === 'intel') && (
-          <OrbitalIntelligencePanel
-            intelligence={intelligence}
-            onClose={() => {
-              store.setShowIntelligence(false);
-              if (activeMobileTab === 'intel') store.setActiveMobileTab('globe');
-            }}
-          />
+          <Suspense fallback={null}>
+            <OrbitalIntelligencePanel
+              intelligence={intelligence}
+              onClose={() => {
+                store.setShowIntelligence(false);
+                if (activeMobileTab === 'intel') store.setActiveMobileTab('globe');
+              }}
+            />
+          </Suspense>
         )}
         
-        {missionOpen && <MissionPanel />}
+        {missionOpen && (
+          <Suspense fallback={null}>
+            <MissionPanel />
+          </Suspense>
+        )}
 
         {userStore.showWatchlistPanel && (
-          <WatchlistPanel 
-            onClose={() => userStore.setShowWatchlistPanel(false)} 
-            onSelectSatnum={(s) => {
-              const idx = CS.catalog.findIndex(c => c && c.satnum === s);
-              if (idx >= 0 && globeRef.current) selectSat(globeRef.current, idx, true);
-            }} 
-          />
+          <Suspense fallback={null}>
+            <WatchlistPanel
+              onClose={() => userStore.setShowWatchlistPanel(false)}
+              onSelectSatnum={(s) => {
+                const idx = CS.catalog.findIndex(c => c && c.satnum === s);
+                if (idx >= 0 && globeRef.current) selectSat(globeRef.current, idx, true);
+              }}
+            />
+          </Suspense>
         )}
-        {userStore.showSavedViewsPanel && <SavedViewsPanel onClose={() => userStore.setShowSavedViewsPanel(false)} />}
-        {userStore.showSnapshotPanel && <SnapshotPanel onClose={() => userStore.setShowSnapshotPanel(false)} />}
+        {userStore.showSavedViewsPanel && (
+          <Suspense fallback={null}>
+            <SavedViewsPanel onClose={() => userStore.setShowSavedViewsPanel(false)} />
+          </Suspense>
+        )}
+        {userStore.showSnapshotPanel && (
+          <Suspense fallback={null}>
+            <SnapshotPanel onClose={() => userStore.setShowSnapshotPanel(false)} />
+          </Suspense>
+        )}
 
         <TimeControlsPanel />
         <BottomTabBar />
@@ -708,7 +739,11 @@ export function App() {
         </footer>
         <AttributionBadge />
 
-        {showBrief && <BriefModal onClose={() => store.setShowBrief(false)} />}
+        {showBrief && (
+          <Suspense fallback={null}>
+            <BriefModal onClose={() => store.setShowBrief(false)} />
+          </Suspense>
+        )}
       </div>
     </>
   );
