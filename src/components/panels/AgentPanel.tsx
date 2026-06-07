@@ -48,6 +48,7 @@ interface Props {
 export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [lastQuery, setLastQuery] = useState('');
   const lang = useStore((s) => s.lang);
   const chips = lang === 'es' ? EXAMPLES_ES : EXAMPLES_EN;
   const inputId = useId();
@@ -57,6 +58,7 @@ export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
   const run = useCallback((q: string) => {
     if (!q.trim()) return;
     playClick();
+    setLastQuery(q.trim());
     onRun(q.trim());
     setTimeout(playAgentSuccess, 100);
   }, [onRun]);
@@ -171,6 +173,17 @@ export function AgentPanel({ onRun, lastResult, isThinking }: Props) {
           aria-atomic="false"
           aria-label={lang === 'es' ? 'Respuesta del agente' : 'Agent response'}
         >
+          {lastResult.responseMode === 'deterministic' && lastQuery && (
+            <div className="agent-fallback-notice" role="status">
+              <span>{lang === 'es' ? t('agent_request_failed') : t('agent_request_failed')}</span>
+              <button
+                onClick={() => run(lastQuery)}
+                aria-label={lang === 'es' ? `Reintentar: ${lastQuery}` : `Retry: ${lastQuery}`}
+              >
+                {lang === 'es' ? 'Reintentar' : 'Retry'}
+              </button>
+            </div>
+          )}
           <AgentOutput result={lastResult} />
         </div>
       )}

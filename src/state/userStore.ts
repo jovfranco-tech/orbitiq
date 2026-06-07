@@ -109,6 +109,12 @@ export const useUserStore = create<UserState>()(
     }),
     {
       name: 'orbitiq-user-data',
+      version: 1,
+      migrate: (persisted, fromVersion) => {
+        // v0 → v1: no structural change, just stamp version
+        if (fromVersion === 0) return persisted;
+        return persisted;
+      },
       partialize: (state) => ({
         watchlists: state.watchlists,
         savedViews: state.savedViews,

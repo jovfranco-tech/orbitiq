@@ -107,8 +107,13 @@ export type LlmAgentResponse = z.infer<typeof ResponseSchema>;
 
 // ---- Main Handler ----------------------------------------------------------
 
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN ?? 'https://orbitiq.vercel.app';
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = (req.headers?.['origin'] as string | undefined) ?? '';
+  const corsOrigin = origin === ALLOWED_ORIGIN ? ALLOWED_ORIGIN : ALLOWED_ORIGIN;
+  res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+  res.setHeader('Vary', 'Origin');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 

@@ -3,6 +3,7 @@
 // ============================================================
 import { lazy, Suspense, useRef, useCallback, useEffect, useState } from 'react';
 import { GlobeMount } from '../components/globe/GlobeMount';
+import { GlobeHelp } from '../components/globe/GlobeHelp';
 import { TopBar } from '../components/dashboard/TopBar';
 import { Legend } from '../components/dashboard/Legend';
 import { AgentPanel } from '../components/panels/AgentPanel';
@@ -630,6 +631,7 @@ export function App() {
     <>
       {/* Globe canvas — imperative Three.js, behind the UI */}
       <GlobeMount onReady={onGlobeReady} onError={() => useStore.getState().setLoading(false)} />
+      {!isLoading && <GlobeHelp />}
 
       {/* Loading veil */}
       {isLoading && (
@@ -650,6 +652,7 @@ export function App() {
 
       {/* UI overlay */}
       <div id="ui" className={`ui mobile-tab-${activeMobileTab}${cinematicMode ? ' cinematic' : ''}${missionOpen ? ' mission-open' : ''}${userStore.showSnapshotPanel ? ' snapshot-open' : ''}`}>
+        <main id="main-content" className="sr-only" aria-label="OrbitIQ main content" tabIndex={-1} />
         <TopBar
           onOpenBrief={() => store.setShowBrief(true)}
           onResetView={() => globeRef.current?.resetView()}

@@ -15,8 +15,16 @@ const TOOLTIP_STYLE = {
 const BAR_RADIUS: [number, number, number, number] = [4, 4, 0, 0];
 
 export function AgentChart({ data, dataKey }: AgentChartProps) {
+  const summary = data
+    .map((d) => `${d.name}: ${d[dataKey]}`)
+    .join(', ');
+
   return (
-    <div className="agent-chart">
+    <div
+      className="agent-chart"
+      role="img"
+      aria-label={`Bar chart — ${dataKey}: ${summary}`}
+    >
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data}>
           <XAxis dataKey="name" stroke="#60708c" fontSize={10} tickLine={false} axisLine={false} />
