@@ -25,9 +25,11 @@ test.describe('AI Agent — golden path', () => {
   test('Run button is disabled while thinking', async ({ page }) => {
     const input = page.locator('#agentCard input[type="text"]');
     const runBtn = page.locator('#agentCard button[aria-label]').filter({ hasText: /(Run|Ejecutar)/ });
+    const status = page.locator('#agentCard .agent-status');
     await input.fill('Find the ISS');
     await input.press('Enter');
-    // During thinking state the run button should be disabled
+    // Wait for thinking state first (avoids race: agent may respond very fast in CI)
+    await expect(status).toContainText(/(Parsing|Analizando)/, { timeout: 3_000 });
     await expect(runBtn).toBeDisabled();
   });
 });

@@ -19,12 +19,15 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
-    sourcemap: false,
+    sourcemap: 'hidden',
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('/node_modules/three/')) {
             return 'three';
+          }
+          if (id.includes('/node_modules/recharts/') || id.includes('/node_modules/d3-')) {
+            return 'recharts';
           }
           if (id.includes('/node_modules/satellite.js/')) {
             return 'satellite';
@@ -42,8 +45,19 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: [],
+    setupFiles: ['src/test-setup.ts'],
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     exclude: ['e2e/**', 'node_modules/**'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts', 'src/**/*.tsx'],
+      exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/main.tsx', 'src/vite-env.d.ts'],
+      thresholds: {
+        lines: 20,
+        functions: 20,
+        branches: 20,
+      },
+      reporter: ['text', 'lcov'],
+    },
   },
 } as UserConfig);

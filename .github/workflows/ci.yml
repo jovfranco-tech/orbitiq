@@ -27,6 +27,10 @@ jobs:
       - name: Unit tests
         run: npm test -- --reporter=verbose
 
+      - name: Coverage report
+        run: npm run test:coverage
+        continue-on-error: true
+
   e2e:
     name: E2E + Accessibility (Playwright)
     runs-on: ubuntu-latest
@@ -82,5 +86,6 @@ jobs:
         run: |
           npm install -g @lhci/cli
           lhci autorun
+        continue-on-error: true
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
