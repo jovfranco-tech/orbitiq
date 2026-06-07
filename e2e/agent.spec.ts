@@ -23,13 +23,17 @@ test.describe('AI Agent — golden path', () => {
   });
 
   test('Run button is disabled while thinking', async ({ page }) => {
+    // Intercept the agent API and add a delay so the "thinking" window is
+    // wide enough to observe. The deterministic fallback resolves in <10ms
+    // otherwise, making the disabled state impossible to catch reliably in CI.
+    await page.route('**/api/agent', async (route) => {
+      await new Promise((r) => setTimeout(r, 400));
+      await route.abort('failed'); // triggers deterministic fallback
+    });
     const input = page.locator('#agentCard input[type="text"]');
     const runBtn = page.locator('#agentCard button[aria-label]').filter({ hasText: /(Run|Ejecutar)/ });
-    const status = page.locator('#agentCard .agent-status');
     await input.fill('Find the ISS');
     await input.press('Enter');
-    // Wait for thinking state first (avoids race: agent may respond very fast in CI)
-    await expect(status).toContainText(/(Parsing|Analizando)/, { timeout: 3_000 });
     await expect(runBtn).toBeDisabled();
   });
 });
