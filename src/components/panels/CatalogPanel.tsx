@@ -59,6 +59,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
         <input
           type="text"
           placeholder={t('search_placeholder')}
+          aria-label={t('search_placeholder')}
           autoComplete="off"
           value={search}
           onChange={(e) => setSearch(e.target.value)}

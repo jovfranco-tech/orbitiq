@@ -16,7 +16,7 @@ const BAR_RADIUS: [number, number, number, number] = [4, 4, 0, 0];
 
 export function AgentChart({ data, dataKey }: AgentChartProps) {
   return (
-    <div className="agent-chart">
+    <div className="agent-chart" role="img" aria-label={`Bar chart of ${dataKey} across ${data.length} categories`}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data}>
           <XAxis dataKey="name" stroke="#60708c" fontSize={10} tickLine={false} axisLine={false} />
