@@ -101,7 +101,7 @@ export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, on
       <div className="topbar-tag">{t('tagline')}</div>
 
       {/* Metric strip */}
-      <div className="metrics">
+      <div className="metrics" tabIndex={0} role="group" aria-label={t('metrics_label')}>
         <Metric label={t('m_total')} value={totalCount.toLocaleString()} />
         <Metric label={t('m_rendered')} value={renderedCount.toLocaleString()} accent />
         <Metric label={t('m_fresh')} value={fresh} />
