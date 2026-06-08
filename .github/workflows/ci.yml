@@ -24,12 +24,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit tests
-        run: npm test -- --reporter=verbose
+      - name: Lint
+        run: npm run lint
 
-      - name: Coverage report
+      - name: Unit tests + coverage gate
         run: npm run test:coverage
-        continue-on-error: true
 
   e2e:
     name: E2E + Accessibility (Playwright)

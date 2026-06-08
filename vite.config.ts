@@ -50,12 +50,23 @@ export default defineConfig({
     exclude: ['e2e/**', 'node_modules/**'],
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.ts', 'src/**/*.tsx'],
-      exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/main.tsx', 'src/vite-env.d.ts'],
+      // Coverage gate scopes the *pure-logic* layer (deterministic, unit-testable).
+      // The React UI, imperative WebGL renderer, Web Worker, and orchestration
+      // hooks/stores are validated by Playwright e2e + accessibility suites instead.
+      include: [
+        'src/ai/**/*.ts',
+        'src/data/**/*.ts',
+        'src/intelligence/**/*.ts',
+        'src/orbital/**/*.ts',
+        'src/regions/**/*.ts',
+        'src/i18n/**/*.ts',
+        'src/hooks/useGlobeKeyboard.ts',
+      ],
+      exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
       thresholds: {
-        lines: 30,
-        functions: 30,
-        branches: 25,
+        lines: 60,
+        functions: 60,
+        branches: 45,
       },
       reporter: ['text', 'lcov'],
     },

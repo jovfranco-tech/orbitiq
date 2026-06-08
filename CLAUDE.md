@@ -28,6 +28,8 @@ src/
 │   └── panels/          # AgentPanel, DetailPanel, IntelligencePanel, MissionPanel,
 │                        #   WatchlistPanel, SavedViewsPanel, SnapshotsPanel, AgentChart
 ├── data/                # client.ts (TLE fetch), groups.ts (classifier), satellites.ts
+├── hooks/               # useWorker (SGP4 tick lifecycle), useAgentActions (agent
+│                        #   dispatch), useGlobeKeyboard (nav), useLiveTelemetry
 ├── i18n/i18n.ts         # EN/ES dictionaries + t() helper + i18n.test.ts
 ├── intelligence/        # Risk analysis, congestion scoring
 ├── orbital/             # propagator.ts (SGP4 wrapper), regions.ts
@@ -137,11 +139,20 @@ The `src/i18n/i18n.test.ts` enforces key parity — `npm test` catches missing t
 ## Testing
 
 ```bash
-npm test                 # Vitest unit tests (109 tests)
-npm run test:coverage    # Coverage report (lcov + text)
+npm test                 # Vitest unit tests
+npm run test:coverage    # Coverage gate (lcov + text) — enforced in CI
 npm run test:e2e         # Playwright e2e + accessibility (requires build or dev server)
 npm run test:e2e:ui      # Playwright UI mode for debugging
 ```
+
+**Two-tier coverage strategy.** The `test:coverage` gate scopes the *pure-logic*
+layer only — `ai/`, `data/`, `intelligence/`, `orbital/`, `regions/`, `i18n/`, and
+`hooks/useGlobeKeyboard.ts` — with thresholds (lines 60 / functions 60 / branches 45)
+enforced in CI (no `continue-on-error`). The React UI, the imperative `GlobeRenderer`,
+the Web Worker, and the orchestration hooks/stores (`useWorker`, `useAgentActions`,
+`store`, `userStore`) are deliberately **excluded** from unit coverage and validated
+by the Playwright e2e + accessibility suites instead. Adding logic to an included
+module without a test will fail the gate.
 
 Visual regression tests (`e2e/visual.spec.ts`) are skipped in CI by default.  
 Run locally with: `VISUAL_CI=1 npx playwright test e2e/visual.spec.ts --update-snapshots`
