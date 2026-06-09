@@ -1378,8 +1378,8 @@ input,select,button{font-family:inherit}
    Expanded Orbital Environment — view mode selector (v1.1.0)
    ============================================================ */
 .view-mode-selector{
-  position:fixed; top:64px; left:50%; transform:translateX(-50%);
-  z-index:13; width:min(560px,calc(100vw - 32px));
+  position:fixed; top:64px; right:16px; left:auto; transform:none;
+  z-index:13; width:min(320px,calc(100vw - 32px));
   padding:11px 14px; display:flex; flex-direction:column; gap:9px;
 }
 .vms-head{display:flex;align-items:center;gap:10px}
@@ -1427,7 +1427,7 @@ input,select,button{font-family:inherit}
 .ui.cinematic .view-mode-selector{display:none}
 
 @media(max-width:900px){
-  .view-mode-selector{top:58px;width:calc(100vw - 20px);padding:9px 11px}
+  .view-mode-selector{top:58px;right:10px;width:calc(100vw - 20px);padding:9px 11px}
   .vms-seg-label{font-size:9.5px}
   .vms-microcopy{display:none}
 }
