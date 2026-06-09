@@ -103,8 +103,8 @@ input,select,button{font-family:inherit}
 }
 
 /* ----------------------------- Top bar ----------------------------------- */
-.topbar{grid-area:top;display:flex;align-items:center;gap:13px;
-  padding:11px 16px;border-radius:14px;position:relative;z-index:20}
+.topbar{grid-area:top;display:flex;align-items:center;gap:10px;
+  padding:9px 14px;border-radius:14px;position:relative;z-index:20;overflow:hidden}
 .brand{display:flex;align-items:center;gap:12px;flex-shrink:0}
 .brand-mark{width:34px;height:34px;border-radius:9px;position:relative;
   background:radial-gradient(120% 120% at 30% 20%,#13243f,#0a1322);
@@ -519,8 +519,9 @@ input,select,button{font-family:inherit}
 .health-note span{display:block;margin-bottom:5px;font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--amber)}
 .health-note p{margin:0;font-size:11.5px;line-height:1.48;color:#ffe0a3;text-wrap:pretty}
 
-.topbar-tag{font-size:11.5px;color:var(--muted);font-weight:500;letter-spacing:.01em;
-  padding-left:16px;margin-left:2px;border-left:1px solid var(--border-soft);white-space:nowrap;flex-shrink:0}
+.topbar-tag{font-size:10px;color:var(--muted);font-weight:500;letter-spacing:.01em;
+  padding-left:12px;margin-left:2px;border-left:1px solid var(--border-soft);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px;flex-shrink:1;display:none}
 
 /* --------------------------- AI agent stats ------------------------------ */
 .agent-stats{display:flex;gap:14px;align-items:center;margin-bottom:12px;
