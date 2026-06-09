@@ -1,25 +1,28 @@
 // ============================================================
-// OrbitIQ — Catalog filter + results panel (mode-aware v1.1.3)
+// OrbitIQ — Catalog filter + results panel (mode-aware v1.1.4)
 //
-// Uses dataset selectors as single source of truth.
-// The catalog shows entries from the active mode's base dataset,
-// filtered by user filters. It does NOT gate on CS.alt < 0
-// (which would cause 0 results before worker propagation).
+// Mode-aware filter labels and object-class chips.
+// - Operational: constellation filters, label "Catalog"
+// - Expanded: constellation + object class filters, label "Orbital Objects"
+// - Debris: object class filters only, label "Risk Objects"
 // ============================================================
 import { useMemo } from 'react';
 import { t } from '../../i18n/i18n';
 import { GROUPS, GROUP_ORDER } from '../../data/groups';
+import { OBJECT_CLASS_META, OBJECT_CLASS_ORDER } from '../../data/objectClass';
 import { REGIONS } from '../../regions/regions';
 import { matchRegion } from '../../regions/regions';
 import { isOperationalClass } from '../../data/objectClass';
 import { useStore } from '../../state/store';
 import { CS } from '../../state/catalogStore';
-import type { GroupKey, BandKey } from '../../types';
+import type { GroupKey, BandKey, ObjectClass } from '../../types';
 
 const RESULT_CAP = 120;
 const BAND_OPTIONS: Array<[BandKey | '', string]> = [
   ['', 'f_all'], ['LEO', 'm_leo'], ['MEO', 'm_meo'], ['GEO', 'm_geo'],
 ];
+
+const RISK_CLASSES: ObjectClass[] = ['debris', 'rocket_body', 'inactive_payload', 'unknown_object'];
 
 interface Props {
   onSelectSat: (i: number) => void;
@@ -28,9 +31,19 @@ interface Props {
 export function CatalogPanel({ onSelectSat }: Props) {
   const {
     activeGroups, activeClasses, filterBand, filterRegion, altMin, altMax, search, selected,
-    toggleGroup, setFilterBand, setFilterRegion, setSearch, resetFilters,
+    toggleGroup, toggleClass, setFilterBand, setFilterRegion, setSearch, resetFilters,
     totalCount, viewMode,
   } = useStore();
+
+  // Mode-aware title
+  const panelTitle = viewMode === 'debris' ? t('filters_title_debris')
+    : viewMode === 'expanded' ? t('filters_title_expanded')
+    : t('filters_title');
+
+  // Mode-aware filter label
+  const filterLabel = viewMode === 'debris' ? t('f_risk_classes')
+    : viewMode === 'expanded' ? t('f_classes')
+    : t('f_groups');
 
   // totalCount is used as a reactive dep to trigger re-render after catalog load
   const { visibleList, totalMatching } = useMemo(() => {
@@ -39,24 +52,18 @@ export function CatalogPanel({ onSelectSat }: Props) {
     const q = search.toLowerCase().trim();
     const list: number[] = [];
     let total = 0;
-    // Mode-level gating
     const debrisEmphasis = viewMode === 'debris' && activeClasses.size === 0;
     const operationalOnly = viewMode === 'operational';
 
     for (let i = 0; i < CS.N; i++) {
-      // Mode gating: only show objects belonging to the active mode's dataset
       if (operationalOnly && !isOperationalClass(CS.objectClass[i])) continue;
       if (debrisEmphasis && isOperationalClass(CS.objectClass[i])) continue;
-
-      // User class filter
       if (activeClasses.size && !activeClasses.has(CS.objectClass[i])) continue;
-      // Standard filters (only apply altitude/region/band if propagation data exists)
       if (activeGroups.size && !activeGroups.has(CS.group[i])) continue;
       if (filterBand && CS.alt[i] >= 0 && CS.band[i] !== filterBand) continue;
       if (filterRegion && CS.alt[i] >= 0 && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) continue;
       if (altMax != null && CS.alt[i] >= 0 && CS.alt[i] > altMax) continue;
       if (altMin != null && CS.alt[i] >= 0 && CS.alt[i] < altMin) continue;
-      // Search
       const c = CS.catalog[i];
       if (!c) continue;
       if (q && !(c.name.toLowerCase().includes(q) || String(c.satnum).includes(q))) continue;
@@ -66,12 +73,20 @@ export function CatalogPanel({ onSelectSat }: Props) {
     return { visibleList: list, totalMatching: total };
   }, [search, activeGroups, activeClasses, filterBand, filterRegion, altMin, altMax, selected, totalCount, viewMode]);
 
+  // Data-source microcopy
+  const sourceCopy = viewMode === 'debris' ? t('mode_source_debris')
+    : viewMode === 'expanded' ? t('mode_source_expanded')
+    : t('mode_source_operational');
+
   return (
     <section className="card glass catalog">
       <div className="card-head">
-        <div className="card-title"><div>{t('filters_title')}</div></div>
+        <div className="card-title"><div>{panelTitle}</div></div>
         <button className="link-btn" onClick={resetFilters}>{t('f_reset')}</button>
       </div>
+
+      {/* Data-source microcopy */}
+      <p className="catalog-source-copy">{sourceCopy}</p>
 
       <div className="search">
         <svg viewBox="0 0 24 24" width="15" height="15">
@@ -88,25 +103,51 @@ export function CatalogPanel({ onSelectSat }: Props) {
         />
       </div>
 
-      <div className="filter-block">
-        <div className="filter-label">{t('f_groups')}</div>
-        <div className="chip-row">
-          {GROUP_ORDER.map((g) => {
-            const m = GROUPS[g];
-            const on = !activeGroups.size || activeGroups.has(g);
-            return (
-              <button
-                key={g}
-                className={`chip ${on ? 'on' : 'off'}`}
-                style={{ '--c': m.color } as React.CSSProperties}
-                onClick={() => toggleGroup(g as GroupKey)}
-              >
-                <i />{m.label}
-              </button>
-            );
-          })}
+      {/* Object class filter chips (Expanded + Debris modes) */}
+      {viewMode !== 'operational' && (
+        <div className="filter-block">
+          <div className="filter-label">{filterLabel}</div>
+          <div className="chip-row">
+            {(viewMode === 'debris' ? RISK_CLASSES : OBJECT_CLASS_ORDER).map((cls) => {
+              const meta = OBJECT_CLASS_META[cls];
+              const on = !activeClasses.size || activeClasses.has(cls);
+              return (
+                <button
+                  key={cls}
+                  className={`chip ${on ? 'on' : 'off'}`}
+                  style={{ '--c': meta.color } as React.CSSProperties}
+                  onClick={() => toggleClass(cls)}
+                >
+                  <i />{t(meta.labelKey)}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Constellation filter chips (Operational + Expanded only) */}
+      {viewMode !== 'debris' && (
+        <div className="filter-block">
+          <div className="filter-label">{t('f_groups')}</div>
+          <div className="chip-row">
+            {GROUP_ORDER.map((g) => {
+              const m = GROUPS[g];
+              const on = !activeGroups.size || activeGroups.has(g);
+              return (
+                <button
+                  key={g}
+                  className={`chip ${on ? 'on' : 'off'}`}
+                  style={{ '--c': m.color } as React.CSSProperties}
+                  onClick={() => toggleGroup(g as GroupKey)}
+                >
+                  <i />{m.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="filter-grid">
         <div className="filter-block">

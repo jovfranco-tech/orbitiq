@@ -38,7 +38,7 @@ const DICT: Record<LangKey, Dict> = {
     quality_cinematic_short: 'C',
     quality_presentation_short: 'X',
     disclaimer:
-      'Uses real public TLE/SGP4 orbital data where available, with a representative fallback catalog for offline/demo mode. For portfolio, education and situational awareness only — not for flight safety or operational conjunction assessment.',
+      'Public TLE intelligence with operational/risk-object separation. Not a flight safety or conjunction-assessment system. For portfolio, education and situational awareness only.',
     fallback_mode: 'Fallback mode.',
     disclaimer_demo: 'Representative demo catalog is active; it is not a live snapshot of every object.',
     // dashboard metrics
@@ -77,8 +77,12 @@ const DICT: Record<LangKey, Dict> = {
     try_label: 'Try',
     // catalog
     filters_title: 'Catalog',
+    filters_title_expanded: 'Orbital Objects',
+    filters_title_debris: 'Risk Objects',
     search_placeholder: 'Search by name or NORAD ID…',
     f_groups: 'Constellations',
+    f_classes: 'Object Classes',
+    f_risk_classes: 'Risk Object Classes',
     f_band: 'Orbital band',
     f_region: 'Region',
     f_all: 'All',
@@ -319,6 +323,11 @@ const DICT: Record<LangKey, Dict> = {
     mode_demo_note: 'Representative DEMO objects — real public debris/rocket-body feeds were unavailable. Not a live debris catalog.',
     mode_safeguard: 'Expanded catalog loaded with optimized rendering. Individual inspection is limited to selected/filtered objects for performance.',
     mode_credibility: 'Operational satellites and tracked orbital objects are separated to avoid mixing active infrastructure with debris, rocket bodies and inactive payloads.',
+    mode_source_operational: 'Live/cached public TLE satellite catalog. Operational and active public satellite objects are separated from risk objects.',
+    mode_source_expanded: 'Expanded view combines the operational public TLE baseline with available risk object classes. This is not a complete global SSA catalog.',
+    mode_source_debris: 'Debris Risk mode focuses on available non-operational orbital objects such as debris, fragments, rocket bodies and inactive payloads. Complete global debris coverage is not claimed.',
+    prov_risk_live: 'LIVE PUBLIC TLE · RISK OBJECTS',
+    prov_risk_demo: 'REPRESENTATIVE RISK LAYER',
 
     // Object taxonomy
     class_operational_satellite: 'Operational satellites',
@@ -363,7 +372,7 @@ const DICT: Record<LangKey, Dict> = {
     quality_cinematic_short: 'C',
     quality_presentation_short: 'P',
     disclaimer:
-      'Usa datos orbitales TLE/SGP4 públicos reales donde estén disponibles, con un catálogo representativo de respaldo para modo sin conexión/demo. Solo para portafolio, educación y conciencia situacional — no apto para seguridad de vuelo ni evaluación de conjunciones.',
+      'Inteligencia TLE pública con separación operativo/riesgo. No es un sistema de seguridad de vuelo ni evaluación de conjunciones. Solo para portafolio, educación y conciencia situacional.',
     fallback_mode: 'Modo de respaldo.',
     disclaimer_demo: 'El catálogo demo representativo está activo; no es una instantánea en vivo de cada objeto.',
     m_total: 'Total cargados',
@@ -399,8 +408,12 @@ const DICT: Record<LangKey, Dict> = {
     sats_unit: 'satélites',
     try_label: 'Prueba',
     filters_title: 'Catálogo',
+    filters_title_expanded: 'Objetos Orbitales',
+    filters_title_debris: 'Objetos de Riesgo',
     search_placeholder: 'Buscar por nombre o ID NORAD…',
     f_groups: 'Constelaciones',
+    f_classes: 'Clases de Objetos',
+    f_risk_classes: 'Clases de Objetos de Riesgo',
     f_band: 'Banda orbital',
     f_region: 'Región',
     f_all: 'Todas',
@@ -636,6 +649,11 @@ const DICT: Record<LangKey, Dict> = {
     mode_demo_note: 'Objetos DEMO representativos — los feeds públicos reales de desechos/cuerpos de cohete no estaban disponibles. No es un catálogo de desechos en vivo.',
     mode_safeguard: 'Catálogo expandido cargado con renderizado optimizado. La inspección individual se limita a objetos seleccionados/filtrados por rendimiento.',
     mode_credibility: 'Los satélites operativos y los objetos orbitales rastreados se separan para evitar mezclar infraestructura activa con desechos, cuerpos de cohete y cargas inactivas.',
+    mode_source_operational: 'Catálogo público de satélites TLE en vivo/caché. Los objetos satelitales operativos y activos se separan de los objetos de riesgo.',
+    mode_source_expanded: 'La vista expandida combina la línea base operativa de TLE público con clases de objetos de riesgo disponibles. No es un catálogo SSA global completo.',
+    mode_source_debris: 'El modo Riesgo de Desechos se enfoca en objetos orbitales no operativos disponibles como desechos, fragmentos, cuerpos de cohete y cargas inactivas. No se reclama cobertura completa de desechos.',
+    prov_risk_live: 'TLE PÚBLICO · OBJETOS DE RIESGO',
+    prov_risk_demo: 'CAPA DE RIESGO REPRESENTATIVA',
 
     // Taxonomía de objetos
     class_operational_satellite: 'Satélites operativos',

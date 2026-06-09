@@ -75,7 +75,11 @@ export function ViewModeSelector({ mode, loading, meta, onSetMode }: Props) {
         ))}
       </div>
 
-      <p className="vms-microcopy">{t('mode_microcopy')}</p>
+      <p className="vms-microcopy">{
+        mode === 'operational' ? t('mode_source_operational')
+        : mode === 'debris' ? t('mode_source_debris')
+        : t('mode_source_expanded')
+      }</p>
 
       {showInfo && (
         <div className="vms-info">
@@ -95,7 +99,7 @@ export function ViewModeSelector({ mode, loading, meta, onSetMode }: Props) {
             <>
               <ClassChip cls="debris" label={t('class_debris')} value={fmt(debris)} />
               <ClassChip cls="rocket_body" label={t('class_rocket_body')} value={fmt(rocket)} />
-              <ClassChip cls="inactive_payload" label={t('class_inactive_payload')} value={fmt(inactive)} />
+              {inactive > 0 && <ClassChip cls="inactive_payload" label={t('class_inactive_payload')} value={fmt(inactive)} />}
               <div className="vms-metric">
                 <span className="vms-metric-k">{t('mode_non_operational')}</span>
                 <span className="vms-metric-v">{fmt(nonOperational)}</span>
@@ -111,8 +115,12 @@ export function ViewModeSelector({ mode, loading, meta, onSetMode }: Props) {
                 <span className="vms-metric-k">{t('class_operational_satellite')}</span>
                 <span className="vms-metric-v">{fmt(operational)}</span>
               </div>
-              <ClassChip cls="rocket_body" label={t('class_rocket_body')} value={fmt(rocket)} />
+              <div className="vms-metric">
+                <span className="vms-metric-k">{t('mode_non_operational')}</span>
+                <span className="vms-metric-v">{fmt(nonOperational)}</span>
+              </div>
               <ClassChip cls="debris" label={t('class_debris')} value={fmt(debris)} />
+              <ClassChip cls="rocket_body" label={t('class_rocket_body')} value={fmt(rocket)} />
             </>
           )}
         </div>

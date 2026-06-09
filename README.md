@@ -1,6 +1,6 @@
 # OrbitIQ — Command Center
 
-**v1.0.0-public-portfolio-release** — public portfolio release candidate (React + Vite + TypeScript).
+**v1.1.4-expanded-orbital-environment-polish** — production-ready release (React + Vite + TypeScript).
 
 AI-native 3D satellite intelligence command center for public orbital visibility, infrastructure dependency awareness, mission scenario briefs and executive space resilience insights.
 
@@ -8,9 +8,10 @@ Thousands of satellites are propagated with **SGP4** from public TLE/GP elements
 rendered as a GPU point cloud around a textured Earth, with a natural-language command
 agent, click-to-inspect, constellation/region/altitude filters, and an executive brief.
 
-> **Data disclaimer** — Uses real public TLE/SGP4 orbital data where available, with a
-> representative fallback catalog for offline/demo mode. For portfolio, education and
-> situational awareness only. **Not** for flight safety or operational conjunction assessment.
+> **Data disclaimer** — Public TLE intelligence with operational/risk-object separation.
+> Counts distinguish live public satellites from representative/demo orbital risk objects.
+> OrbitIQ does not claim complete global SSA coverage. **Not** for flight safety or
+> operational conjunction assessment.
 
 > **Project attribution** — OrbitIQ Command Center is an AI-native portfolio project created by
 > Jovan Franco under Aloria Labs, exploring real-time orbital intelligence, space infrastructure
@@ -50,11 +51,11 @@ explicit, optional layer.
 
 ### Three catalog modes
 
-| Mode | What it shows | Data |
-|---|---|---|
-| **Operational Satellites** (default) | The active/public satellite catalog (~15k operational payloads). Clean, fast. | Real CelesTrak `active` (+ cubesat/amateur) |
-| **Expanded Orbital Environment** | Operational + tracked non-operational objects (rocket bodies, debris). | Real CelesTrak fragmentation feeds when available; clearly-marked representative DEMO layer otherwise |
-| **Debris & Collision Risk** | Debris / rocket bodies / inactive objects emphasised; active infrastructure shown as faint context. | Same superset as Expanded, debris-emphasis rendering |
+| Mode | What it shows | Count formula | Data |
+|---|---|---|---|
+| **Operational Satellites** (default) | The active/public satellite catalog. Clean, fast. | ~15.6k operational payloads | Real CelesTrak `active` (+ cubesat/amateur) |
+| **Expanded Orbital Environment** | Operational + tracked non-operational objects (rocket bodies, debris). | Operational + Risk Overlay (~18k total) | Real CelesTrak fragmentation feeds when available; clearly-marked representative DEMO layer otherwise |
+| **Debris & Collision Risk** | Debris / rocket bodies / inactive objects only; active infrastructure shown as faint context on globe. | ~2.6k risk objects | Risk overlay dataset only (no Starlink in catalog) |
 
 ### Object taxonomy
 

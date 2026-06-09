@@ -35,10 +35,20 @@ interface Props {
 }
 
 export function TopBar({ onOpenBrief, onResetView, onToggleRotate, onSetLang, onToggleIntel, onToggleMission, onToggleCinematic, intelligence }: Props) {
-  const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence, showMissionPanel, cinematicMode, visualQuality, setVisualQuality, tleHealth, agentHealth, showDataHealthPanel, setShowDataHealthPanel } = useStore();
+  const { dataMode, totalCount, renderedCount, regionCount, filterRegion, ageDays, lang, autoRotate, showIntelligence, showMissionPanel, cinematicMode, visualQuality, setVisualQuality, tleHealth, agentHealth, showDataHealthPanel, setShowDataHealthPanel, viewMode } = useStore();
   const { showWatchlistPanel, setShowWatchlistPanel, showSavedViewsPanel, setShowSavedViewsPanel, showSnapshotPanel, setShowSnapshotPanel } = useUserStore();
   
-  const [lblKey, noteKey, cls] = PROV_MAP[dataMode] ?? PROV_MAP['fallback'];
+  // Mode-aware provenance badge
+  const isDebris = viewMode === 'debris';
+  const isDemo = dataMode === 'fallback';
+  let lblKey: string, noteKey: string, cls: string;
+  if (isDebris && isDemo) {
+    lblKey = 'prov_risk_demo'; noteKey = 'prov_demo_note'; cls = 'm-demo';
+  } else if (isDebris) {
+    lblKey = 'prov_risk_live'; noteKey = 'prov_live_note'; cls = 'm-live';
+  } else {
+    [lblKey, noteKey, cls] = PROV_MAP[dataMode] ?? PROV_MAP['fallback'];
+  }
   
   const overallHealth = tleHealth === 'unavailable' && totalCount === 0 ? 'unavailable'
                       : tleHealth === 'unavailable' || tleHealth === 'degraded' || agentHealth === 'fallback' || agentHealth === 'degraded' ? 'degraded'

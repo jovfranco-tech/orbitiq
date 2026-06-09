@@ -1,3 +1,27 @@
+## [1.1.4-expanded-orbital-environment-polish] - 2026-06-09
+
+### Fixed
+- **Dataset selectors as single source of truth** (v1.1.3): catalog, counters, legend, and globe all derive from the same mode-aware dataset.
+- **Catalog no longer shows 0 results** in Operational mode — removed incorrect `alt < 0` gate that caused empty catalog before first worker tick.
+- **Expanded mode total is always >= Operational** — full expanded dataset loaded once on startup; mode switching no longer re-fetches.
+- **Debris catalog excludes Starlink** by default — mode gating is the first filter check.
+
+### Changed
+- **Mode-aware filter labels**: Operational shows "Constellations"; Expanded shows "Object Classes" + constellations; Debris shows "Risk Object Classes" only (no constellation chips).
+- **Data-source microcopy**: each mode displays an honest one-line description of what data it shows and what it does not claim.
+- **Provenance badge**: Debris mode shows "LIVE PUBLIC TLE · RISK OBJECTS" or "REPRESENTATIVE RISK LAYER" depending on data source.
+- **Expanded mode card** now shows: Total tracked, Operational baseline, Non-operational, Debris count, Rocket bodies.
+- **Debris mode card** hides inactive payloads when count is 0.
+- **Footer disclaimer** updated: "Public TLE intelligence with operational/risk-object separation. Not a flight safety or conjunction-assessment system."
+- `loadSatellites()` always fetches `mode=expanded` for the full dataset; mode switching is purely client-side repainting/refiltering.
+- Added `src/data/datasetSelectors.ts` with `getModeTotal()`, `getModeBaseIndices()`, `getModeCounters()`, `validateDatasets()`.
+
+### Notes / limitations
+- Debris coverage is intentionally not a complete SSA/global catalog — limited to available public fragmentation feeds + representative DEMO layer when unavailable.
+- The app does not claim all ~44k cataloged objects — only publicly available active satellites plus available debris/RB data.
+- No API keys in frontend. No user PII processed.
+- Representative/fallback risk layers are clearly marked as DEMO when real feeds are unavailable.
+
 ## [1.1.0-expanded-orbital-environment] - 2026-06-09
 
 ### Added
