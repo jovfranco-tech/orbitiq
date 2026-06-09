@@ -116,6 +116,25 @@ export async function loadSatellites(mode: ViewMode = 'operational'): Promise<Lo
       ];
     }
 
+    // INVARIANT: Expanded/debris mode must never have fewer objects than
+    // what the operational catalog would provide. If the expanded API fetch
+    // returned fewer operational objects (e.g. partial network response),
+    // supplement from the representative catalog.
+    if (wantsExpanded && catalog.length < 15000) {
+      const seenSatnums = new Set(catalog.map((s) => s.satnum));
+      const supplement = buildCatalog()
+        .filter((s) => !seenSatnums.has(s.satnum))
+        .map(enrich);
+      if (supplement.length > 0) {
+        catalog = [...catalog, ...supplement];
+        source = `${source} + supplemental representative objects`;
+        limitations = [
+          ...(limitations ?? []),
+          'Operational baseline supplemented with representative objects to maintain expanded >= operational invariant.',
+        ];
+      }
+    }
+
     const meta: TleApiMeta = withClassCounts({
       ...json.meta,
       mode,

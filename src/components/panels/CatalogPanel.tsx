@@ -1,14 +1,14 @@
 // ============================================================
-// OrbitIQ — Catalog filter + results panel
+// OrbitIQ — Catalog filter + results panel (mode-aware)
 // ============================================================
 import { useMemo } from 'react';
 import { t } from '../../i18n/i18n';
 import { GROUPS, GROUP_ORDER } from '../../data/groups';
 import { REGIONS } from '../../regions/regions';
 import { matchRegion } from '../../regions/regions';
+import { isOperationalClass } from '../../data/objectClass';
 import { useStore } from '../../state/store';
 import { CS } from '../../state/catalogStore';
-import type { CatalogStore } from '../../state/catalogStore';
 import type { GroupKey, BandKey } from '../../types';
 
 const RESULT_CAP = 120;
@@ -22,9 +22,9 @@ interface Props {
 
 export function CatalogPanel({ onSelectSat }: Props) {
   const {
-    activeGroups, filterBand, filterRegion, altMin, altMax, search, selected,
+    activeGroups, activeClasses, filterBand, filterRegion, altMin, altMax, search, selected,
     toggleGroup, setFilterBand, setFilterRegion, setSearch, resetFilters,
-    totalCount,
+    totalCount, viewMode,
   } = useStore();
 
   // totalCount is used as a reactive dep to trigger re-render after catalog load
@@ -32,17 +32,27 @@ export function CatalogPanel({ onSelectSat }: Props) {
     const q = search.toLowerCase().trim();
     const list: number[] = [];
     let total = 0;
+    // Debris mode emphasis: exclude operational satellites from catalog by default
+    const debrisEmphasis = viewMode === 'debris' && activeClasses.size === 0;
+
     for (let i = 0; i < CS.N; i++) {
       if (CS.alt[i] < 0 && i !== selected) continue;
-      const passes = checkPasses(i, activeGroups, filterBand, filterRegion, altMin, altMax, CS);
-      if (!passes && i !== selected) continue;
+      // Mode-aware class filtering (mirrors applyFilter logic)
+      if (activeClasses.size && !activeClasses.has(CS.objectClass[i])) continue;
+      if (debrisEmphasis && isOperationalClass(CS.objectClass[i])) continue;
+      // Standard filters
+      if (activeGroups.size && !activeGroups.has(CS.group[i])) continue;
+      if (filterBand && CS.band[i] !== filterBand) continue;
+      if (filterRegion && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) continue;
+      if (altMax != null && CS.alt[i] > altMax) continue;
+      if (altMin != null && CS.alt[i] < altMin) continue;
       const c = CS.catalog[i];
       if (q && !(c.name.toLowerCase().includes(q) || String(c.satnum).includes(q))) continue;
       if (list.length < RESULT_CAP) list.push(i);
       total++;
     }
     return { visibleList: list, totalMatching: total };
-  }, [search, activeGroups, filterBand, filterRegion, altMin, altMax, selected, totalCount]); // totalCount triggers re-render on catalog load
+  }, [search, activeGroups, activeClasses, filterBand, filterRegion, altMin, altMax, selected, totalCount, viewMode]);
 
   return (
     <section className="card glass catalog">
@@ -129,6 +139,9 @@ export function CatalogPanel({ onSelectSat }: Props) {
               if (!c) return null; // bounds guard
               const m = GROUPS[CS.group[i]] ?? GROUPS['other'];
               const altTxt = CS.alt[i] >= 0 ? Math.round(CS.alt[i]).toLocaleString() + ' km' : '—';
+              const classLabel = CS.objectClass[i] && CS.objectClass[i] !== 'operational_satellite' && CS.objectClass[i] !== 'active_payload'
+                ? ` · ${CS.objectClass[i].replace(/_/g, ' ')}`
+                : '';
               return (
                 <div
                   key={c.satnum}
@@ -139,7 +152,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
                   <i />
                   <div className="res-main">
                     <div className="res-name">{c.name}</div>
-                    <div className="res-meta">{c.satnum} · {m.label}</div>
+                    <div className="res-meta">{c.satnum} · {m.label}{classLabel}</div>
                   </div>
                   <div className="res-alt">{altTxt}</div>
                 </div>
@@ -149,23 +162,4 @@ export function CatalogPanel({ onSelectSat }: Props) {
       </div>
     </section>
   );
-}
-
-// Filter check — mirrors the authoritative hot loop in App.tsx
-function checkPasses(
-  i: number,
-  activeGroups: Set<GroupKey>,
-  filterBand: BandKey | null,
-  filterRegion: string | null,
-  altMin: number | null,
-  altMax: number | null,
-  cs: CatalogStore,
-): boolean {
-  if (cs.alt[i] < 0) return false;
-  if (activeGroups.size && !activeGroups.has(cs.group[i])) return false;
-  if (filterBand && cs.band[i] !== filterBand) return false;
-  if (filterRegion && !matchRegion(cs.lat[i], cs.lon[i], filterRegion)) return false;
-  if (altMax != null && cs.alt[i] > altMax) return false;
-  if (altMin != null && cs.alt[i] < altMin) return false;
-  return true;
 }

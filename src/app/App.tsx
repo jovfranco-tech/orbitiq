@@ -206,7 +206,20 @@ export function App() {
     }
     if (selected >= 0 && selected < CS.N) CS.vis[selected] = 1;
     globe.setVisible(CS.vis);
-    useStore.getState().setCounts(CS.N, mobile ? kept : rendered, regionCount);
+    // Mode-aware "total loaded" counter:
+    // - Operational: full catalog (all are operational)
+    // - Expanded: full catalog (operational + debris/risk overlay)
+    // - Debris: only non-operational objects count as "loaded" for this mode
+    const { viewMode: currentViewMode } = useStore.getState();
+    let modeTotal = CS.N;
+    if (currentViewMode === 'debris') {
+      let nonOp = 0;
+      for (let j = 0; j < CS.N; j++) {
+        if (CS.alt[j] >= 0 && !isOperationalClass(CS.objectClass[j])) nonOp++;
+      }
+      modeTotal = nonOp;
+    }
+    useStore.getState().setCounts(modeTotal, mobile ? kept : rendered, regionCount);
   }, []);
 
   // ---- Propagation tick (offloaded to Web Worker) -----------------------
