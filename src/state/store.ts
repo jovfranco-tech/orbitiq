@@ -7,7 +7,7 @@
 // ============================================================
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { DataMode, GroupKey, BandKey, MissionScenarioType, ApiHealth, TleApiMeta, VisualQuality } from '../types';
+import type { DataMode, GroupKey, BandKey, MissionScenarioType, ApiHealth, TleApiMeta, VisualQuality, ViewMode, ObjectClass } from '../types';
 import { CS } from './catalogStore';
 
 export interface UIState {
@@ -25,8 +25,13 @@ export interface UIState {
   tleMeta: TleApiMeta | null;
   showDataHealthPanel: boolean;
 
+  // catalog view mode (Expanded Orbital Environment)
+  viewMode: ViewMode;
+  modeLoading: boolean;
+
   // filters
   activeGroups: Set<GroupKey>;
+  activeClasses: Set<ObjectClass>;
   filterBand: BandKey | null;
   filterRegion: string | null;
   altMin: number | null;
@@ -70,8 +75,12 @@ export interface UIActions {
   setTleMeta(meta: TleApiMeta | null): void;
   setShowDataHealthPanel(v: boolean): void;
 
+  setViewMode(mode: ViewMode): void;
+  setModeLoading(v: boolean): void;
   toggleGroup(g: GroupKey): void;
   setActiveGroups(groups: Set<GroupKey>): void;
+  toggleClass(c: ObjectClass): void;
+  setActiveClasses(classes: Set<ObjectClass>): void;
   setFilterBand(b: BandKey | null): void;
   setFilterRegion(r: string | null): void;
   setAltFilter(min: number | null, max: number | null): void;
@@ -119,7 +128,11 @@ export const useStore = create<UIState & UIActions>()(
   tleMeta: null,
   showDataHealthPanel: false,
 
+  viewMode: 'operational',
+  modeLoading: false,
+
   activeGroups: new Set<GroupKey>(),
+  activeClasses: new Set<ObjectClass>(),
   filterBand: null,
   filterRegion: null,
   altMin: null,
@@ -155,6 +168,9 @@ export const useStore = create<UIState & UIActions>()(
   setTleMeta: (m) => set({ tleMeta: m }),
   setShowDataHealthPanel: (v) => set({ showDataHealthPanel: v }),
 
+  setViewMode: (mode) => set({ viewMode: mode }),
+  setModeLoading: (v) => set({ modeLoading: v }),
+
   toggleGroup(g) {
     const cur = get().activeGroups;
     if (!cur.size) {
@@ -169,6 +185,13 @@ export const useStore = create<UIState & UIActions>()(
   },
   setActiveGroups: (groups) => set({ activeGroups: groups }),
 
+  toggleClass(c) {
+    const next = new Set(get().activeClasses);
+    if (next.has(c)) next.delete(c); else next.add(c);
+    set({ activeClasses: next });
+  },
+  setActiveClasses: (classes) => set({ activeClasses: classes }),
+
   setFilterBand:   (b) => set({ filterBand: b }),
   setFilterRegion: (r) => set({ filterRegion: r }),
   setAltFilter:    (min, max) => set({ altMin: min, altMax: max }),
@@ -176,6 +199,7 @@ export const useStore = create<UIState & UIActions>()(
 
   resetFilters: () => set({
     activeGroups: new Set<GroupKey>(),
+    activeClasses: new Set<ObjectClass>(),
     filterBand: null, filterRegion: null,
     altMin: null, altMax: null, search: '',
     curRegionForCount: null,

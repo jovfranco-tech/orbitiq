@@ -41,6 +41,61 @@ agent, click-to-inspect, constellation/region/altitude filters, and an executive
 
 ---
 
+## v1.1.0 — Expanded Orbital Environment
+
+OrbitIQ treats orbital objects as a **space-infrastructure intelligence** problem, not a
+generic satellite toy. It deliberately does **not** render every tracked object by default —
+the clean operational view is the impressive default, and non-operational objects are an
+explicit, optional layer.
+
+### Three catalog modes
+
+| Mode | What it shows | Data |
+|---|---|---|
+| **Operational Satellites** (default) | The active/public satellite catalog (~15k operational payloads). Clean, fast. | Real CelesTrak `active` (+ cubesat/amateur) |
+| **Expanded Orbital Environment** | Operational + tracked non-operational objects (rocket bodies, debris). | Real CelesTrak fragmentation feeds when available; clearly-marked representative DEMO layer otherwise |
+| **Debris & Collision Risk** | Debris / rocket bodies / inactive objects emphasised; active infrastructure shown as faint context. | Same superset as Expanded, debris-emphasis rendering |
+
+### Object taxonomy
+
+Every object is classified into a normalized class (`src/data/objectClass.ts`):
+`operational_satellite`, `active_payload`, `inactive_payload`, `rocket_body`, `debris`,
+`unknown_object`. Classification is **heuristic**, derived from public TLE object names
+(`DEB` → debris, `R/B` → rocket body, …). Operational satellites and active payloads are
+infrastructure; rocket bodies, debris, inactive payloads and unknown objects are
+non-operational tracked objects — OrbitIQ never mixes the two.
+
+### `/api/tle` modes
+
+`GET /api/tle?mode=operational|expanded|debris-risk` returns, in `meta`: `mode`, `source`,
+`sourceMode` (`live`/`cached`/`fallback`/`mixed`), `fetchedAt`, `cacheAgeSeconds`,
+`totalObjects`, `operationalCount`, `activePayloadCount`, `inactivePayloadCount`,
+`rocketBodyCount`, `debrisCount`, `unknownCount`, and a human-readable `limitations[]`.
+Each underlying dataset (operational / expanded) is cached server-side for up to 6 hours.
+
+### Why not render everything by default?
+
+1. **Credibility** — mixing active satellites with debris and rocket bodies misrepresents the
+   orbital environment. Separation is the honest, premium choice.
+2. **Performance** — the default view stays a smooth single GPU point cloud; the expanded
+   catalog loads on demand with a deterministic debris cap and a performance-safeguard note.
+3. **Clarity** — operational mode keeps the established constellation palette; expanded/debris
+   modes recolor by object class so the distinction is obvious.
+
+### Honesty & limitations
+
+- Debris is limited to major **catalogued fragmentation events** (Cosmos-1408, Fengyun-1C,
+  Iridium-33, Cosmos-2251) — it is **not** a complete SSA/global debris catalog.
+- When real public debris feeds are unavailable, a **representative DEMO** debris/rocket-body
+  layer is substituted and labelled as synthetic everywhere it appears.
+- **No API keys** are required or exposed in the frontend. Space-Track is optional and unused
+  by default; if ever enabled it must be a server-side env var and the app must keep working
+  without it.
+- For portfolio, education and situational awareness only — **never** flight safety or
+  operational conjunction assessment.
+
+---
+
 ## v0.3.0 — Orbital Intelligence Layer
 
 | Feature | Detail |

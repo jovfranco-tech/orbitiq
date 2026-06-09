@@ -1,6 +1,40 @@
-# OrbitIQ v1.0.0 — Developer Walkthrough
+# OrbitIQ — Developer Walkthrough
 
 A guided tour of the codebase for contributors and reviewers.
+
+---
+
+## Expanded Orbital Environment (v1.1.0)
+
+The catalog now has three **view modes** (`ViewMode` in `src/types/index.ts`):
+`operational` (default), `expanded`, `debris`.
+
+```
+ViewModeSelector (top-center)
+  └── onSetMode(mode) → App.handleSetViewMode(mode)
+        ├── store.setViewMode(mode) + resetFilters() + modeLoading
+        ├── loadSatellites(mode)          # src/data/client.ts → /api/tle?mode=...
+        │     └── enrich(): classifyGroup() + classifyObjectClass()   # objectClass.ts
+        ├── loadCatalog(): fills CS.objectClass[] + paintColorBase(mode)
+        │     ├── operational → group palette (unchanged look)
+        │     └── expanded/debris → OBJECT_CLASS_META palette
+        └── applyFilter(): activeClasses filter + debris-risk emphasis
+```
+
+**Object taxonomy** (`src/data/objectClass.ts`): `operational_satellite`, `active_payload`,
+`inactive_payload`, `rocket_body`, `debris`, `unknown_object`. Classified heuristically from
+public TLE names. `isOperationalClass()` / `isNonOperationalClass()` gate the debris emphasis.
+
+**API** (`api/tle.ts`): `fetchOperational()` (active + cubesat/amateur) and `fetchExpanded()`
+(operational + real CelesTrak fragmentation feeds), separate caches, honest fallback chain.
+`countClasses()` produces best-effort metadata; the client recomputes authoritative counts.
+
+**Honest fallback** (`src/data/catalog.ts` `buildDebrisFallback()`): representative DEMO
+debris/rocket-body objects used only when real feeds are unavailable, always flagged synthetic.
+
+**AI agent** (`src/ai/agent.ts`): mode + taxonomy intents (`set_view_mode`, `filter_by_class`,
+`compare_operational_vs_tracked`, `explain_taxonomy`); the same schema is enforced server-side
+in `api/agent.ts`.
 
 ---
 

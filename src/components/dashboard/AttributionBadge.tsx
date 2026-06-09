@@ -13,6 +13,7 @@ export function AttributionBadge() {
       >
         Aloria Labs ↗
       </a>
+      <span className="attribution-sep"> · {t('attribution_separation')}</span>
     </div>
   );
 }

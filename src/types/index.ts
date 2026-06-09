@@ -16,7 +16,30 @@ export interface SatelliteRecord {
   isReal: boolean;
   /** Nominal altitude used for initial group classification before first propagation (km) */
   altNominal?: number;
+  /** Normalized orbital object class (payload / rocket body / debris / …) */
+  objectClass?: ObjectClass;
 }
+
+/**
+ * Normalized orbital object taxonomy. Operational satellites and active
+ * payloads are infrastructure; rocket bodies, debris, inactive payloads and
+ * unknown objects are non-operational tracked objects. OrbitIQ keeps these
+ * separate on purpose — see src/data/objectClass.ts.
+ */
+export type ObjectClass =
+  | 'operational_satellite'
+  | 'active_payload'
+  | 'inactive_payload'
+  | 'rocket_body'
+  | 'debris'
+  | 'unknown_object';
+
+/**
+ * Catalog view mode. `operational` is the default clean active-satellite view;
+ * `expanded` adds tracked non-operational classes when available; `debris`
+ * focuses on debris / rocket bodies / collision-risk emphasis.
+ */
+export type ViewMode = 'operational' | 'expanded' | 'debris';
 
 /** Parsed satrec from satellite.js */
 export interface SatRec {
@@ -62,6 +85,19 @@ export interface TleApiMeta {
   cacheAgeSeconds?: number;
   cacheTtlSeconds?: number;
   fallbackReason?: string;
+  // --- Expanded Orbital Environment metadata (v1.1.0) ---
+  /** Catalog mode this dataset represents. */
+  mode?: ViewMode;
+  /** Total tracked objects returned (payloads + non-operational). */
+  totalObjects?: number;
+  operationalCount?: number;
+  activePayloadCount?: number;
+  inactivePayloadCount?: number;
+  rocketBodyCount?: number;
+  debrisCount?: number;
+  unknownCount?: number;
+  /** Honest, human-readable limitations for this dataset/mode. */
+  limitations?: string[];
 }
 
 /** Full response from /api/tle. */
@@ -95,6 +131,12 @@ export interface AgentActions {
   savedViewAction?: { type: 'save' | 'load' | 'recommend'; payload?: string } | null;
   snapshotAction?: 'create' | 'export' | null;
   chartAction?: { type: 'bar' | 'pie'; dataKey: string; data: Record<string, number | string>[] } | null;
+  /** Switch the catalog view mode (operational / expanded / debris). */
+  viewMode?: ViewMode | null;
+  /** Restrict (or, with `excludeClasses`, hide) specific object classes. */
+  classFilter?: ObjectClass[] | null;
+  /** When true, classFilter is treated as a hide-list rather than a show-list. */
+  excludeClasses?: boolean;
 }
 
 export type AgentAction =
@@ -130,6 +172,10 @@ export type AgentAction =
   | { type: 'export_snapshot' }
   | { type: 'recommend_saved_view' }
   | { type: 'render_chart'; chartType: 'bar' | 'pie'; dataKey: string; data: Record<string, number | string>[] }
+  | { type: 'set_view_mode'; mode: 'operational' | 'expanded' | 'debris' }
+  | { type: 'filter_by_class'; classes: string[]; exclude?: boolean }
+  | { type: 'compare_operational_vs_tracked' }
+  | { type: 'explain_taxonomy' }
   | { type: 'unknown_safe_fallback' };
 
 /** Formal output contract for the AI agent.

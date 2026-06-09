@@ -5,13 +5,25 @@
 // normalised JSON payload. Falls back to a bundled
 // representative catalog on any network/parse failure.
 //
+// Modes (v1.1.0 — Expanded Orbital Environment):
+//   ?mode=operational   (default) clean active/public satellite catalog
+//   ?mode=expanded      operational + tracked non-operational classes
+//                       (rocket bodies, debris) from real CelesTrak feeds
+//   ?mode=debris-risk   same superset, labelled for debris/collision-risk
+//                       emphasis on the client
+//
 // SECURITY: No API keys required. No user PII processed.
 // Only public, unauthenticated CelesTrak GP data is fetched.
+// Space-Track is NOT required; if a SPACETRACK_* feed is ever added it
+// must be an OPTIONAL server-side env var and the app must keep working
+// without it.
 // ============================================================
 
 // Inline types matching @vercel/node — no package install required at typecheck time
 interface VercelRequest {
   method?: string;
+  url?: string;
+  query?: Record<string, string | string[] | undefined>;
   headers?: Record<string, string | string[] | undefined>;
 }
 interface VercelResponse {
@@ -21,6 +33,8 @@ interface VercelResponse {
   end(): void;
 }
 
+type ViewMode = 'operational' | 'expanded' | 'debris';
+
 // --- In-memory server-side cache (survives warm lambda invocations) ---------
 
 interface CacheEntry {
@@ -28,10 +42,12 @@ interface CacheEntry {
   fetchedAt: number; // epoch ms
 }
 
-let cache: CacheEntry | null = null;
+// Keyed by underlying dataset: 'operational' | 'expanded'
+const caches: Record<string, CacheEntry | null> = { operational: null, expanded: null };
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const EDGE_CACHE_SECONDS = 3 * 60 * 60; // CelesTrak updates Starlink/Active about every 2 hours
 const EDGE_STALE_SECONDS = 24 * 60 * 60;
+const MAX_DEBRIS = 9000; // safety cap to protect client-side propagation performance
 
 // ---------------------------------------------------------------------------
 
@@ -41,6 +57,15 @@ interface SatPayload {
   l1: string;
   l2: string;
   isReal: boolean;
+}
+
+interface ClassCounts {
+  operationalCount: number;
+  activePayloadCount: number;
+  inactivePayloadCount: number;
+  rocketBodyCount: number;
+  debrisCount: number;
+  unknownCount: number;
 }
 
 interface TleMeta {
@@ -58,6 +83,16 @@ interface TleMeta {
   cacheAgeSeconds?: number;
   cacheTtlSeconds?: number;
   fallbackReason?: string;
+  // Expanded Orbital Environment metadata
+  mode: ViewMode;
+  totalObjects: number;
+  operationalCount: number;
+  activePayloadCount: number;
+  inactivePayloadCount: number;
+  rocketBodyCount: number;
+  debrisCount: number;
+  unknownCount: number;
+  limitations: string[];
 }
 
 interface TleResponse {
@@ -111,6 +146,46 @@ const AMATEUR_SOURCE: TleSource = {
   timeoutMs: 5000,
 };
 
+// Real, public CelesTrak fragmentation-event feeds. These are major
+// catalogued breakups (ASAT tests + the Iridium-33/Cosmos-2251 collision)
+// and contain real "... DEB" debris and some "... R/B" rocket bodies.
+const DEBRIS_GROUPS = ['cosmos-1408-debris', 'fengyun-1c-debris', 'iridium-33-debris', 'cosmos-2251-debris'];
+const DEBRIS_SOURCES: TleSource[] = DEBRIS_GROUPS.map((g) => ({
+  label: `CelesTrak GP ${g}`,
+  url: `https://celestrak.org/NORAD/elements/gp.php?GROUP=${g}&FORMAT=tle`,
+  minRecords: 10,
+  timeoutMs: 7000,
+}));
+
+// ---------------------------------------------------------------------------
+// Server-side object-class heuristics (mirror of src/data/objectClass.ts).
+// Used only to produce honest metadata counts; the client re-classifies for
+// rendering, so any drift is corrected client-side.
+// ---------------------------------------------------------------------------
+
+const DEBRIS_RE = /\bDEB\b|DEBRIS|\bFRAG|COOLANT|WESTFORD|NEEDLES|SHRAPNEL/;
+const ROCKET_BODY_RE = /R\/B|ROCKET BODY|\bAKM\b|\bPKM\b|BREEZE|CENTAUR|\bSL-\d|ULLAGE|\bH-2A\b|\bDPAF\b/;
+const INACTIVE_RE = /\bINOP\b|INACTIVE|\bDECAY|NONOP|\bDEAD\b|\bRETIRED\b/;
+const UNKNOWN_RE = /\bTBA\b|UNKNOWN|UNIDENTIFIED|\bANALYST\b/;
+const OPERATIONAL_NAME_RE = /STARLINK|GPS|GALILEO|GLONASS|BEIDOU|NAVSTAR|IRNSS|QZS|ISS|TIANHE|CSS|NOAA|GOES|METOP|METEOR|SENTINEL|LANDSAT|HUBBLE|HST|ONEWEB/;
+
+function countClasses(sats: SatPayload[]): ClassCounts {
+  const c: ClassCounts = {
+    operationalCount: 0, activePayloadCount: 0, inactivePayloadCount: 0,
+    rocketBodyCount: 0, debrisCount: 0, unknownCount: 0,
+  };
+  for (const s of sats) {
+    const u = (s.name || '').toUpperCase();
+    if (DEBRIS_RE.test(u)) c.debrisCount++;
+    else if (ROCKET_BODY_RE.test(u)) c.rocketBodyCount++;
+    else if (INACTIVE_RE.test(u)) c.inactivePayloadCount++;
+    else if (UNKNOWN_RE.test(u)) c.unknownCount++;
+    else if (OPERATIONAL_NAME_RE.test(u)) c.operationalCount++;
+    else c.activePayloadCount++;
+  }
+  return c;
+}
+
 function parseTleText(text: string, minRecords: number): SatPayload[] {
   const lines = text.split(/\r?\n/).filter(Boolean);
   if (lines.length < 6) throw new Error('TLE response too short');
@@ -135,7 +210,7 @@ async function fetchTleSource(source: TleSource): Promise<SatPayload[]> {
     signal: AbortSignal.timeout(source.timeoutMs),
     headers: {
       'Accept': 'text/plain,text/*,*/*',
-      'User-Agent': 'OrbitIQ-CommandCenter/1.0.0 contact: https://github.com/jovfranco-tech/orbitiq',
+      'User-Agent': 'OrbitIQ-CommandCenter/1.1.0 contact: https://github.com/jovfranco-tech/orbitiq',
     },
   });
   if (!res.ok) {
@@ -187,14 +262,188 @@ function header(req: VercelRequest, key: string): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function parseMode(req: VercelRequest): ViewMode {
+  let raw: string | undefined;
+  const q = req.query?.mode;
+  if (typeof q === 'string') raw = q;
+  else if (Array.isArray(q)) raw = q[0];
+  else if (req.url) {
+    try {
+      raw = new URL(req.url, 'http://localhost').searchParams.get('mode') ?? undefined;
+    } catch { /* ignore */ }
+  }
+  const v = (raw ?? 'operational').toLowerCase();
+  if (v === 'expanded') return 'expanded';
+  if (v === 'debris-risk' || v === 'debris' || v === 'debris_risk') return 'debris';
+  return 'operational';
+}
+
 function logEvent(level: 'info' | 'error', data: Record<string, unknown>): void {
-  const payload = JSON.stringify({
-    level,
-    route: '/api/tle',
-    ...data,
-  });
+  const payload = JSON.stringify({ level, route: '/api/tle', ...data });
   if (level === 'error') console.error(payload);
   else console.log(payload);
+}
+
+const OPERATIONAL_LIMITATIONS = [
+  'Operational view shows the active/public satellite catalog (CelesTrak "active"). It deliberately excludes debris, rocket bodies and inactive payloads.',
+  'Positions are SGP4-propagated from public TLEs; element sets age and maneuvers are not reflected.',
+];
+const EXPANDED_LIMITATIONS = [
+  'Expanded view adds tracked non-operational objects (debris, rocket bodies) from public CelesTrak fragmentation feeds.',
+  'Debris coverage is limited to major catalogued breakups (Cosmos-1408, Fengyun-1C, Iridium-33, Cosmos-2251) — it is NOT a complete SSA/global debris catalog.',
+  'Rocket bodies and inactive payloads are only represented where present in the fetched public feeds.',
+  'Not for flight safety or conjunction assessment.',
+];
+
+function applyClassMeta(meta: TleMeta, sats: SatPayload[], mode: ViewMode, limitations: string[]): TleMeta {
+  const c = countClasses(sats);
+  return {
+    ...meta,
+    mode,
+    totalObjects: sats.length,
+    operationalCount: c.operationalCount,
+    activePayloadCount: c.activePayloadCount,
+    inactivePayloadCount: c.inactivePayloadCount,
+    rocketBodyCount: c.rocketBodyCount,
+    debrisCount: c.debrisCount,
+    unknownCount: c.unknownCount,
+    limitations,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Operational dataset: active catalog + cubesat/amateur supplemental.
+// (Original behaviour, factored out so expanded mode can layer on top.)
+// ---------------------------------------------------------------------------
+
+async function fetchOperational(now: number): Promise<TleResponse> {
+  const [activeSats, cubeSats, amateurSats] = await Promise.allSettled([
+    fetchTleSource(ACTIVE_SOURCE),
+    fetchTleSource(CUBESAT_SOURCE),
+    fetchTleSource(AMATEUR_SOURCE),
+  ]);
+
+  if (activeSats.status !== 'fulfilled') throw new Error('Active catalog unavailable');
+
+  const seenSatnums = new Set(activeSats.value.map((s) => s.satnum));
+  const satellites: SatPayload[] = [...activeSats.value];
+  for (const result of [cubeSats, amateurSats]) {
+    if (result.status === 'fulfilled') {
+      for (const s of result.value) {
+        if (!seenSatnums.has(s.satnum)) { seenSatnums.add(s.satnum); satellites.push(s); }
+      }
+    }
+  }
+
+  const supplementalSources = [
+    cubeSats.status === 'fulfilled' ? `+${cubeSats.value.length} CubeSat` : null,
+    amateurSats.status === 'fulfilled' ? `+${amateurSats.value.length} Amateur` : null,
+  ].filter(Boolean).join(', ');
+
+  const meta: TleMeta = {
+    source: supplementalSources
+      ? `CelesTrak GP active (${satellites.length} total: ${supplementalSources})`
+      : 'CelesTrak GP (celestrak.org)',
+    sourceMode: 'live',
+    fetchTimestamp: new Date(now).toISOString(),
+    fetchedAt: new Date(now).toISOString(),
+    cacheTimestamp: new Date(now).toISOString(),
+    tleEpoch: latestEpoch(satellites),
+    freshness: 'live',
+    dataMode: 'live',
+    count: satellites.length,
+    recordCount: satellites.length,
+    sourceHealth: 'healthy',
+    cacheAgeSeconds: 0,
+    cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
+    mode: 'operational',
+    totalObjects: satellites.length,
+    operationalCount: 0, activePayloadCount: 0, inactivePayloadCount: 0,
+    rocketBodyCount: 0, debrisCount: 0, unknownCount: 0,
+    limitations: OPERATIONAL_LIMITATIONS,
+  };
+  return { meta: applyClassMeta(meta, satellites, 'operational', OPERATIONAL_LIMITATIONS), satellites };
+}
+
+// ---------------------------------------------------------------------------
+// Expanded dataset: operational + real CelesTrak debris/RB fragmentation feeds.
+// ---------------------------------------------------------------------------
+
+async function fetchExpanded(now: number): Promise<TleResponse> {
+  const operational = await fetchOperational(now);
+  const seen = new Set(operational.satellites.map((s) => s.satnum));
+
+  const debrisResults = await Promise.allSettled(DEBRIS_SOURCES.map((s) => fetchTleSource(s)));
+  let debris: SatPayload[] = [];
+  const feedsOk: string[] = [];
+  for (let i = 0; i < debrisResults.length; i++) {
+    const r = debrisResults[i];
+    if (r.status === 'fulfilled') {
+      feedsOk.push(DEBRIS_GROUPS[i]);
+      for (const s of r.value) {
+        if (!seen.has(s.satnum)) { seen.add(s.satnum); debris.push(s); }
+      }
+    }
+  }
+  if (debris.length > MAX_DEBRIS) {
+    // Deterministic thinning to protect propagation performance.
+    const stride = Math.ceil(debris.length / MAX_DEBRIS);
+    debris = debris.filter((_, i) => i % stride === 0);
+  }
+
+  const satellites = [...operational.satellites, ...debris];
+  const debrisAvailable = debris.length > 0;
+  const limitations = debrisAvailable
+    ? EXPANDED_LIMITATIONS
+    : ['Public CelesTrak debris feeds were unavailable; client may add a clearly-marked representative debris layer.', ...EXPANDED_LIMITATIONS];
+
+  const meta: TleMeta = {
+    ...operational.meta,
+    source: debrisAvailable
+      ? `CelesTrak GP active + fragmentation feeds (${feedsOk.join(', ')})`
+      : 'CelesTrak GP active (debris feeds unavailable)',
+    sourceMode: debrisAvailable ? 'live' : 'mixed',
+    dataMode: debrisAvailable ? 'live' : 'mixed',
+    freshness: 'live',
+    sourceHealth: debrisAvailable ? 'healthy' : 'degraded',
+    tleEpoch: latestEpoch(satellites),
+    count: satellites.length,
+    recordCount: satellites.length,
+    fallbackReason: debrisAvailable ? undefined : 'Public debris fragmentation feeds temporarily unavailable',
+  };
+  return { meta: applyClassMeta(meta, satellites, 'expanded', limitations), satellites };
+}
+
+function relabelForMode(resp: TleResponse, mode: ViewMode): TleResponse {
+  if (mode !== 'debris') return resp;
+  const limitations = [
+    'Debris & Collision Risk view emphasises non-operational tracked objects (debris, rocket bodies) over active infrastructure.',
+    ...resp.meta.limitations.filter((l) => !l.startsWith('Operational view')),
+    'Risk and congestion emphasis is an analytical portfolio signal — NOT an operational conjunction/collision assessment.',
+  ];
+  return { ...resp, meta: { ...resp.meta, mode: 'debris', limitations } };
+}
+
+function withCacheMeta(entry: CacheEntry, now: number, mode: ViewMode): TleResponse {
+  const base = entry.data;
+  const cachedDataMode = base.meta.dataMode === 'mixed' ? 'mixed' : 'cached';
+  const resp: TleResponse = {
+    ...base,
+    meta: {
+      ...base.meta,
+      sourceMode: cachedDataMode,
+      freshness: 'cached',
+      dataMode: cachedDataMode,
+      cacheTimestamp: new Date(entry.fetchedAt).toISOString(),
+      fetchTimestamp: new Date(now).toISOString(),
+      fetchedAt: new Date(entry.fetchedAt).toISOString(),
+      sourceHealth: base.meta.sourceHealth === 'degraded' ? 'degraded' : 'healthy',
+      cacheAgeSeconds: Math.floor((now - entry.fetchedAt) / 1000),
+      cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
+      recordCount: base.satellites.length,
+    },
+  };
+  return relabelForMode(resp, mode);
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +451,9 @@ function logEvent(level: 'info' | 'error', data: Record<string, unknown>): void 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const startedAt = Date.now();
   const requestId = header(req, 'x-vercel-id') ?? header(req, 'x-request-id') ?? 'local';
-  logEvent('info', { event: 'tle_start', method: req.method, requestId });
+  const mode = parseMode(req);
+  const datasetKey = mode === 'operational' ? 'operational' : 'expanded';
+  logEvent('info', { event: 'tle_start', method: req.method, mode, requestId });
 
   // CORS: allow same-origin and Vercel preview deployments
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -215,180 +466,84 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const now = Date.now();
+  const cache = caches[datasetKey];
 
   // Serve from cache if fresh
   if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
-    const cachedDataMode = cache.data.meta.dataMode === 'mixed' ? 'mixed' : 'cached';
-    const cached: TleResponse = {
-      ...cache.data,
-      meta: {
-        ...cache.data.meta,
-        sourceMode: cachedDataMode,
-        freshness: 'cached',
-        dataMode: cachedDataMode,
-        cacheTimestamp: new Date(cache.fetchedAt).toISOString(),
-        fetchTimestamp: new Date(now).toISOString(),
-        fetchedAt: new Date(cache.fetchedAt).toISOString(),
-        sourceHealth: cache.data.meta.sourceHealth === 'degraded' ? 'degraded' : 'healthy',
-        cacheAgeSeconds: Math.floor((now - cache.fetchedAt) / 1000),
-        cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
-        recordCount: cache.data.satellites.length,
-      },
-    };
+    const cached = withCacheMeta(cache, now, mode);
     res.setHeader('Cache-Control', successCacheControl());
     logEvent('info', {
-      event: 'tle_cache_hit',
-      requestId,
-      count: cached.satellites.length,
-      cacheAgeSeconds: cached.meta.cacheAgeSeconds,
+      event: 'tle_cache_hit', requestId, mode,
+      count: cached.satellites.length, cacheAgeSeconds: cached.meta.cacheAgeSeconds,
       durationMs: Date.now() - startedAt,
     });
     res.status(200).json(cached);
     return;
   }
 
-  // Attempt live fetch — primary catalog + supplemental in parallel
+  // Attempt live fetch
   try {
-    const [activeSats, cubeSats, amateurSats] = await Promise.allSettled([
-      fetchTleSource(ACTIVE_SOURCE),
-      fetchTleSource(CUBESAT_SOURCE),
-      fetchTleSource(AMATEUR_SOURCE),
-    ]);
-
-    if (activeSats.status !== 'fulfilled') throw new Error('Active catalog unavailable');
-
-    // Merge supplemental feeds, deduplicating by satnum
-    const seenSatnums = new Set(activeSats.value.map((s) => s.satnum));
-    let satellites: SatPayload[] = [...activeSats.value];
-    for (const result of [cubeSats, amateurSats]) {
-      if (result.status === 'fulfilled') {
-        for (const s of result.value) {
-          if (!seenSatnums.has(s.satnum)) {
-            seenSatnums.add(s.satnum);
-            satellites.push(s);
-          }
-        }
-      }
-    }
-
-    const supplementalSources = [
-      cubeSats.status === 'fulfilled' ? `+${cubeSats.value.length} CubeSat` : null,
-      amateurSats.status === 'fulfilled' ? `+${amateurSats.value.length} Amateur` : null,
-    ].filter(Boolean).join(', ');
-
-    const payload: TleResponse = {
-      meta: {
-        source: supplementalSources
-          ? `CelesTrak GP active (${satellites.length} total: ${supplementalSources})`
-          : 'CelesTrak GP (celestrak.org)',
-        sourceMode: 'live',
-        fetchTimestamp: new Date(now).toISOString(),
-        fetchedAt: new Date(now).toISOString(),
-        cacheTimestamp: new Date(now).toISOString(),
-        tleEpoch: latestEpoch(satellites),
-        freshness: 'live',
-        dataMode: 'live',
-        count: satellites.length,
-        recordCount: satellites.length,
-        sourceHealth: 'healthy',
-        cacheAgeSeconds: 0,
-        cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
-      },
-      satellites,
-    };
-    cache = { data: payload, fetchedAt: now };
+    const payload = datasetKey === 'expanded' ? await fetchExpanded(now) : await fetchOperational(now);
+    caches[datasetKey] = { data: payload, fetchedAt: now };
 
     res.setHeader('Cache-Control', successCacheControl());
     logEvent('info', {
-      event: 'tle_live_success',
-      requestId,
-      count: satellites.length,
-      supplementalSources,
-      durationMs: Date.now() - startedAt,
+      event: 'tle_live_success', requestId, mode,
+      count: payload.satellites.length, durationMs: Date.now() - startedAt,
     });
-    res.status(200).json(payload);
+    res.status(200).json(relabelForMode(payload, mode));
   } catch (err) {
     // Network/parse/rate-limit failure — serve stale cache, then try a smaller
     // public Starlink source before falling back to the representative catalog.
     const errorMsg = safeFallbackReason(err);
-    logEvent('error', {
-      event: 'tle_primary_failed',
-      requestId,
-      error: errorMsg,
-      durationMs: Date.now() - startedAt,
-    });
+    logEvent('error', { event: 'tle_primary_failed', requestId, mode, error: errorMsg, durationMs: Date.now() - startedAt });
 
     if (cache?.data?.satellites.length) {
       const cacheAgeSeconds = Math.floor((now - cache.fetchedAt) / 1000);
-      const cachedDataMode = cache.data.meta.dataMode === 'mixed' ? 'mixed' : 'cached';
-      const staleCached: TleResponse = {
-        ...cache.data,
-        meta: {
-          ...cache.data.meta,
-          sourceMode: cachedDataMode,
-          fetchTimestamp: new Date(now).toISOString(),
-          fetchedAt: new Date(cache.fetchedAt).toISOString(),
-          cacheTimestamp: new Date(cache.fetchedAt).toISOString(),
-          freshness: 'cached',
-          dataMode: cachedDataMode,
-          sourceHealth: 'degraded',
-          cacheAgeSeconds,
-          cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
-          recordCount: cache.data.satellites.length,
-          fallbackReason: `Serving stale cache because ${errorMsg.toLowerCase()}`,
-        },
-      };
+      const stale = withCacheMeta(cache, now, mode);
+      stale.meta.sourceHealth = 'degraded';
+      stale.meta.fallbackReason = `Serving stale cache because ${errorMsg.toLowerCase()}`;
       res.setHeader('Cache-Control', successCacheControl());
-      logEvent('info', {
-        event: 'tle_stale_cache_success',
-        requestId,
-        count: staleCached.satellites.length,
-        cacheAgeSeconds,
-        durationMs: Date.now() - startedAt,
-      });
-      res.status(200).json(staleCached);
+      logEvent('info', { event: 'tle_stale_cache_success', requestId, mode, count: stale.satellites.length, cacheAgeSeconds, durationMs: Date.now() - startedAt });
+      res.status(200).json(stale);
       return;
     }
 
     try {
       const satellites = await fetchTleSource(STARLINK_SUPGP_SOURCE);
-      const payload: TleResponse = {
-        meta: {
-          source: 'CelesTrak SupGP Starlink (celestrak.org)',
-          sourceMode: 'mixed',
-          fetchTimestamp: new Date(now).toISOString(),
-          fetchedAt: new Date(now).toISOString(),
-          cacheTimestamp: new Date(now).toISOString(),
-          tleEpoch: latestEpoch(satellites),
-          freshness: 'live',
-          dataMode: 'mixed',
-          count: satellites.length,
-          recordCount: satellites.length,
-          sourceHealth: 'degraded',
-          cacheAgeSeconds: 0,
-          cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
-          fallbackReason: `Active catalog unavailable (${errorMsg}); serving live Starlink SupGP subset`,
-        },
-        satellites,
+      const baseMeta: TleMeta = {
+        source: 'CelesTrak SupGP Starlink (celestrak.org)',
+        sourceMode: 'mixed',
+        fetchTimestamp: new Date(now).toISOString(),
+        fetchedAt: new Date(now).toISOString(),
+        cacheTimestamp: new Date(now).toISOString(),
+        tleEpoch: latestEpoch(satellites),
+        freshness: 'live',
+        dataMode: 'mixed',
+        count: satellites.length,
+        recordCount: satellites.length,
+        sourceHealth: 'degraded',
+        cacheAgeSeconds: 0,
+        cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
+        fallbackReason: `Active catalog unavailable (${errorMsg}); serving live Starlink SupGP subset`,
+        mode,
+        totalObjects: satellites.length,
+        operationalCount: 0, activePayloadCount: 0, inactivePayloadCount: 0,
+        rocketBodyCount: 0, debrisCount: 0, unknownCount: 0,
+        limitations: [
+          'Active catalog unavailable — serving a live Starlink subset only.',
+          ...(mode !== 'operational' ? ['Expanded/debris classes are NOT available in this degraded subset.'] : []),
+        ],
       };
-      cache = { data: payload, fetchedAt: now };
+      const payload: TleResponse = { meta: applyClassMeta(baseMeta, satellites, mode, baseMeta.limitations), satellites };
+      caches[datasetKey] = { data: payload, fetchedAt: now };
 
       res.setHeader('Cache-Control', successCacheControl());
-      logEvent('info', {
-        event: 'tle_starlink_success',
-        requestId,
-        count: satellites.length,
-        durationMs: Date.now() - startedAt,
-      });
+      logEvent('info', { event: 'tle_starlink_success', requestId, mode, count: satellites.length, durationMs: Date.now() - startedAt });
       res.status(200).json(payload);
       return;
     } catch (starlinkErr) {
-      logEvent('error', {
-        event: 'tle_starlink_failed',
-        requestId,
-        error: safeFallbackReason(starlinkErr),
-        durationMs: Date.now() - startedAt,
-      });
+      logEvent('error', { event: 'tle_starlink_failed', requestId, mode, error: safeFallbackReason(starlinkErr), durationMs: Date.now() - startedAt });
     }
 
     const fallback: TleResponse = {
@@ -406,16 +561,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         fallbackReason: errorMsg,
         cacheAgeSeconds: 0,
         cacheTtlSeconds: Math.floor(CACHE_TTL_MS / 1000),
+        mode,
+        totalObjects: 0,
+        operationalCount: 0, activePayloadCount: 0, inactivePayloadCount: 0,
+        rocketBodyCount: 0, debrisCount: 0, unknownCount: 0,
+        limitations: [
+          'Public TLE source unavailable — client will use a clearly-marked representative catalog.',
+          ...(mode !== 'operational' ? ['Representative debris/rocket-body objects are synthetic and flagged DEMO.'] : []),
+        ],
       },
       satellites: [], // empty signals the client to use its own catalog
     };
 
     res.setHeader('Cache-Control', 'no-store');
-    logEvent('info', {
-      event: 'tle_client_fallback',
-      requestId,
-      durationMs: Date.now() - startedAt,
-    });
+    logEvent('info', { event: 'tle_client_fallback', requestId, mode, durationMs: Date.now() - startedAt });
     res.status(200).json(fallback);
   }
 }
