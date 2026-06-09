@@ -16,7 +16,8 @@ import { useUserStore } from '../state/userStore';
 import { CS, initCatalogStore } from '../state/catalogStore';
 import { loadSatellites } from '../data/client';
 import { GROUPS, classifyGroup } from '../data/groups';
-import { classifyObjectClass, isOperationalClass, OBJECT_CLASS_META, OBJECT_CLASS_ORDER } from '../data/objectClass';
+import { OBJECT_CLASS_META, OBJECT_CLASS_ORDER, classifyObjectClass, isOperationalClass } from '../data/objectClass';
+import { getModeTotal } from '../data/datasetSelectors';
 import { buildRecords, dataAgeDays, sampleOrbitPath } from '../orbital/propagator';
 import { matchRegion, REGIONS } from '../regions/regions';
 import type { AgentContext } from '../ai/agent';
@@ -173,19 +174,24 @@ export function App() {
     // Debris & Collision Risk emphasis: active infrastructure becomes faint
     // context so debris / rocket bodies stand out (unless the user filtered by class).
     const debrisEmphasis = viewMode === 'debris' && activeClasses.size === 0;
+    // Operational mode: hide non-operational objects entirely
+    const operationalOnly = viewMode === 'operational';
     const mobile = window.innerWidth < 768;
     let rendered = 0, regionCount = 0;
     // First pass: collect matching indices
     const matches: boolean[] = new Array(CS.N).fill(false);
     for (let i = 0; i < CS.N; i++) {
       if (CS.alt[i] < 0) continue;
+      // Mode-level gating: only show objects that belong to the active mode
+      if (operationalOnly && !isOperationalClass(CS.objectClass[i])) continue;
+      if (debrisEmphasis && isOperationalClass(CS.objectClass[i])) continue;
+      // User filters
       if (activeGroups.size && !activeGroups.has(CS.group[i])) continue;
       if (activeClasses.size && !activeClasses.has(CS.objectClass[i])) continue;
       if (filterBand && CS.band[i] !== filterBand) continue;
       if (altMax != null && CS.alt[i] > altMax) continue;
       if (altMin != null && CS.alt[i] < altMin) continue;
       if (filterRegion && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) continue;
-      if (debrisEmphasis && isOperationalClass(CS.objectClass[i])) continue;
       matches[i] = true;
       rendered++;
       if (filterRegion) regionCount++;
@@ -206,19 +212,8 @@ export function App() {
     }
     if (selected >= 0 && selected < CS.N) CS.vis[selected] = 1;
     globe.setVisible(CS.vis);
-    // Mode-aware "total loaded" counter:
-    // - Operational: full catalog (all are operational)
-    // - Expanded: full catalog (operational + debris/risk overlay)
-    // - Debris: only non-operational objects count as "loaded" for this mode
-    const { viewMode: currentViewMode } = useStore.getState();
-    let modeTotal = CS.N;
-    if (currentViewMode === 'debris') {
-      let nonOp = 0;
-      for (let j = 0; j < CS.N; j++) {
-        if (CS.alt[j] >= 0 && !isOperationalClass(CS.objectClass[j])) nonOp++;
-      }
-      modeTotal = nonOp;
-    }
+    // Mode-aware "total loaded" counter from dataset selectors
+    const modeTotal = getModeTotal(viewMode);
     useStore.getState().setCounts(modeTotal, mobile ? kept : rendered, regionCount);
   }, []);
 
@@ -703,37 +698,28 @@ export function App() {
   }, [countWhere, findSat, regionCountFor, store, selectSat, applyFilter, createExecutiveSnapshot]); // history passed as arg, not dep
 
   // ---- Catalog view mode switch (Expanded Orbital Environment) ----------
-  const handleSetViewMode = useCallback(async (mode: ViewMode) => {
+  // v1.1.3: No longer re-fetches data. The full expanded catalog is loaded
+  // once on startup. Mode switch only repaints colors and recomputes filters.
+  const handleSetViewMode = useCallback((mode: ViewMode) => {
     const globe = globeRef.current;
     if (!globe) return;
-    if (useStore.getState().viewMode === mode && CS.N > 0) return;
+    if (useStore.getState().viewMode === mode) return;
 
     const s = useStore.getState();
     s.setViewMode(mode);
     s.resetFilters();
-    s.setModeLoading(true);
     clearSelection();
     store.triggerCommandPulse(`view_mode_${mode}`);
 
-    try {
-      const result = await loadSatellites(mode);
-      if (!isMountedRef.current) return;
-      loadCatalog(globe, result.catalog);
-      const st = useStore.getState();
-      st.setDataMode(result.dataMode);
-      if (result.meta) {
-        st.setTleMeta(result.meta);
-        if (result.meta.sourceHealth) st.setTleHealth(result.meta.sourceHealth);
-      }
-      refreshIntel();
-      applyFilter();
-      globe.renderOnce();
-    } catch (err) {
-      console.error('View mode switch failed:', err);
-    } finally {
-      useStore.getState().setModeLoading(false);
-    }
-  }, [store, loadCatalog, clearSelection, refreshIntel, applyFilter]);
+    // Repaint colors for the new mode (group-based vs class-based)
+    paintColorBase(mode);
+    globe.setColors(CS.colorBase);
+
+    // Re-apply filters for the new mode's dataset
+    applyFilter();
+    globe.renderOnce();
+    refreshIntel();
+  }, [store, clearSelection, applyFilter, refreshIntel]);
 
   useEffect(() => { setViewModeRef.current = handleSetViewMode; }, [handleSetViewMode]);
 

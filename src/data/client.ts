@@ -64,19 +64,18 @@ function withClassCounts(meta: TleApiMeta, catalog: SatelliteRecord[]): TleApiMe
   return { ...meta, ...counts };
 }
 
-/** Map a ViewMode to the query string accepted by /api/tle. */
-function modeQuery(mode: ViewMode): string {
-  return mode === 'debris' ? 'debris-risk' : mode;
-}
-
 /**
  * Primary load path: hit /api/tle (server-side cached, never direct CelesTrak
  * from the browser). On any failure return the representative catalog.
+ *
+ * v1.1.3: ALWAYS loads the full expanded dataset (operational + risk overlay)
+ * regardless of the initial view mode. Mode selection happens client-side
+ * via dataset selectors — no re-fetch needed on mode switch.
  */
 export async function loadSatellites(mode: ViewMode = 'operational'): Promise<LoadResult> {
-  const wantsExpanded = mode !== 'operational';
   try {
-    const res = await fetch(`/api/tle?mode=${modeQuery(mode)}`, { signal: AbortSignal.timeout(15_000) });
+    // Always request expanded to get the full dataset upfront
+    const res = await fetch(`/api/tle?mode=expanded`, { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) throw new Error(`/api/tle HTTP ${res.status}`);
     const contentType = res.headers.get('content-type') ?? '';
     if (!contentType.includes('application/json')) throw new Error(`/api/tle returned ${contentType || 'unknown content type'}`);
@@ -102,37 +101,18 @@ export async function loadSatellites(mode: ViewMode = 'operational'): Promise<Lo
       catalog = supplementPartialCatalog(catalog);
     }
 
-    // Expanded/debris but the real feeds returned no non-operational objects:
-    // substitute a clearly-marked representative debris/rocket-body layer.
+    // Always ensure risk overlay objects are present.
+    // If the API returned no non-operational objects, append the demo layer.
     let limitations = json.meta.limitations ? [...json.meta.limitations] : undefined;
     let source = json.meta.source;
     const realNonOperational = catalog.filter((c) => c.objectClass && c.objectClass !== 'operational_satellite' && c.objectClass !== 'active_payload').length;
-    if (wantsExpanded && realNonOperational === 0) {
+    if (realNonOperational === 0) {
       catalog = [...catalog, ...buildDebrisFallback()];
       source = `${source} + representative debris layer (DEMO)`;
       limitations = [
         'Real public debris/rocket-body feeds were unavailable — showing a clearly-marked REPRESENTATIVE (DEMO) debris layer. These objects are synthetic.',
         ...(limitations ?? []),
       ];
-    }
-
-    // INVARIANT: Expanded/debris mode must never have fewer objects than
-    // what the operational catalog would provide. If the expanded API fetch
-    // returned fewer operational objects (e.g. partial network response),
-    // supplement from the representative catalog.
-    if (wantsExpanded && catalog.length < 15000) {
-      const seenSatnums = new Set(catalog.map((s) => s.satnum));
-      const supplement = buildCatalog()
-        .filter((s) => !seenSatnums.has(s.satnum))
-        .map(enrich);
-      if (supplement.length > 0) {
-        catalog = [...catalog, ...supplement];
-        source = `${source} + supplemental representative objects`;
-        limitations = [
-          ...(limitations ?? []),
-          'Operational baseline supplemented with representative objects to maintain expanded >= operational invariant.',
-        ];
-      }
     }
 
     const meta: TleApiMeta = withClassCounts({
@@ -154,12 +134,12 @@ export async function loadSatellites(mode: ViewMode = 'operational'): Promise<Lo
       meta,
     };
   } catch {
-    // Graceful fallback — representative demo catalog (+ debris layer when expanded)
+    // Graceful fallback — representative demo catalog + debris layer (always full)
     const base = buildCatalog().map(enrich);
-    const catalog = wantsExpanded ? [...base, ...buildDebrisFallback()] : base;
+    const catalog = [...base, ...buildDebrisFallback()];
     const limitations = [
       'Network or API failure — using a clearly-marked REPRESENTATIVE (DEMO) catalog. Valid SGP4 physics, synthetic element snapshots.',
-      ...(wantsExpanded ? ['Debris, rocket bodies and inactive payloads shown here are synthetic DEMO objects, not a live debris catalog.'] : []),
+      'Debris, rocket bodies and inactive payloads shown here are synthetic DEMO objects, not a live debris catalog.',
     ];
     const meta = withClassCounts({
       source: 'fallback — client-side representative catalog',

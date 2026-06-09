@@ -1,5 +1,10 @@
 // ============================================================
-// OrbitIQ — Catalog filter + results panel (mode-aware)
+// OrbitIQ — Catalog filter + results panel (mode-aware v1.1.3)
+//
+// Uses dataset selectors as single source of truth.
+// The catalog shows entries from the active mode's base dataset,
+// filtered by user filters. It does NOT gate on CS.alt < 0
+// (which would cause 0 results before worker propagation).
 // ============================================================
 import { useMemo } from 'react';
 import { t } from '../../i18n/i18n';
@@ -29,24 +34,31 @@ export function CatalogPanel({ onSelectSat }: Props) {
 
   // totalCount is used as a reactive dep to trigger re-render after catalog load
   const { visibleList, totalMatching } = useMemo(() => {
+    if (CS.N === 0) return { visibleList: [], totalMatching: 0 };
+
     const q = search.toLowerCase().trim();
     const list: number[] = [];
     let total = 0;
-    // Debris mode emphasis: exclude operational satellites from catalog by default
+    // Mode-level gating
     const debrisEmphasis = viewMode === 'debris' && activeClasses.size === 0;
+    const operationalOnly = viewMode === 'operational';
 
     for (let i = 0; i < CS.N; i++) {
-      if (CS.alt[i] < 0 && i !== selected) continue;
-      // Mode-aware class filtering (mirrors applyFilter logic)
-      if (activeClasses.size && !activeClasses.has(CS.objectClass[i])) continue;
+      // Mode gating: only show objects belonging to the active mode's dataset
+      if (operationalOnly && !isOperationalClass(CS.objectClass[i])) continue;
       if (debrisEmphasis && isOperationalClass(CS.objectClass[i])) continue;
-      // Standard filters
+
+      // User class filter
+      if (activeClasses.size && !activeClasses.has(CS.objectClass[i])) continue;
+      // Standard filters (only apply altitude/region/band if propagation data exists)
       if (activeGroups.size && !activeGroups.has(CS.group[i])) continue;
-      if (filterBand && CS.band[i] !== filterBand) continue;
-      if (filterRegion && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) continue;
-      if (altMax != null && CS.alt[i] > altMax) continue;
-      if (altMin != null && CS.alt[i] < altMin) continue;
+      if (filterBand && CS.alt[i] >= 0 && CS.band[i] !== filterBand) continue;
+      if (filterRegion && CS.alt[i] >= 0 && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) continue;
+      if (altMax != null && CS.alt[i] >= 0 && CS.alt[i] > altMax) continue;
+      if (altMin != null && CS.alt[i] >= 0 && CS.alt[i] < altMin) continue;
+      // Search
       const c = CS.catalog[i];
+      if (!c) continue;
       if (q && !(c.name.toLowerCase().includes(q) || String(c.satnum).includes(q))) continue;
       if (list.length < RESULT_CAP) list.push(i);
       total++;
@@ -136,7 +148,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
           ? <div className="empty">{t('no_results')}</div>
           : visibleList.map((i) => {
               const c = CS.catalog[i];
-              if (!c) return null; // bounds guard
+              if (!c) return null;
               const m = GROUPS[CS.group[i]] ?? GROUPS['other'];
               const altTxt = CS.alt[i] >= 0 ? Math.round(CS.alt[i]).toLocaleString() + ' km' : '—';
               const classLabel = CS.objectClass[i] && CS.objectClass[i] !== 'operational_satellite' && CS.objectClass[i] !== 'active_payload'

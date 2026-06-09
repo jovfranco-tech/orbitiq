@@ -61,30 +61,29 @@ describe('loadSatellites', () => {
     expect(new Date(result.fetchedAt).getFullYear()).toBeGreaterThanOrEqual(2024);
   });
 
-  it('defaults to operational mode and requests mode=operational', async () => {
+  it('defaults to operational mode but always requests expanded dataset', async () => {
     mockFetch.mockRejectedValue(new Error('offline'));
     const result = await loadSatellites();
     expect(result.mode).toBe('operational');
-    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('mode=operational'), expect.anything());
+    // v1.1.3: always requests expanded to load full dataset upfront
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('mode=expanded'), expect.anything());
   });
 
-  it('maps debris mode to the debris-risk query param', async () => {
+  it('requests expanded even when called with debris mode', async () => {
     mockFetch.mockRejectedValue(new Error('offline'));
     await loadSatellites('debris');
-    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('mode=debris-risk'), expect.anything());
+    // v1.1.3: always requests expanded for full dataset
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('mode=expanded'), expect.anything());
   });
 
-  it('adds a representative debris layer to the expanded fallback catalog', async () => {
+  it('always includes a representative debris layer in the fallback catalog', async () => {
     mockFetch.mockRejectedValue(new Error('offline'));
-    const operational = await loadSatellites('operational');
-    const expanded = await loadSatellites('expanded');
-    expect(expanded.mode).toBe('expanded');
-    expect(expanded.catalog.length).toBeGreaterThan(operational.catalog.length);
-    // The expanded fallback must contain non-operational classes, flagged DEMO.
-    const debris = expanded.catalog.filter((c) => c.objectClass === 'debris');
+    const result = await loadSatellites('operational');
+    // v1.1.3: fallback always includes full dataset (operational + debris)
+    const debris = result.catalog.filter((c) => c.objectClass === 'debris');
     expect(debris.length).toBeGreaterThan(0);
     expect(debris.every((d) => d.isReal === false)).toBe(true);
-    expect(expanded.meta?.debrisCount).toBeGreaterThan(0);
+    expect(result.meta?.debrisCount).toBeGreaterThan(0);
   });
 
   it('classifies real API records into object classes and counts them', async () => {
