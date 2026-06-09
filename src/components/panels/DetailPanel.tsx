@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { t } from '../../i18n/i18n';
 import { GROUPS } from '../../data/groups';
 import { bandFromAltitude } from '../../data/groups';
+import { OBJECT_CLASS_META } from '../../data/objectClass';
 import { inspect, dataAgeDays } from '../../orbital/propagator';
 import { regionOf } from '../../regions/regions';
 import { satelliteRelevance } from '../../intelligence/relevance';
@@ -89,6 +90,8 @@ export function DetailPanel({ onClose, onToggleTrack }: Props) {
 
   const grp = CS.group[selected] ?? 'other';
   const m  = GROUPS[grp] ?? GROUPS['other'];
+  const objClass = CS.objectClass[selected] ?? 'active_payload';
+  const classMeta = OBJECT_CLASS_META[objClass];
 
   const epochDate = new Date((rec.jdsatepoch - 2440587.5) * 86400000);
   const age       = dataAgeDays(rec, new Date());
@@ -104,10 +107,17 @@ export function DetailPanel({ onClose, onToggleTrack }: Props) {
     <aside className="detail glass" id="detail">
       <button className="detail-close" onClick={onClose} aria-label="Close">×</button>
 
-      <div
-        className="detail-cat"
-        style={{ '--c': m.color, '--c-bg': m.color + '22' } as React.CSSProperties}
-      >{m.label}</div>
+      <div className="detail-cat-row">
+        <div
+          className="detail-cat"
+          style={{ '--c': m.color, '--c-bg': m.color + '22' } as React.CSSProperties}
+        >{m.label}</div>
+        <div
+          className="detail-cat detail-objclass"
+          style={{ '--c': classMeta.color, '--c-bg': classMeta.color + '22' } as React.CSSProperties}
+          title={t('d_objclass')}
+        >{t(classMeta.labelKey)}</div>
+      </div>
 
       <h2 className="detail-name">{c.name}</h2>
       <div className="detail-id">NORAD <span>{c.satnum}</span></div>

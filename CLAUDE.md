@@ -29,7 +29,8 @@ src/
 │   └── panels/          # AgentPanel, DetailPanel, MissionPanel, IntelligencePanel,
 │                        #   WatchlistPanel, SavedViewsPanel, SnapshotPanel, AgentChart
 ├── config/              # firebase.ts (lazy Firebase init), links.ts
-├── data/                # client.ts (TLE fetch), catalog.ts, groups.ts (classifier)
+├── data/                # client.ts (TLE fetch), catalog.ts, groups.ts (classifier),
+│                        #   objectClass.ts (operational/debris/rocket-body taxonomy)
 ├── hooks/               # useKeyboardShortcuts, useURLSync, useMobile,
 │                        #   useFirebaseCloudSync, useLiveTelemetry
 ├── i18n/i18n.ts         # EN/ES dictionaries + t() helper
@@ -71,6 +72,23 @@ CelesTrak TLE API
       ▼
   Three.js Points cloud (single draw call)
 ```
+
+## Catalog View Modes (Expanded Orbital Environment, v1.1.0)
+
+`store.viewMode` ∈ `operational | expanded | debris`. The default is **operational** — the
+clean active/public catalog. `loadSatellites(mode)` hits `/api/tle?mode=…`:
+
+- **operational** — real CelesTrak `active` (+ cubesat/amateur). No debris/rocket bodies.
+- **expanded** — operational + real CelesTrak fragmentation feeds (debris, rocket bodies).
+- **debris-risk** — same superset, debris-emphasis rendering on the client.
+
+Every record carries an `objectClass` (`src/data/objectClass.ts`): `operational_satellite`,
+`active_payload`, `inactive_payload`, `rocket_body`, `debris`, `unknown_object` — classified
+heuristically from the public TLE name. `CS.objectClass[]` mirrors this for the hot path.
+Operational mode colors by `group`; expanded/debris modes color by `objectClass`
+(`paintColorBase` in `App.tsx`). When real debris feeds are unavailable, `buildDebrisFallback()`
+provides a clearly-marked representative DEMO layer. **Never mix operational satellites with
+debris/rocket bodies** — the separation is the product's core principle.
 
 ## State Architecture
 

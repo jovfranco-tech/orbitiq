@@ -1,4 +1,31 @@
-# OrbitIQ v1.0.0-public-portfolio-release — Task Log
+# OrbitIQ — Task Log
+
+## Phase: v1.1.0 — Expanded Orbital Environment
+
+### Status: ✅ Complete
+
+Implemented a premium capability to separate **operational satellites** from
+**non-operational tracked objects** (rocket bodies, debris, inactive payloads, unknown).
+
+| Workflow | Deliverable | Status |
+|---|---|---|
+| 1. Audit | Mapped TLE fetch, catalog model, filters, rendering, agent, fallback | ✅ |
+| 2. Taxonomy | `src/data/objectClass.ts` — 6 normalized classes + heuristic classifier | ✅ |
+| 3. API | `/api/tle?mode=operational\|expanded\|debris-risk` + per-mode metadata + caching | ✅ |
+| 4. Mode selector | `ViewModeSelector` — 3 modes, badge, microcopy | ✅ |
+| 5. Visual diff | Object-class palette + debris-risk emphasis; operational palette preserved | ✅ |
+| 6. Performance | Single point cloud reused, server debris cap, mode reload, safeguard note | ✅ |
+| 7. Metrics | Mode-aware metrics + executive credibility card | ✅ |
+| 8. AI agent | New modes/taxonomy intents (deterministic + LLM schema) | ✅ |
+| 9. UX polish | Dynamic legend, detail-panel object class, credibility line | ✅ |
+| 10. Docs | README, CHANGELOG, task.md, walkthrough.md, CLAUDE.md | ✅ |
+| 11. Validation | typecheck ✅ · lint ✅ · 83 unit tests ✅ · coverage 83% lines ✅ · build ✅ | ✅ |
+
+**Data honesty:** Operational mode = real CelesTrak `active`. Expanded/debris add real
+CelesTrak fragmentation feeds; a clearly-marked representative DEMO debris layer is used only
+when real feeds are unavailable. No secrets in the frontend.
+
+---
 
 ## Phase: Final v1.0 Release-Readiness Audit
 

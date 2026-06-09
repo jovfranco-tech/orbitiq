@@ -49,6 +49,10 @@ const ActionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('create_snapshot') }),
   z.object({ type: z.literal('export_snapshot') }),
   z.object({ type: z.literal('recommend_saved_view') }),
+  z.object({ type: z.literal('set_view_mode'), mode: z.enum(['operational', 'expanded', 'debris']) }),
+  z.object({ type: z.literal('filter_by_class'), classes: z.array(z.string().max(40)).min(1).max(6), exclude: z.boolean().optional() }),
+  z.object({ type: z.literal('compare_operational_vs_tracked') }),
+  z.object({ type: z.literal('explain_taxonomy') }),
   z.object({ type: z.literal('unknown_safe_fallback') }),
 ]);
 
@@ -97,6 +101,10 @@ CRITICAL RULES:
 6. The user query may be in English or Spanish. Respond in the same language as the user query.
 7. Include relevant safety caveats in the \`safetyCaveat\` field (e.g. "Public TLE/SGP4-based orbital visualization. Not for operational aerospace decisions.")
 8. Your \`answer\` should be a concise, executive tone response explaining the actions you are taking or the data you are summarizing.
+9. OrbitIQ has three catalog VIEW MODES and a normalized object TAXONOMY. Keep operational satellites separate from non-operational tracked objects — never imply debris, rocket bodies and active satellites are the same thing.
+   - View modes (use \`set_view_mode\`): 'operational' (default clean active/public satellites), 'expanded' (adds tracked non-operational classes when available), 'debris' (debris & collision-risk emphasis).
+   - Object classes for \`filter_by_class.classes\`: 'operational_satellite', 'active_payload', 'inactive_payload', 'rocket_body', 'debris', 'unknown_object'. Set \`exclude: true\` to hide the listed classes instead of isolating them.
+   - Be honest about data: if debris data is representative/demo or partial, say so. Never claim complete global SSA/debris coverage.
 
 Available Context:
 ${JSON.stringify(context, null, 2)}
@@ -134,6 +142,10 @@ type AgentAction =
 | { type: 'create_snapshot' }
 | { type: 'export_snapshot' }
 | { type: 'recommend_saved_view' }
+| { type: 'set_view_mode'; mode: 'operational' | 'expanded' | 'debris' }
+| { type: 'filter_by_class'; classes: Array<'operational_satellite' | 'active_payload' | 'inactive_payload' | 'rocket_body' | 'debris' | 'unknown_object'>; exclude?: boolean }
+| { type: 'compare_operational_vs_tracked' }
+| { type: 'explain_taxonomy' }
 | { type: 'unknown_safe_fallback' };
 
 type LlmAgentResponse = {

@@ -4,7 +4,7 @@
 // through satellite.js SGP4 — orbits are physically real;
 // only the element snapshot is synthetic / representative.
 // ============================================================
-import type { SatelliteRecord, GroupKey } from '../types';
+import type { SatelliteRecord, GroupKey, ObjectClass } from '../types';
 
 const MU = 398600.4418; // km³/s²
 const RE = 6378.137;    // km
@@ -198,6 +198,57 @@ export function buildCatalog(): SatelliteRecord[] {
         ? `${f.namePrefix}-${1000 + out.length % 6000}`
         : `${f.namePrefix} ${String(i + 1).padStart(3, '0')}`;
       out.push(makeRecord(label, f.group, nextSatnum(), alt, incl, ecc, raan, ma, rnd() * 360, false));
+    }
+  }
+  return out;
+}
+
+// ---- Representative debris / rocket-body fallback --------------------------
+// Used ONLY when real CelesTrak fragmentation feeds are unavailable in
+// expanded / debris-risk mode. Every record is flagged isReal:false and given
+// a DEMO name prefix so the UI can label it honestly as representative.
+
+interface DebrisFactory {
+  objectClass: ObjectClass;
+  group: GroupKey;
+  count: number;
+  alt: number;
+  altJit: number;
+  incl: number;
+  inclJit: number;
+  eccMax: number;
+  namePrefix: string;
+}
+
+const DEBRIS_FACTORIES: DebrisFactory[] = [
+  // Debris concentrates in LEO shells around major breakup altitudes.
+  { objectClass: 'debris',           group: 'other', count: 900, alt: 800,  altJit: 320, incl: 82.6, inclJit: 18, eccMax: 0.02,  namePrefix: 'DEMO COSMOS DEB' },
+  { objectClass: 'debris',           group: 'other', count: 700, alt: 860,  altJit: 220, incl: 98.8, inclJit: 6,  eccMax: 0.015, namePrefix: 'DEMO FENGYUN DEB' },
+  { objectClass: 'debris',           group: 'other', count: 300, alt: 780,  altJit: 160, incl: 86.4, inclJit: 8,  eccMax: 0.02,  namePrefix: 'DEMO IRIDIUM DEB' },
+  { objectClass: 'rocket_body',      group: 'other', count: 260, alt: 720,  altJit: 540, incl: 71.0, inclJit: 26, eccMax: 0.05,  namePrefix: 'DEMO R/B' },
+  { objectClass: 'inactive_payload', group: 'other', count: 160, alt: 1100, altJit: 480, incl: 74.0, inclJit: 22, eccMax: 0.01,  namePrefix: 'DEMO INOP PAYLOAD' },
+  { objectClass: 'unknown_object',   group: 'other', count: 90,  alt: 950,  altJit: 420, incl: 64.0, inclJit: 28, eccMax: 0.03,  namePrefix: 'DEMO TBA OBJECT' },
+];
+
+/**
+ * Build a clearly-marked representative debris / rocket-body layer.
+ * Physically valid TLEs (real SGP4 physics) but synthetic element snapshots —
+ * NOT a live debris catalog. The caller must surface this as DEMO/fallback.
+ */
+export function buildDebrisFallback(): SatelliteRecord[] {
+  SATNUM = 70000; // separate range from the operational fallback catalog
+  const rnd = mulberry32(8675309);
+  const out: SatelliteRecord[] = [];
+
+  for (const f of DEBRIS_FACTORIES) {
+    for (let i = 0; i < f.count; i++) {
+      const alt  = Math.max(220, f.alt + (rnd() - 0.5) * 2 * f.altJit);
+      const incl = Math.min(120, Math.max(0, f.incl + (rnd() - 0.5) * 2 * f.inclJit));
+      const ecc  = 0.0005 + rnd() * f.eccMax;
+      const label = `${f.namePrefix} ${String(i + 1).padStart(4, '0')}`;
+      const rec = makeRecord(label, f.group, nextSatnum(), alt, incl, ecc, rnd() * 360, rnd() * 360, rnd() * 360, false);
+      rec.objectClass = f.objectClass;
+      out.push(rec);
     }
   }
   return out;

@@ -6,7 +6,7 @@
 // directly; React components read summary counts from the Zustand
 // store, which is updated at a much lower cadence.
 // ============================================================
-import type { SatelliteRecord, SatRec, GroupKey, BandKey } from '../types';
+import type { SatelliteRecord, SatRec, GroupKey, BandKey, ObjectClass } from '../types';
 
 export interface ProximityEntry {
   idx: number;
@@ -23,6 +23,7 @@ export interface CatalogStore {
   alt: Float32Array;
   band: BandKey[];
   group: GroupKey[];
+  objectClass: ObjectClass[];
   colorBase: Float32Array;
   vis: Float32Array;
   selected: number;
@@ -42,7 +43,7 @@ function empty(): CatalogStore {
     catalog: [], recs: [], N: 0,
     posBuf: new Float32Array(0),
     lat: new Float32Array(0), lon: new Float32Array(0), alt: new Float32Array(0),
-    band: [], group: [],
+    band: [], group: [], objectClass: [],
     colorBase: new Float32Array(0),
     vis: new Float32Array(0),
     selected: -1,
@@ -62,6 +63,7 @@ export function initCatalogStore(n: number): void {
   CS.alt       = new Float32Array(n).fill(-1);
   CS.band      = new Array<BandKey>(n);
   CS.group     = new Array<GroupKey>(n);
+  CS.objectClass = new Array<ObjectClass>(n);
   CS.colorBase = new Float32Array(n * 3);
   CS.vis       = new Float32Array(n).fill(1);
 }

@@ -98,7 +98,22 @@ const blankActions = (): AgentActions => ({
   missionScenario: null, showRiskLayer: false,
   timeAction: null,
   watchlistAction: null, savedViewAction: null, snapshotAction: null,
+  viewMode: null, classFilter: null, excludeClasses: false,
 });
+
+/** Tally normalized object classes from the live catalog store. */
+function classCountsFromCS(): Record<string, number> {
+  const counts: Record<string, number> = {
+    operational_satellite: 0, active_payload: 0, inactive_payload: 0,
+    rocket_body: 0, debris: 0, unknown_object: 0,
+  };
+  for (let i = 0; i < CS.N; i++) {
+    if (CS.alt[i] < 0) continue;
+    const c = CS.objectClass?.[i];
+    if (c && c in counts) counts[c]++;
+  }
+  return counts;
+}
 
 /** Build intelligence attachment for the response. */
 function buildIntelAttachment(intel: IntelligenceSummary): AiAgentIntelligence {
@@ -136,6 +151,87 @@ export function deterministicParse(rawQuery: string, ctx: AgentContext, lang: 'e
       intent: 'idle', confidence: 0, assumptions: [],
       actions: a, filtersApplied: {}, visibleCount: ctx.rendered, sourceMode: 'fallback',
     };
+  }
+
+  // ---- Expanded Orbital Environment: view modes & taxonomy ----------------
+  // Explain the difference between satellites and tracked objects.
+  if (/(difference|differ|explain|diferencia|explica).*(satellite|tracked object|debris|objeto|satélite|satelite)/i.test(q)
+      || /(satellite|satélite|satelite).*(vs|versus|and|y).*(tracked|debris|objeto)/i.test(q) && /explain|difference|diferencia|explica/i.test(q)) {
+    intent = 'explain_taxonomy'; confidence = 0.97;
+    answer = lang === 'es'
+      ? 'OrbitIQ separa la infraestructura activa de los objetos rastreados no operativos. Satélites operativos y cargas útiles activas son infraestructura en funcionamiento. Los cuerpos de cohete, los desechos (debris), las cargas inactivas y los objetos desconocidos son objetos rastreados que ya no prestan servicio. La vista operativa muestra solo el catálogo activo/público (~15k); el entorno expandido añade clases no operativas cuando hay datos disponibles, y la vista de riesgo de colisión enfatiza los desechos.'
+      : 'OrbitIQ separates active infrastructure from non-operational tracked objects. Operational satellites and active payloads are working infrastructure. Rocket bodies, debris fragments, inactive payloads and unknown objects are tracked objects that no longer provide service. The operational view shows only the active/public catalog (~15k); the expanded environment adds non-operational classes when data is available, and the debris/collision-risk view emphasises debris.';
+    assumptions.length = 0;
+    assumptions.push(lang === 'es' ? 'Clasificación heurística a partir de nombres TLE públicos.' : 'Heuristic classification from public TLE object names.');
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+
+  // Operational vs tracked counts.
+  if (/(how many|cuant|cuánt).*(operational|debris|tracked|operativ|desech|basura|rastread)/i.test(q)
+      || /(operational|operativ).*(vs|versus|compared|comparad).*(debris|tracked|desech|basura|rastread)/i.test(q)) {
+    intent = 'compare_operational_vs_tracked'; confidence = 0.95;
+    const cc = classCountsFromCS();
+    const operational = cc.operational_satellite + cc.active_payload;
+    const nonOp = cc.inactive_payload + cc.rocket_body + cc.debris + cc.unknown_object;
+    answer = lang === 'es'
+      ? `En la vista actual: ${operational.toLocaleString()} objetos operativos/activos vs ${nonOp.toLocaleString()} objetos rastreados no operativos (${cc.debris.toLocaleString()} desechos, ${cc.rocket_body.toLocaleString()} cuerpos de cohete, ${cc.inactive_payload.toLocaleString()} cargas inactivas). Cambia al "Entorno Orbital Expandido" para incluir objetos no operativos rastreados.`
+      : `In the current view: ${operational.toLocaleString()} operational/active objects vs ${nonOp.toLocaleString()} non-operational tracked objects (${cc.debris.toLocaleString()} debris, ${cc.rocket_body.toLocaleString()} rocket bodies, ${cc.inactive_payload.toLocaleString()} inactive payloads). Switch to the "Expanded Orbital Environment" to include tracked non-operational objects.`;
+    if (operational + nonOp === 0 || nonOp === 0) {
+      a.viewMode = 'expanded';
+      answer += lang === 'es' ? ' Cargando el entorno expandido…' : ' Loading the expanded environment…';
+    }
+    assumptions.push(lang === 'es' ? 'Recuentos de la instantánea propagada actual.' : 'Counts from the current propagated snapshot.');
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+
+  // Switch to expanded environment.
+  if (/expanded orbital|expanded environment|expanded view|show expanded|entorno expandido|orbital expandido|vista expandida|todo lo rastreado/i.test(q)) {
+    a.viewMode = 'expanded'; intent = 'set_view_mode'; confidence = 0.96;
+    answer = lang === 'es'
+      ? 'Cargando el Entorno Orbital Expandido — añade objetos rastreados no operativos (desechos, cuerpos de cohete) cuando hay datos públicos disponibles.'
+      : 'Loading the Expanded Orbital Environment — adds tracked non-operational objects (debris, rocket bodies) when public data is available.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+
+  // Switch to debris / collision-risk view.
+  if (/debris risk|collision risk|debris.?view|show debris|riesgo de colisi|riesgo de desech|vista de desech|capa de desech/i.test(q)) {
+    a.viewMode = 'debris'; intent = 'set_view_mode'; confidence = 0.95;
+    answer = lang === 'es'
+      ? 'Abriendo la vista de Desechos y Riesgo de Colisión — enfatiza objetos no operativos rastreados sobre la infraestructura activa. Señal analítica de portafolio, no una evaluación operacional de conjunciones.'
+      : 'Opening the Debris & Collision Risk view — emphasises non-operational tracked objects over active infrastructure. Analytical portfolio signal, not an operational conjunction assessment.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+
+  // Back to clean operational view.
+  if (/operational satellites|operational view|operational mode|satélites operativos|satelites operativos|vista operativa|vista operacional|modo operacional/i.test(q)) {
+    a.viewMode = 'operational'; intent = 'set_view_mode'; confidence = 0.95;
+    answer = lang === 'es'
+      ? 'Volviendo a la vista de Satélites Operativos — el catálogo activo/público limpio.'
+      : 'Returning to the Operational Satellites view — the clean active/public catalog.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+
+  // Class show/hide filters.
+  if (/hide debris|remove debris|ocultar debris|ocultar desech|quitar desech|sin desech/i.test(q)) {
+    a.classFilter = ['debris']; a.excludeClasses = true; intent = 'filter_by_class'; confidence = 0.93;
+    answer = lang === 'es' ? 'Ocultando los objetos de desechos (debris) en la vista actual.' : 'Hiding debris objects in the current view.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/show rocket bodies|only rocket bodies|rocket bodies|cuerpos de cohete|mostrar cohetes|etapas de cohete/i.test(q)) {
+    a.classFilter = ['rocket_body']; intent = 'filter_by_class'; confidence = 0.93;
+    if (ctx.activeMission == null) a.viewMode = ctx.total > 0 ? null : 'expanded';
+    answer = lang === 'es' ? 'Mostrando solo los cuerpos de cohete rastreados.' : 'Showing only tracked rocket bodies.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/only active payload|only operational|solo cargas activas|solo operativos|solo activos/i.test(q)) {
+    a.classFilter = ['operational_satellite', 'active_payload']; intent = 'filter_by_class'; confidence = 0.93;
+    answer = lang === 'es' ? 'Filtrando a cargas útiles activas / satélites operativos.' : 'Filtering to active payloads / operational satellites.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
+  }
+  if (/show debris only|only debris|solo desech|solo debris|solo basura/i.test(q)) {
+    a.classFilter = ['debris']; intent = 'filter_by_class'; confidence = 0.93;
+    answer = lang === 'es' ? 'Mostrando solo los objetos de desechos rastreados.' : 'Showing only tracked debris objects.';
+    return makeResponse(answer, intent, confidence, assumptions, a, ctx, false);
   }
 
   // ---- Predictive Simulation Logic ----
@@ -670,6 +766,14 @@ export async function executeAgentCommand(
       }
       else if (action.type === 'show_risk_layer') {
         a.showRiskLayer = true;
+      }
+      else if (action.type === 'set_view_mode') {
+        a.viewMode = action.mode;
+      }
+      else if (action.type === 'filter_by_class') {
+        const valid = ['operational_satellite', 'active_payload', 'inactive_payload', 'rocket_body', 'debris', 'unknown_object'];
+        const classes = action.classes.filter((c) => valid.includes(c)) as AgentActions['classFilter'];
+        if (classes && classes.length) { a.classFilter = classes; a.excludeClasses = !!action.exclude; }
       }
       else if (action.type === 'highlight_relevant_groups') {
         a.groups = action.groups as GroupKey[];

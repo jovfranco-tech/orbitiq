@@ -1,3 +1,27 @@
+## [1.1.0-expanded-orbital-environment] - 2026-06-09
+
+### Added
+- **Expanded Orbital Environment** — a premium three-mode catalog selector that separates active infrastructure from non-operational tracked objects:
+  - **Operational Satellites** (default): the clean active/public satellite catalog (~15k). Unchanged look and performance.
+  - **Expanded Orbital Environment**: adds tracked non-operational objects (rocket bodies, debris) from **real public CelesTrak fragmentation feeds** (Cosmos-1408, Fengyun-1C, Iridium-33, Cosmos-2251) when available.
+  - **Debris & Collision Risk**: emphasises debris / rocket bodies / inactive objects with active infrastructure shown as faint context.
+- **Normalized object taxonomy** (`src/data/objectClass.ts`): `operational_satellite`, `active_payload`, `inactive_payload`, `rocket_body`, `debris`, `unknown_object` — classified heuristically from public TLE object names (`DEB`, `R/B`, etc.).
+- **`/api/tle?mode=operational|expanded|debris-risk`** with per-mode metadata (`mode`, `totalObjects`, `operationalCount`, `activePayloadCount`, `inactivePayloadCount`, `rocketBodyCount`, `debrisCount`, `unknownCount`, `limitations`), separate per-dataset caching, and an honest fallback chain.
+- **Visual differentiation by object class** (cyan operational, amber rocket bodies, red/magenta debris, muted violet inactive, gray unknown) plus debris-risk emphasis rendering — only active in expanded/debris modes; operational mode keeps the established constellation palette.
+- **Mode-aware UI**: mode badge, explanatory microcopy, mode-specific metrics, dynamic legend (groups vs object classes), object class in the detail panel, performance-safeguard note, and an executive credibility card.
+- **AI agent** understands the new modes and taxonomy: "show expanded orbital environment", "show debris risk", "operational vs debris", "hide debris", "show rocket bodies", "only active payloads", "explain the difference between satellites and tracked objects".
+- **Representative DEMO debris/rocket-body fallback** (`buildDebrisFallback`) used only when real public feeds are unavailable, always clearly flagged as synthetic.
+- New unit tests: `objectClass`, `catalog` (debris fallback), and expanded/mode-aware `client` behaviour.
+
+### Changed
+- `loadSatellites(mode)` is now mode-aware, classifies every record into an object class, and merges authoritative client-side class counts into the metadata.
+- Operational satellites and tracked non-operational objects are never mixed: the default view stays clean and the product explains the distinction explicitly.
+
+### Notes / limitations
+- Debris coverage is intentionally **not** a complete SSA/global catalog — it is limited to major catalogued fragmentation events available publicly. This is stated in the UI and API `limitations`.
+- No API keys are required or exposed. Space-Track remains optional and unused by default.
+- Not for flight safety or operational conjunction assessment.
+
 ## [1.0.0-public-portfolio-release] - 2026-06-06
 
 ### Added

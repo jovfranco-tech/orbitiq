@@ -16,6 +16,7 @@ import { useUserStore } from '../state/userStore';
 import { CS, initCatalogStore } from '../state/catalogStore';
 import { loadSatellites } from '../data/client';
 import { GROUPS, classifyGroup } from '../data/groups';
+import { classifyObjectClass, isOperationalClass, OBJECT_CLASS_META, OBJECT_CLASS_ORDER } from '../data/objectClass';
 import { buildRecords, dataAgeDays, sampleOrbitPath } from '../orbital/propagator';
 import { matchRegion, REGIONS } from '../regions/regions';
 import type { AgentContext } from '../ai/agent';
@@ -26,8 +27,10 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { useMobile } from '../hooks/useMobile';
 import { useFirebaseCloudSync } from '../hooks/useFirebaseCloudSync';
 import type { GlobeApi, IntelligenceSummary } from '../types';
-import type { AiAgentResponse, GroupKey, BandKey } from '../types';
+import type { AiAgentResponse, GroupKey, BandKey, ViewMode, ObjectClass } from '../types';
 import type { ConversationMessage } from '../ai/agent';
+
+const ViewModeSelector = lazy(() => import('../components/dashboard/ViewModeSelector').then((m) => ({ default: m.ViewModeSelector })));
 
 const GlobeMount = lazy(() => import('../components/globe/GlobeMount').then((m) => ({ default: m.GlobeMount })));
 const MissionPanel = lazy(() => import('../components/panels/MissionPanel').then((m) => ({ default: m.MissionPanel })));
@@ -45,6 +48,33 @@ const MissionCinematicCue = lazy(() => import('../components/dashboard/MissionCi
 function hexToRGB(h: string): [number, number, number] {
   const n = parseInt(h.slice(1), 16);
   return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
+
+// Precomputed object-class RGB for the expanded / debris visual language.
+const CLASS_RGB = Object.fromEntries(
+  OBJECT_CLASS_ORDER.map((c) => [c, hexToRGB(OBJECT_CLASS_META[c].color)]),
+) as Record<ObjectClass, [number, number, number]>;
+
+/**
+ * Repaint CS.colorBase for the given view mode.
+ * Operational mode keeps the established constellation/group palette (clean,
+ * impressive default). Expanded / debris modes color by object class so
+ * operational satellites, rocket bodies and debris are visually distinct.
+ */
+function paintColorBase(mode: ViewMode): void {
+  const groupCache: Record<string, [number, number, number]> = {};
+  for (let i = 0; i < CS.N; i++) {
+    let c: [number, number, number];
+    if (mode === 'operational') {
+      const g = CS.group[i];
+      c = (groupCache[g] ??= hexToRGB((GROUPS[g] ?? GROUPS['other']).color));
+    } else {
+      c = CLASS_RGB[CS.objectClass[i]] ?? CLASS_RGB['active_payload'];
+    }
+    CS.colorBase[i * 3] = c[0];
+    CS.colorBase[i * 3 + 1] = c[1];
+    CS.colorBase[i * 3 + 2] = c[2];
+  }
 }
 
 const TICK_MS = 900;
@@ -106,6 +136,8 @@ export function App() {
   const workerRef = useRef<Worker | null>(null);
   const workerReadyRef = useRef(false);
   const isWorkerBusyRef = useRef(false);
+  // Late-bound so runAgent (declared earlier) can trigger a mode switch.
+  const setViewModeRef = useRef<(m: ViewMode) => void>(() => {});
 
   const [agentResult, setAgentResult] = useState<AiAgentResponse | null>(null);
   const [isThinking, setIsThinking]   = useState(false);
@@ -136,8 +168,11 @@ export function App() {
   const applyFilter = useCallback(() => {
     if (!globeRef.current) return;
     const globe = globeRef.current;
-    const { activeGroups, filterBand, filterRegion, altMin, altMax, selected } = useStore.getState();
-    const hasLayerFilter = !!activeGroups.size || !!filterBand || !!filterRegion || altMin != null || altMax != null;
+    const { activeGroups, activeClasses, filterBand, filterRegion, altMin, altMax, selected, viewMode } = useStore.getState();
+    const hasLayerFilter = !!activeGroups.size || !!activeClasses.size || !!filterBand || !!filterRegion || altMin != null || altMax != null;
+    // Debris & Collision Risk emphasis: active infrastructure becomes faint
+    // context so debris / rocket bodies stand out (unless the user filtered by class).
+    const debrisEmphasis = viewMode === 'debris' && activeClasses.size === 0;
     const mobile = window.innerWidth < 768;
     let rendered = 0, regionCount = 0;
     // First pass: collect matching indices
@@ -145,10 +180,12 @@ export function App() {
     for (let i = 0; i < CS.N; i++) {
       if (CS.alt[i] < 0) continue;
       if (activeGroups.size && !activeGroups.has(CS.group[i])) continue;
+      if (activeClasses.size && !activeClasses.has(CS.objectClass[i])) continue;
       if (filterBand && CS.band[i] !== filterBand) continue;
       if (altMax != null && CS.alt[i] > altMax) continue;
       if (altMin != null && CS.alt[i] < altMin) continue;
       if (filterRegion && !matchRegion(CS.lat[i], CS.lon[i], filterRegion)) continue;
+      if (debrisEmphasis && isOperationalClass(CS.objectClass[i])) continue;
       matches[i] = true;
       rendered++;
       if (filterRegion) regionCount++;
@@ -161,6 +198,8 @@ export function App() {
         const show = sampleRate >= 1 || (i % Math.ceil(1 / sampleRate) === 0);
         CS.vis[i] = show ? 1 : hasLayerFilter ? 0.075 : 0;
         if (show) kept++;
+      } else if (debrisEmphasis && CS.alt[i] >= 0 && isOperationalClass(CS.objectClass[i])) {
+        CS.vis[i] = 0.12; // faint active-infrastructure context behind debris
       } else {
         CS.vis[i] = hasLayerFilter && CS.alt[i] >= 0 ? 0.075 : 0;
       }
@@ -200,14 +239,13 @@ export function App() {
     CS.recs    = buildRecords(cleanCatalog);
     initCatalogStore(cleanCatalog.length);
 
-    const colorCache: Record<string, [number, number, number]> = {};
     for (let i = 0; i < CS.N; i++) {
-      const g = cleanCatalog[i].group ?? classifyGroup(cleanCatalog[i].name, cleanCatalog[i].altNominal ?? 600);
+      const rec = cleanCatalog[i];
+      const g = rec.group ?? classifyGroup(rec.name, rec.altNominal ?? 600);
       CS.group[i] = g;
-      if (!colorCache[g]) colorCache[g] = hexToRGB((GROUPS[g] ?? GROUPS['other']).color);
-      const c = colorCache[g];
-      CS.colorBase[i * 3] = c[0]; CS.colorBase[i * 3 + 1] = c[1]; CS.colorBase[i * 3 + 2] = c[2];
+      CS.objectClass[i] = rec.objectClass ?? classifyObjectClass(rec.name, g, rec.isReal);
     }
+    paintColorBase(useStore.getState().viewMode);
 
     globe.allocate(CS.N);
     globe.setColors(CS.colorBase);
@@ -281,6 +319,9 @@ export function App() {
         isWorkerBusyRef.current = false;
         if (!globe) return;
         const { timestampMs, gmst, posBuf, lat, lon, alt, band, proximity } = e.data.payload;
+        // Guard against a stale tick that was in flight while the catalog was
+        // swapped for a new view mode (buffer sizes no longer match).
+        if (posBuf.length !== CS.N * 3) return;
         if (proximity) CS.proximity = proximity;
         
         CS.posBuf = posBuf;
@@ -514,6 +555,16 @@ export function App() {
             if (c) globeRef.current?.setRegionMarker(c[0], c[1]);
           }
         }
+        if (a.viewMode && a.viewMode !== useStore.getState().viewMode) {
+          setViewModeRef.current(a.viewMode);
+        }
+        if (a.classFilter && a.classFilter.length > 0) {
+          const requested = new Set<ObjectClass>(a.classFilter);
+          const next = a.excludeClasses
+            ? new Set<ObjectClass>(OBJECT_CLASS_ORDER.filter((c) => !requested.has(c)))
+            : requested;
+          store.setActiveClasses(next);
+        }
         if (a.brief) store.setShowBrief(true);
         if (a.missionScenario) {
           store.setShowMissionPanel(true);
@@ -637,6 +688,41 @@ export function App() {
     }
 
   }, [countWhere, findSat, regionCountFor, store, selectSat, applyFilter, createExecutiveSnapshot]); // history passed as arg, not dep
+
+  // ---- Catalog view mode switch (Expanded Orbital Environment) ----------
+  const handleSetViewMode = useCallback(async (mode: ViewMode) => {
+    const globe = globeRef.current;
+    if (!globe) return;
+    if (useStore.getState().viewMode === mode && CS.N > 0) return;
+
+    const s = useStore.getState();
+    s.setViewMode(mode);
+    s.resetFilters();
+    s.setModeLoading(true);
+    clearSelection();
+    store.triggerCommandPulse(`view_mode_${mode}`);
+
+    try {
+      const result = await loadSatellites(mode);
+      if (!isMountedRef.current) return;
+      loadCatalog(globe, result.catalog);
+      const st = useStore.getState();
+      st.setDataMode(result.dataMode);
+      if (result.meta) {
+        st.setTleMeta(result.meta);
+        if (result.meta.sourceHealth) st.setTleHealth(result.meta.sourceHealth);
+      }
+      refreshIntel();
+      applyFilter();
+      globe.renderOnce();
+    } catch (err) {
+      console.error('View mode switch failed:', err);
+    } finally {
+      useStore.getState().setModeLoading(false);
+    }
+  }, [store, loadCatalog, clearSelection, refreshIntel, applyFilter]);
+
+  useEffect(() => { setViewModeRef.current = handleSetViewMode; }, [handleSetViewMode]);
 
   // ---- Language switch -------------------------------------------------
   const handleSetLang = useCallback((l: 'en' | 'es') => {
@@ -765,6 +851,15 @@ export function App() {
           onToggleCinematic={handleToggleCinematic}
           intelligence={intelligence}
         />
+
+        <Suspense fallback={null}>
+          <ViewModeSelector
+            mode={store.viewMode}
+            loading={store.modeLoading}
+            meta={store.tleMeta}
+            onSetMode={handleSetViewMode}
+          />
+        </Suspense>
 
         {store.showDataHealthPanel && (
           <Suspense fallback={null}>
