@@ -160,6 +160,7 @@ export function AgentPanel({ onRun, lastResult, isThinking, agentInputRef }: Pro
           type="text"
           autoComplete="off"
           placeholder={t('agent_placeholder')}
+          aria-label={t('agent_placeholder')}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}

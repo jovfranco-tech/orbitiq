@@ -159,7 +159,32 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: 'jsdom',
       include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/**/*.test.ts', 'tests/**/*.test.tsx'],
-      setupFiles: [],
+      exclude: ['e2e/**', 'node_modules/**'],
+      setupFiles: ['src/test-setup.ts'],
+      coverage: {
+        provider: 'v8',
+        // Coverage gate scopes the *pure-logic* layer (deterministic, unit-testable).
+        // The React UI, the imperative WebGL renderer, the Web Worker, Firebase cloud
+        // sync, and orchestration hooks/stores are validated by the Playwright e2e +
+        // accessibility suites instead.
+        include: [
+          'src/data/**/*.ts',
+          'src/intelligence/**/*.ts',
+          'src/orbital/**/*.ts',
+          'src/regions/**/*.ts',
+          'src/i18n/**/*.ts',
+          'src/utils/**/*.ts',
+          'src/hooks/useKeyboardShortcuts.ts',
+        ],
+        // audio.ts is Web Audio synthesis — exercised in the browser, not unit-testable.
+        exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/utils/audio.ts'],
+        thresholds: {
+          lines: 60,
+          functions: 60,
+          branches: 45,
+        },
+        reporter: ['text', 'lcov'],
+      },
     },
   } as UserConfig;
 });

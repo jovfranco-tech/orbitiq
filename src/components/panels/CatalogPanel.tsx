@@ -59,6 +59,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
         <input
           type="text"
           placeholder={t('search_placeholder')}
+          aria-label={t('search_placeholder')}
           autoComplete="off"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -103,6 +104,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
           <div className="filter-label">{t('f_region')}</div>
           <select
             className="sel"
+            aria-label={t('f_region')}
             value={filterRegion ?? ''}
             onChange={(e) => setFilterRegion(e.target.value || null)}
           >
@@ -119,7 +121,7 @@ export function CatalogPanel({ onSelectSat }: Props) {
         <span>{t('results')}</span>
       </div>
 
-      <div className="results">
+      <div className="results" tabIndex={0} role="group" aria-label={t('results')}>
         {visibleList.length === 0
           ? <div className="empty">{t('no_results')}</div>
           : visibleList.map((i) => {

@@ -15,7 +15,7 @@ export function BottomTabBar() {
   ] as const;
 
   return (
-    <nav className="bottom-tab-bar glass">
+    <nav className="bottom-tab-bar glass" aria-label="Mobile section navigation">
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
@@ -27,6 +27,8 @@ export function BottomTabBar() {
               setActiveTab(tab.id);
             }}
             type="button"
+            aria-label={t(tab.labelKey)}
+            aria-current={isActive ? 'page' : undefined}
           >
             <span className="tab-icon">{tab.icon}</span>
             <span className="tab-label">{t(tab.labelKey)}</span>

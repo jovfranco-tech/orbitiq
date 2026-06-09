@@ -8,6 +8,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx --max-warnings 0",
     "typecheck": "tsc --noEmit"
@@ -25,6 +28,10 @@
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.3",
+    "@lhci/cli": "^0.15.1",
+    "@playwright/test": "^1.60.0",
+    "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^25.9.1",
     "@types/react": "^18.3.1",
@@ -33,6 +40,8 @@
     "@typescript-eslint/eslint-plugin": "^7.13.0",
     "@typescript-eslint/parser": "^7.13.0",
     "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/coverage-v8": "^4.1.8",
+    "axe-core": "^4.12.0",
     "eslint": "^8.57.0",
     "jsdom": "^29.1.1",
     "typescript": "^5.4.5",

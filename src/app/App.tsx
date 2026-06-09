@@ -754,6 +754,7 @@ export function App() {
 
       {/* UI overlay */}
       <div id="ui" className={`ui mobile-tab-${activeMobileTab}${cinematicMode ? ' cinematic' : ''}${missionOpen ? ' mission-open' : ''}${userStore.showSnapshotPanel ? ' snapshot-open' : ''}`}>
+        <main id="main-content" className="sr-only" aria-label="OrbitIQ main content" tabIndex={-1} />
         <TopBar
           onOpenBrief={() => store.setShowBrief(true)}
           onResetView={() => globeRef.current?.resetView()}

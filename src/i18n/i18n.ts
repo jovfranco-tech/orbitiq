@@ -51,6 +51,7 @@ const DICT: Record<LangKey, Dict> = {
     m_region: 'In region',
     m_fresh: 'Data freshness',
     m_ai: 'AI agent',
+    metrics_label: 'Key orbital metrics',
     ai_ready: 'Ready',
     ai_thinking: 'Parsing…',
     // panels
@@ -345,6 +346,7 @@ const DICT: Record<LangKey, Dict> = {
     m_region: 'En región',
     m_fresh: 'Frescura de datos',
     m_ai: 'Agente IA',
+    metrics_label: 'Métricas orbitales clave',
     ai_ready: 'Listo',
     ai_thinking: 'Analizando…',
     agent_title: 'Agente de Mando',
