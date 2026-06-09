@@ -851,6 +851,8 @@ export function App() {
           intelligence={intelligence}
         />
 
+        {/* Hide mode selector when detail panel is open (same screen area) */}
+        {selected < 0 && (
         <Suspense fallback={null}>
           <ViewModeSelector
             mode={store.viewMode}
@@ -859,6 +861,7 @@ export function App() {
             onSetMode={handleSetViewMode}
           />
         </Suspense>
+        )}
 
         {store.showDataHealthPanel && (
           <Suspense fallback={null}>
