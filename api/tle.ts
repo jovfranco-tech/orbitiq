@@ -370,7 +370,16 @@ async function fetchOperational(now: number): Promise<TleResponse> {
 // ---------------------------------------------------------------------------
 
 async function fetchExpanded(now: number): Promise<TleResponse> {
-  const operational = await fetchOperational(now);
+  // Reuse a warm operational cache entry so the expanded base is always the same
+  // dataset as the cached operational response — guarantees expanded count >= operational.
+  const opEntry = caches['operational'];
+  let operational: TleResponse;
+  if (opEntry && now - opEntry.fetchedAt < CACHE_TTL_MS) {
+    operational = opEntry.data;
+  } else {
+    operational = await fetchOperational(now);
+    caches['operational'] = { data: operational, fetchedAt: now };
+  }
   const seen = new Set(operational.satellites.map((s) => s.satnum));
 
   const debrisResults = await Promise.allSettled(DEBRIS_SOURCES.map((s) => fetchTleSource(s)));

@@ -248,6 +248,7 @@ export function buildDebrisFallback(): SatelliteRecord[] {
       const label = `${f.namePrefix} ${String(i + 1).padStart(4, '0')}`;
       const rec = makeRecord(label, f.group, nextSatnum(), alt, incl, ecc, rnd() * 360, rnd() * 360, rnd() * 360, false);
       rec.objectClass = f.objectClass;
+      rec.sourceMode = 'demo';
       out.push(rec);
     }
   }

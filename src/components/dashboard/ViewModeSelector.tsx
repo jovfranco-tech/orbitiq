@@ -42,7 +42,10 @@ export function ViewModeSelector({ mode, loading, meta, onSetMode }: Props) {
   const inactive = meta?.inactivePayloadCount ?? 0;
   const operational = (meta?.operationalCount ?? 0) + (meta?.activePayloadCount ?? 0);
   const nonOperational = debris + rocket + inactive + (meta?.unknownCount ?? 0);
-  const isDemo = meta?.dataMode === 'fallback' || /DEMO/i.test(meta?.source ?? '');
+  const liveCount = meta?.liveCount ?? total;
+  const demoCount = meta?.demoCount ?? 0;
+  const hasDemo = demoCount > 0;
+  const isDemo = meta?.dataMode === 'fallback' || hasDemo || /DEMO/i.test(meta?.source ?? '');
 
   return (
     <section className="view-mode-selector glass" aria-label={t('mode_selector_aria')}>
@@ -118,12 +121,25 @@ export function ViewModeSelector({ mode, loading, meta, onSetMode }: Props) {
         </div>
       )}
 
+      {isExpanded && hasDemo && (
+        <div className="vms-count-integrity">
+          <span className="vms-count-live">{fmt(liveCount)} {t('mode_live_count')}</span>
+          <span className="vms-count-sep">+</span>
+          <span className="vms-count-demo">{fmt(demoCount)} {t('mode_demo_count')}</span>
+        </div>
+      )}
+
       {isExpanded && isDemo && (
         <p className="vms-demo-note">{t('mode_demo_note')}</p>
       )}
 
       {isExpanded && total > SAFEGUARD_THRESHOLD && (
         <p className="vms-safeguard">{t('mode_safeguard')}</p>
+      )}
+
+      {/* Data integrity note */}
+      {isExpanded && (
+        <p className="vms-count-note">{t('mode_count_note')}</p>
       )}
 
       {/* Executive credibility card */}

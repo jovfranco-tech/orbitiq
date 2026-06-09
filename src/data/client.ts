@@ -46,7 +46,7 @@ function supplementPartialCatalog(catalog: SatelliteRecord[]): SatelliteRecord[]
   return [...catalog, ...nonStarlinkFallback];
 }
 
-/** Attach group + objectClass to a raw record. */
+/** Attach group, objectClass, and sourceMode to a raw record. */
 function enrich(s: { name: string; satnum: number; l1: string; l2: string; isReal: boolean; objectClass?: ObjectClass }): SatelliteRecord {
   const altNominal = nominalAltitudeFromTle(s.l2);
   const group = classifyGroup(s.name, altNominal ?? 600);
@@ -55,13 +55,18 @@ function enrich(s: { name: string; satnum: number; l1: string; l2: string; isRea
     altNominal,
     group,
     objectClass: s.objectClass ?? classifyObjectClass(s.name, group, s.isReal),
+    sourceMode: s.isReal !== false ? 'live' : 'demo',
   };
 }
 
-/** Merge authoritative client-side class counts into the API meta. */
+/** Merge authoritative client-side class counts + live/demo split into the API meta. */
 function withClassCounts(meta: TleApiMeta, catalog: SatelliteRecord[]): TleApiMeta {
   const counts = tallyClasses(catalog.map((c) => c.objectClass ?? 'active_payload'));
-  return { ...meta, ...counts };
+  // Use isReal (always set) as the ground truth for live vs demo — sourceMode is derived
+  // from isReal via enrich() but not every record path calls enrich() (e.g. debris fallback).
+  const liveCount = catalog.filter((c) => c.isReal !== false).length;
+  const demoCount = catalog.length - liveCount;
+  return { ...meta, ...counts, liveCount, demoCount };
 }
 
 /** Map a ViewMode to the query string accepted by /api/tle. */

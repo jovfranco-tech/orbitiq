@@ -329,6 +329,10 @@ const DICT: Record<LangKey, Dict> = {
     class_unknown_object: 'Unknown objects',
     legend_classes: 'Object classes',
     d_objclass: 'Object class',
+    // v1.1.1 — data integrity / count consistency
+    mode_live_count: 'live public objects',
+    mode_demo_count: 'representative DEMO',
+    mode_count_note: 'Counts distinguish live public objects from representative debris/risk objects.',
   },
 
   es: {
@@ -646,6 +650,10 @@ const DICT: Record<LangKey, Dict> = {
     class_unknown_object: 'Objetos desconocidos',
     legend_classes: 'Clases de objeto',
     d_objclass: 'Clase de objeto',
+    // v1.1.1 — integridad de datos / consistencia de conteos
+    mode_live_count: 'objetos públicos en vivo',
+    mode_demo_count: 'DEMO representativos',
+    mode_count_note: 'Los conteos distinguen objetos públicos en vivo de objetos representativos de desechos/riesgo.',
   },
 };
 
