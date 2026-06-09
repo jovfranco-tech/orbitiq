@@ -105,4 +105,27 @@ describe('loadSatellites', () => {
     expect(result.meta?.rocketBodyCount).toBeGreaterThanOrEqual(1);
     expect(result.catalog.find((c) => c.name === 'COSMOS 1408 DEB')?.objectClass).toBe('debris');
   });
+
+  it('meta liveCount/demoCount correctly reflect isReal flag across the full catalog', async () => {
+    mockFetch.mockRejectedValue(new Error('offline'));
+    const expanded = await loadSatellites('expanded');
+    // isReal is the authoritative flag; liveCount/demoCount are derived from it
+    const realRecs = expanded.catalog.filter((c) => c.isReal !== false);
+    const syntheticRecs = expanded.catalog.filter((c) => c.isReal === false);
+    expect(syntheticRecs.length).toBeGreaterThan(0);
+    expect(expanded.meta?.demoCount).toBe(syntheticRecs.length);
+    expect(expanded.meta?.liveCount).toBe(realRecs.length);
+    expect((expanded.meta?.liveCount ?? 0) + (expanded.meta?.demoCount ?? 0)).toBe(expanded.catalog.length);
+  });
+
+  it('per-record sourceMode is set to demo on enriched synthetic records', async () => {
+    mockFetch.mockRejectedValue(new Error('offline'));
+    const expanded = await loadSatellites('expanded');
+    // Records that went through enrich() must have sourceMode='demo' when isReal=false
+    const enrichedSynthetic = expanded.catalog.filter((c) => c.isReal === false && c.sourceMode !== undefined);
+    expect(enrichedSynthetic.every((d) => d.sourceMode === 'demo')).toBe(true);
+    // buildDebrisFallback() records also have sourceMode set (via catalog.ts)
+    const debrisRecs = expanded.catalog.filter((c) => c.objectClass === 'debris' && c.isReal === false);
+    expect(debrisRecs.every((d) => d.sourceMode === 'demo')).toBe(true);
+  });
 });

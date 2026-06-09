@@ -18,6 +18,8 @@ export interface SatelliteRecord {
   altNominal?: number;
   /** Normalized orbital object class (payload / rocket body / debris / …) */
   objectClass?: ObjectClass;
+  /** Data origin: live public TLE feed or synthetic representative DEMO object */
+  sourceMode?: 'live' | 'demo';
 }
 
 /**
@@ -96,6 +98,10 @@ export interface TleApiMeta {
   rocketBodyCount?: number;
   debrisCount?: number;
   unknownCount?: number;
+  /** Count of objects sourced from live public TLE feeds (excludes synthetic DEMO objects). */
+  liveCount?: number;
+  /** Count of synthetic representative DEMO objects (only present when real feeds are unavailable). */
+  demoCount?: number;
   /** Honest, human-readable limitations for this dataset/mode. */
   limitations?: string[];
 }
