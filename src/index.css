@@ -176,6 +176,7 @@ input,select,button{font-family:inherit}
 /* ----------------------------- Left rail --------------------------------- */
 .left{grid-area:left;display:flex;flex-direction:column;gap:14px;
   width:var(--rail);min-height:0;overflow:hidden}
+#agentCard{max-height:38vh;overflow-y:auto;flex-shrink:0}
 .card{padding:14px;display:flex;flex-direction:column;gap:12px;min-height:0}
 .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .card-title{display:flex;gap:10px;align-items:center;font-family:var(--disp);
