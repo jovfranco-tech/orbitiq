@@ -1380,7 +1380,7 @@ input,select,button{font-family:inherit}
    Expanded Orbital Environment — view mode selector (v1.1.0)
    ============================================================ */
 .view-mode-selector{
-  position:fixed; top:64px; right:16px; left:auto; transform:none;
+  position:fixed; top:110px; right:16px; left:auto; transform:none;
   z-index:13; width:min(320px,calc(100vw - 32px));
   padding:11px 14px; display:flex; flex-direction:column; gap:9px;
 }
